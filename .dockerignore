@@ -1,0 +1,14 @@
+.git/
+.vs/
+.idea/
+**/bin/
+**/obj/
+data/
+logs/
+src/**/logs/
+*.user
+*.suo
+appsettings.Local.json
+.env
+.env.local
+README.md

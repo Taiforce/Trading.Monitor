@@ -1,0 +1,21 @@
+<Project Sdk="Microsoft.NET.Sdk.Worker">
+
+	<PropertyGroup>
+		<TargetFramework>net9.0</TargetFramework>
+		<Nullable>enable</Nullable>
+		<ImplicitUsings>enable</ImplicitUsings>
+		<UserSecretsId>dotnet-Trading.Monitor.Worker-89733ac4-c1b0-4c0e-9133-6c9b4a8f1b4f</UserSecretsId>
+	</PropertyGroup>
+
+	<ItemGroup>
+		<PackageReference Include="Microsoft.Extensions.Hosting" Version="9.0.18" />
+		<PackageReference Include="Serilog.AspNetCore" Version="9.0.0" />
+		<PackageReference Include="Serilog.Sinks.File" Version="7.0.0" />
+	</ItemGroup>
+
+	<ItemGroup>
+		<ProjectReference Include="..\Trading.Monitor.Application\Trading.Monitor.Application.csproj" />
+		<ProjectReference Include="..\Trading.Monitor.Infrastructure\Trading.Monitor.Infrastructure.csproj" />
+		<ProjectReference Include="..\Trading.Monitor.Domain\Trading.Monitor.Domain.csproj" />
+	</ItemGroup>
+</Project>

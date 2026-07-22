@@ -1,0 +1,54 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="utf-8"/>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+    <title>@ViewData["Title"] - Trading Monitor</title>
+    <script type="importmap"></script>
+    <script>
+        (() => {
+            const stored = localStorage.getItem("trading-monitor-theme");
+            const prefersDark = window.matchMedia && window.matchMedia("(prefers-color-scheme: dark)").matches;
+            document.documentElement.dataset.theme = stored || (prefersDark ? "dark" : "light");
+        })();
+    </script>
+    <link rel="stylesheet" href="~/lib/bootstrap/dist/css/bootstrap.min.css"/>
+    <link rel="stylesheet" href="~/css/site.css" asp-append-version="true"/>
+    <link rel="stylesheet" href="~/Trading.Monitor.Web.styles.css" asp-append-version="true"/>
+</head>
+<body>
+@{
+    var currentPage = ViewContext.RouteData.Values["page"]?.ToString() ?? "/Index";
+    string Active(string page) => string.Equals(currentPage, page, StringComparison.OrdinalIgnoreCase) ? "active" : "";
+}
+<header class="topbar">
+    <nav class="container-fluid app-nav">
+        <a class="brand" asp-area="" asp-page="/Index">
+            <span class="brand-mark">TM</span>
+            <span>Trading Monitor</span>
+        </a>
+        <div class="nav-links">
+            <a class="@Active("/Index")" asp-page="/Index">Resumen</a>
+            <a class="@Active("/Actions")" asp-page="/Actions">Acciones</a>
+            <a class="@Active("/Reports")" asp-page="/Reports">Reportes</a>
+            <a class="@Active("/Connections")" asp-page="/Connections">Conexiones</a>
+            <a class="@Active("/Logs")" asp-page="/Logs">Logs</a>
+        </div>
+        <label class="theme-toggle" title="Cambiar modo">
+            <input id="themeToggle" type="checkbox" aria-label="Modo oscuro"/>
+            <span></span>
+            <em>Dark</em>
+        </label>
+    </nav>
+</header>
+
+<main role="main">
+    @RenderBody()
+</main>
+
+<script src="~/lib/jquery/dist/jquery.min.js"></script>
+<script src="~/lib/bootstrap/dist/js/bootstrap.bundle.min.js"></script>
+<script src="~/js/site.js" asp-append-version="true"></script>
+@await RenderSectionAsync("Scripts", false)
+</body>
+</html>

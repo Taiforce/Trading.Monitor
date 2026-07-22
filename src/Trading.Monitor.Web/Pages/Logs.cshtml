@@ -1,0 +1,100 @@
+@page "/logs"
+@model LogsModel
+@{
+    ViewData["Title"] = "Logs";
+}
+
+<section class="dashboard">
+    <div class="page-head">
+        <div>
+            <p class="eyebrow">Serilog</p>
+            <h1>Logs operativos</h1>
+        </div>
+        <form method="get" class="filter-bar">
+            <label>
+                <span>Archivo</span>
+                <select asp-for="LogFile">
+                    @foreach (var file in Model.Files)
+                    {
+                        <option value="@file.RelativePath" selected="@(file.RelativePath == Model.LogFile)">@file.DisplayName</option>
+                    }
+                </select>
+            </label>
+            <label>
+                <span>Lineas</span>
+                <input asp-for="Lines" type="number" min="50" max="1000" step="50"/>
+            </label>
+            <button type="submit">Leer</button>
+        </form>
+    </div>
+
+    <section class="metrics-grid metrics-grid-four" aria-label="Resumen de logs">
+        <article class="metric">
+            <span>Archivos</span>
+            <strong>@Model.Files.Count</strong>
+            <small>@Model.Snapshot.RootPath</small>
+        </article>
+        <article class="metric">
+            <span>Archivo activo</span>
+            <strong>@(Model.Snapshot.File?.DisplayName ?? "-")</strong>
+            <small>@(Model.Snapshot.File is null ? "sin seleccion" : Model.SizeLabel(Model.Snapshot.File.SizeBytes))</small>
+        </article>
+        <article class="metric">
+            <span>Ultima escritura</span>
+            <strong>@(Model.Snapshot.File?.LastWriteTime.ToLocalTime().ToString("HH:mm") ?? "-")</strong>
+            <small>@(Model.Snapshot.File?.LastWriteTime.ToLocalTime().ToString("dd MMM yyyy") ?? "-")</small>
+        </article>
+        <article class="metric">
+            <span>Lineas</span>
+            <strong>@Model.Snapshot.Lines.Count</strong>
+            <small>mostradas</small>
+        </article>
+    </section>
+
+    <section class="report-section">
+        <div class="section-title">
+            <h2>Salida reciente</h2>
+            <span>@(Model.Snapshot.File?.DisplayName ?? "sin archivo")</span>
+        </div>
+
+        @if (!string.IsNullOrWhiteSpace(Model.Snapshot.ErrorMessage))
+        {
+            <div class="empty-state">
+                <strong>No pude leer los logs.</strong>
+                <span>@Model.Snapshot.ErrorMessage</span>
+            </div>
+        }
+        else if (Model.Snapshot.Lines.Count == 0)
+        {
+            <div class="empty-state">
+                <strong>Sin lineas para mostrar.</strong>
+                <span>Cuando web o worker escriban logs, apareceran aqui.</span>
+            </div>
+        }
+        else
+        {
+            <pre class="log-output">@foreach (var line in Model.Snapshot.Lines)
+{
+@line
+}</pre>
+        }
+    </section>
+
+    <section class="report-section">
+        <div class="section-title">
+            <h2>Archivos disponibles</h2>
+            <span>@Model.Files.Count encontrados</span>
+        </div>
+
+        <div class="log-file-list">
+            @foreach (var file in Model.Files)
+            {
+                <a asp-page="/Logs" asp-route-LogFile="@file.RelativePath" asp-route-Lines="@Model.Lines" class="log-file-link">
+                    <strong>@file.DisplayName</strong>
+                    <span>@Model.SizeLabel(file.SizeBytes)</span>
+                    <span>@file.LastWriteTime.ToLocalTime().ToString("dd MMM HH:mm")</span>
+                </a>
+            }
+        </div>
+    </section>
+</section>

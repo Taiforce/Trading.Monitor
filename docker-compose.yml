@@ -1,0 +1,98 @@
+name: trading-monitor
+
+services:
+  sqlserver:
+    image: mcr.microsoft.com/mssql/server:2022-latest
+    container_name: trading-monitor-sqlserver
+    restart: unless-stopped
+    environment:
+      ACCEPT_EULA: "Y"
+      MSSQL_PID: Developer
+      MSSQL_SA_PASSWORD: ${SQLSERVER_SA_PASSWORD:-TradingMarket_2026!Local}
+    ports:
+      - "127.0.0.1:${SQLSERVER_PORT:-14333}:1433"
+    volumes:
+      - sqlserver-data:/var/opt/mssql
+
+  web:
+    build:
+      context: .
+      dockerfile: docker/web.Dockerfile
+    image: trading-monitor-web:local
+    container_name: trading-monitor-web
+    restart: unless-stopped
+    dns:
+      - 1.1.1.1
+      - 8.8.8.8
+    ports:
+      - "${WEB_PORT:-5088}:8080"
+    environment:
+      ASPNETCORE_ENVIRONMENT: Production
+      ASPNETCORE_URLS: http://+:8080
+      Database__Provider: SqlServer
+      Database__ConnectionString: Server=sqlserver,1433;Database=TradingMarket;User Id=sa;Password=${SQLSERVER_SA_PASSWORD:-TradingMarket_2026!Local};TrustServerCertificate=True;Encrypt=True;MultipleActiveResultSets=True
+      Logs__DirectoryPath: /shared-logs
+      Reporting__DefaultCapital: ${REPORTING_DEFAULT_CAPITAL:-1000}
+      Reporting__EstimatedFeePercentPerSide: ${REPORTING_FEE_PERCENT_PER_SIDE:-0.1}
+    volumes:
+      - ./logs/web:/app/logs
+      - ./logs:/shared-logs:ro
+    depends_on:
+      - sqlserver
+
+  worker:
+    build:
+      context: .
+      dockerfile: docker/worker.Dockerfile
+    image: trading-monitor-worker:local
+    container_name: trading-monitor-worker
+    restart: unless-stopped
+    dns:
+      - 1.1.1.1
+      - 8.8.8.8
+    env_file:
+      - .env.local
+    environment:
+      DOTNET_ENVIRONMENT: Production
+      Database__Provider: SqlServer
+      Database__ConnectionString: Server=sqlserver,1433;Database=TradingMarket;User Id=sa;Password=${SQLSERVER_SA_PASSWORD:-TradingMarket_2026!Local};TrustServerCertificate=True;Encrypt=True;MultipleActiveResultSets=True
+      TradingMonitor__Enabled: ${TRADING_MONITOR_ENABLED:-true}
+      TradingMonitor__MinimumScore: ${TRADING_MINIMUM_SCORE:-80}
+      TradingMonitor__EvaluationIntervalSeconds: ${TRADING_EVALUATION_INTERVAL_SECONDS:-60}
+      MarketSources__BinanceEnabled: ${MARKET_BINANCE_ENABLED:-true}
+      MarketSources__BinanceUsEnabled: ${MARKET_BINANCE_US_ENABLED:-true}
+      MarketSources__CoinbaseEnabled: ${MARKET_COINBASE_ENABLED:-true}
+      MarketSources__KrakenEnabled: ${MARKET_KRAKEN_ENABLED:-true}
+      MarketSources__BinanceBaseUrl: ${BINANCE_BASE_URL:-https://api.binance.com}
+      MarketSources__BinanceUsBaseUrl: ${BINANCE_US_BASE_URL:-https://api.binance.us}
+      MarketSources__CoinbaseBaseUrl: ${COINBASE_BASE_URL:-https://api.exchange.coinbase.com}
+      MarketSources__KrakenBaseUrl: ${KRAKEN_BASE_URL:-https://api.kraken.com}
+      MarketSources__TimeoutSeconds: ${MARKET_TIMEOUT_SECONDS:-10}
+      News__Enabled: ${NEWS_ENABLED:-true}
+      OpenAi__Enabled: ${OPENAI_ENABLED:-true}
+      OpenAi__ApiKeyEnvironmentVariable: OPENAI_API_KEY
+      OpenAi__BaseUrl: ${OPENAI_BASE_URL:-https://api.openai.com}
+      OpenAi__Model: ${OPENAI_MODEL:-gpt-4.1-mini}
+      OpenAi__TimeoutSeconds: ${OPENAI_TIMEOUT_SECONDS:-20}
+      OpenAi__MaxNewsItems: ${OPENAI_MAX_NEWS_ITEMS:-12}
+      Reporting__DefaultCapital: ${REPORTING_DEFAULT_CAPITAL:-1000}
+      Reporting__EstimatedFeePercentPerSide: ${REPORTING_FEE_PERCENT_PER_SIDE:-0.1}
+      Notifications__ConsoleEnabled: ${NOTIFICATIONS_CONSOLE_ENABLED:-true}
+      Notifications__Email__Enabled: ${EMAIL_ENABLED:-false}
+      Notifications__Email__Host: ${EMAIL_HOST:-}
+      Notifications__Email__Port: ${EMAIL_PORT:-587}
+      Notifications__Email__UseSsl: ${EMAIL_USE_SSL:-true}
+      Notifications__Email__UserName: ${EMAIL_USERNAME:-}
+      Notifications__Email__Password: ${EMAIL_PASSWORD:-}
+      Notifications__Email__From: ${EMAIL_FROM:-}
+      Notifications__Email__To: ${EMAIL_TO:-}
+      Notifications__Telegram__Enabled: ${TELEGRAM_ENABLED:-false}
+      Notifications__Telegram__BotToken: ${TELEGRAM_BOT_TOKEN:-}
+      Notifications__Telegram__ChatId: ${TELEGRAM_CHAT_ID:-}
+    volumes:
+      - ./logs/worker:/app/logs
+    depends_on:
+      - sqlserver
+
+volumes:
+  sqlserver-data:

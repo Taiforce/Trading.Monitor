@@ -1,0 +1,151 @@
+@page
+@model IndexModel
+@{
+    ViewData["Title"] = "Resumen";
+    var activeSignals = Model.Report.RecentSignals.Where(row => row.Status == Trading.Monitor.Domain.OpportunityStatus.Open).Take(6).ToArray();
+    var riskySources = Model.Report.SourceHealth.Where(row => row.Status != Trading.Monitor.Domain.DataSourceStatus.Healthy).Take(6).ToArray();
+}
+
+<section class="dashboard">
+    <div class="dashboard-head">
+        <div>
+            <p class="eyebrow">Vista general</p>
+            <h1>Resumen del monitor de trading</h1>
+        </div>
+        <form method="get" class="capital-form">
+            <label asp-for="Capital">Monto por oportunidad</label>
+            <div class="capital-control">
+                <input asp-for="Capital" type="number" min="1" step="50"/>
+                <button type="submit">Recalcular</button>
+            </div>
+        </form>
+    </div>
+
+    <div class="pain-strip">
+        <span>Costo de oportunidad</span>
+        <strong>@Model.PainLine</strong>
+    </div>
+
+    <section class="metrics-grid" aria-label="Metricas principales">
+        <article class="metric">
+            <span>Senales</span>
+            <strong>@Model.Report.TotalSignals</strong>
+            <small>@Model.Report.OpenSignals abiertas</small>
+        </article>
+        <article class="metric">
+            <span>PnL realizado</span>
+            <strong class="@Model.SignedClass(Model.Report.RealizedNetPnL)">@Model.Money(Model.Report.RealizedNetPnL)</strong>
+            <small>@Model.Report.ClosedSignals cerradas</small>
+        </article>
+        <article class="metric">
+            <span>Potencial TP1</span>
+            <strong class="@Model.SignedClass(Model.Report.PotentialNetAtTakeProfit1)">@Model.Money(Model.Report.PotentialNetAtTakeProfit1)</strong>
+            <small>con @Model.Money(Model.Report.Capital) por senal</small>
+        </article>
+        <article class="metric">
+            <span>Riesgo a stop</span>
+            <strong class="@Model.SignedClass(Model.Report.PotentialLossAtStop)">@Model.Money(Model.Report.PotentialLossAtStop)</strong>
+            <small>perdida neta estimada</small>
+        </article>
+        <article class="metric">
+            <span>Conexiones</span>
+            <strong>@Model.Report.SourceHealth.Count</strong>
+            <small>@Model.DegradedSources con alerta</small>
+        </article>
+        <article class="metric">
+            <span>Investigacion</span>
+            <strong>@Model.Report.RecentResearch.Count</strong>
+            <small>items recientes</small>
+        </article>
+    </section>
+
+    <section class="quick-links" aria-label="Secciones">
+        <a asp-page="/Actions" asp-route-Capital="@Model.Report.Capital">
+            <strong>Acciones</strong>
+            <span>Entradas, salidas, TP, stop y monto hipotetico.</span>
+        </a>
+        <a asp-page="/Reports" asp-route-Capital="@Model.Report.Capital">
+            <strong>Reportes</strong>
+            <span>Rendimiento por simbolo, dia y score.</span>
+        </a>
+        <a asp-page="/Connections">
+            <strong>Conexiones</strong>
+            <span>Estado de exchanges, noticias, reportes e IA.</span>
+        </a>
+        <a asp-page="/Logs">
+            <strong>Logs</strong>
+            <span>Lectura rapida de Serilog del worker y la web.</span>
+        </a>
+    </section>
+
+    <section class="two-column">
+        <div class="report-section">
+            <div class="section-title">
+                <h2>Acciones abiertas</h2>
+                <a asp-page="/Actions" asp-route-Capital="@Model.Report.Capital">Ver todas</a>
+            </div>
+
+            @if (activeSignals.Length == 0)
+            {
+                <div class="empty-state">
+                    <strong>Sin acciones abiertas.</strong>
+                    <span>El worker seguira buscando entradas con score suficiente.</span>
+                </div>
+            }
+            else
+            {
+                <div class="compact-list">
+                    @foreach (var row in activeSignals)
+                    {
+                        <article class="compact-row">
+                            <div>
+                                <strong>@row.Symbol @row.Side</strong>
+                                <span>Entrada @Model.Price(row.EntryLower) - @Model.Price(row.EntryUpper)</span>
+                            </div>
+                            <span class="status @Model.StatusClass(row.Status)">@Model.StatusLabel(row.Status)</span>
+                            <div>
+                                <small>TP1</small>
+                                <strong class="gain">@Model.Money(row.NetProfitAtTakeProfit1)</strong>
+                            </div>
+                            <div>
+                                <small>Stop</small>
+                                <strong class="loss">@Model.Money(row.NetLossAtStop)</strong>
+                            </div>
+                        </article>
+                    }
+                </div>
+            }
+        </div>
+
+        <div class="report-section">
+            <div class="section-title">
+                <h2>Conexiones con alerta</h2>
+                <a asp-page="/Connections">Ver estado</a>
+            </div>
+
+            @if (riskySources.Length == 0)
+            {
+                <div class="empty-state">
+                    <strong>Fuentes sin alertas activas.</strong>
+                    <span>Las conexiones sanas dejan respirar mejor al sistema.</span>
+                </div>
+            }
+            else
+            {
+                <div class="compact-list">
+                    @foreach (var source in riskySources)
+                    {
+                        <article class="compact-row compact-row-two">
+                            <div>
+                                <strong>@source.SourceName</strong>
+                                <span>@source.Kind</span>
+                            </div>
+                            <span class="status @Model.SourceStatusClass(source.Status)">@source.Status</span>
+                            <p>@source.LastMessage</p>
+                        </article>
+                    }
+                </div>
+            }
+        </div>
+    </section>
+</section>

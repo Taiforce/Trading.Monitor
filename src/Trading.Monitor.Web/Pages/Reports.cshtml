@@ -1,0 +1,205 @@
+@page "/reportes"
+@model ReportsModel
+@{
+    ViewData["Title"] = "Reportes";
+}
+
+<section class="dashboard">
+    <div class="page-head">
+        <div>
+            <p class="eyebrow">Analitica del trader</p>
+            <h1>Reportes</h1>
+        </div>
+        <form method="get" class="capital-form compact-capital">
+            <label asp-for="Capital">Monto por oportunidad</label>
+            <div class="capital-control">
+                <input asp-for="Capital" type="number" min="1" step="50"/>
+                <button type="submit">Recalcular</button>
+            </div>
+        </form>
+    </div>
+
+    <div class="insight-strip">
+        <span>Lectura ejecutiva</span>
+        <strong>@Model.ExecutiveReadout</strong>
+    </div>
+
+    <section class="metrics-grid metrics-grid-four" aria-label="Resumen de reportes">
+        <article class="metric">
+            <span>Win rate</span>
+            <strong>@Model.Report.WinRate.ToString("N2")%</strong>
+            <small>@Model.Report.Winners ganadoras, @Model.Report.Losers perdedoras</small>
+        </article>
+        <article class="metric">
+            <span>Score promedio</span>
+            <strong>@Model.Report.AverageScore.ToString("N1")</strong>
+            <small>calidad media</small>
+        </article>
+        <article class="metric">
+            <span>Mejor simbolo</span>
+            <strong>@(Model.BestSymbol?.Symbol ?? "-")</strong>
+            <small>@Model.Money(Model.BestSymbol?.RealizedNetPnL ?? 0m) realizado</small>
+        </article>
+        <article class="metric">
+            <span>Promedio por senal</span>
+            <strong class="gain">@Model.Money(Model.AveragePotentialTp1)</strong>
+            <small>si tocaba TP1</small>
+        </article>
+    </section>
+
+    <section class="metrics-grid metrics-grid-four" aria-label="Riesgo y comparativos">
+        <article class="metric metric-soft">
+            <span>Peor simbolo</span>
+            <strong>@(Model.WorstSymbol?.Symbol ?? "-")</strong>
+            <small>@Model.Money(Model.WorstSymbol?.RealizedNetPnL ?? 0m) realizado</small>
+        </article>
+        <article class="metric metric-soft">
+            <span>Mejor dia</span>
+            <strong>@(Model.BestDay?.Day.ToString("dd MMM") ?? "-")</strong>
+            <small>@Model.Money(Model.BestDay?.RealizedNetPnL ?? 0m) realizado</small>
+        </article>
+        <article class="metric metric-soft">
+            <span>Stop promedio</span>
+            <strong class="loss">@Model.Money(Model.AverageStopLoss)</strong>
+            <small>por oportunidad</small>
+        </article>
+        <article class="metric metric-soft">
+            <span>Oportunidades cerradas</span>
+            <strong>@Model.Report.ClosedSignals</strong>
+            <small>base real para evaluar</small>
+        </article>
+    </section>
+
+    <section class="two-column">
+        <div class="report-section">
+            <div class="section-title">
+                <h2>Por simbolo</h2>
+                <span>potencial y dano</span>
+            </div>
+
+            @if (Model.Report.SymbolBreakdown.Count == 0)
+            {
+                <div class="empty-state">
+                    <strong>Sin senales por simbolo.</strong>
+                    <span>Cuando aparezcan oportunidades, este reporte separara rendimiento por activo.</span>
+                </div>
+            }
+            else
+            {
+                <div class="symbol-list">
+                    @foreach (var row in Model.Report.SymbolBreakdown)
+                    {
+                        <article class="symbol-row">
+                            <div>
+                                <strong>@row.Symbol</strong>
+                                <span>@row.TotalSignals senales, @row.OpenSignals abiertas</span>
+                            </div>
+                            <div class="bar-set">
+                                <div class="bar gain-bar" style="width:@Model.BarWidth(row.PotentialNetAtTakeProfit1, Model.MaxSymbolValue)%"></div>
+                                <div class="bar loss-bar" style="width:@Model.BarWidth(row.PotentialLossAtStop, Model.MaxSymbolValue)%"></div>
+                            </div>
+                            <div class="row-money">
+                                <span class="gain">@Model.Money(row.PotentialNetAtTakeProfit1)</span>
+                                <span class="loss">@Model.Money(row.PotentialLossAtStop)</span>
+                            </div>
+                            <p class="row-note">
+                                @row.Winners ganadas, @row.Losers perdidas, @Model.Money(row.RealizedNetPnL) realizado.
+                            </p>
+                        </article>
+                    }
+                </div>
+            }
+        </div>
+
+        <div class="report-section">
+            <div class="section-title">
+                <h2>Por dia</h2>
+                <span>ultimos 30 dias</span>
+            </div>
+
+            @if (Model.Report.DailyBreakdown.Count == 0)
+            {
+                <div class="empty-state">
+                    <strong>Sin dias para reportar.</strong>
+                    <span>El historial diario se llenara con el paso de los barridos.</span>
+                </div>
+            }
+            else
+            {
+                <div class="daily-list">
+                    @foreach (var row in Model.Report.DailyBreakdown)
+                    {
+                        <article class="daily-row">
+                            <strong>@row.Day.ToString("dd MMM yyyy")</strong>
+                            <span>@row.TotalSignals senales</span>
+                            <span class="@Model.SignedClass(row.RealizedNetPnL)">@Model.Money(row.RealizedNetPnL)</span>
+                            <span class="gain">@Model.Money(row.PotentialNetAtTakeProfit1)</span>
+                        </article>
+                    }
+                </div>
+            }
+        </div>
+    </section>
+
+    <section class="report-section">
+        <div class="section-title">
+            <h2>Historial resumido</h2>
+            <span>@Model.Report.RecentSignals.Count senales recientes</span>
+        </div>
+
+        <div class="table-wrap">
+            <table class="report-table compact-table">
+                <thead>
+                <tr>
+                    <th>Fecha</th>
+                    <th>Activo</th>
+                    <th>Estado</th>
+                    <th>Realizado</th>
+                    <th>TP1 potencial</th>
+                    <th>Stop potencial</th>
+                    <th>Score</th>
+                </tr>
+                </thead>
+                <tbody>
+                @foreach (var row in Model.Report.RecentSignals)
+                {
+                    <tr>
+                        <td>@row.ObservedAt.ToLocalTime().ToString("dd MMM HH:mm")</td>
+                        <td>@row.Symbol @row.Side</td>
+                        <td><span class="status @Model.StatusClass(row.Status)">@Model.StatusLabel(row.Status)</span></td>
+                        <td class="@Model.SignedClass(row.RealizedNetPnL)">@Model.Money(row.RealizedNetPnL)</td>
+                        <td class="gain">@Model.Money(row.NetProfitAtTakeProfit1)</td>
+                        <td class="loss">@Model.Money(row.NetLossAtStop)</td>
+                        <td>@row.Score</td>
+                    </tr>
+                }
+                </tbody>
+            </table>
+        </div>
+    </section>
+
+    <section class="report-section">
+        <div class="section-title">
+            <h2>Como leer estos numeros</h2>
+            <span>guia rapida</span>
+        </div>
+        <div class="guide-grid">
+            <article>
+                <strong>Win rate</strong>
+                <span>Porcentaje de operaciones cerradas con ganancia. No basta por si solo: tambien importa cuanto ganas vs cuanto pierdes.</span>
+            </article>
+            <article>
+                <strong>Score</strong>
+                <span>Confluencia tecnica. Un score alto significa que varias temporalidades e indicadores apuntan en la misma direccion.</span>
+            </article>
+            <article>
+                <strong>TP1 y TP2</strong>
+                <span>Objetivos de salida. TP1 es el objetivo conservador; TP2 es el escenario extendido si el movimiento continua.</span>
+            </article>
+            <article>
+                <strong>Stop</strong>
+                <span>Punto donde la idea deja de ser valida. Si llega ahi, la prioridad es proteger capital.</span>
+            </article>
+        </div>
+    </section>
+</section>

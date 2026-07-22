@@ -1,0 +1,245 @@
+@page "/acciones"
+@model ActionsModel
+@{
+    ViewData["Title"] = "Acciones";
+}
+
+<section class="dashboard">
+    <div class="page-head">
+        <div>
+            <p class="eyebrow">Entradas y salidas</p>
+            <h1>Acciones de trading</h1>
+        </div>
+        <form method="get" class="filter-bar">
+            <label>
+                <span>Monto</span>
+                <input asp-for="Capital" type="number" min="1" step="50"/>
+            </label>
+            <label>
+                <span>Estado</span>
+                <select asp-for="Estado">
+                    <option value="abiertas">Abiertas</option>
+                    <option value="cerradas">Cerradas</option>
+                    <option value="todas">Todas</option>
+                </select>
+            </label>
+            <label>
+                <span>Activo</span>
+                <select asp-for="Symbol">
+                    <option value="">Todos</option>
+                    @foreach (var symbol in Model.Symbols)
+                    {
+                        <option value="@symbol">@symbol</option>
+                    }
+                </select>
+            </label>
+            <button type="submit">Aplicar</button>
+        </form>
+    </div>
+
+    <section class="metrics-grid metrics-grid-four" aria-label="Resumen de acciones">
+        <article class="metric">
+            <span>Abiertas</span>
+            <strong>@Model.Report.OpenSignals</strong>
+            <small>requieren seguimiento</small>
+        </article>
+        <article class="metric">
+            <span>TP1 potencial</span>
+            <strong class="@Model.SignedClass(Model.Report.PotentialNetAtTakeProfit1)">@Model.Money(Model.Report.PotentialNetAtTakeProfit1)</strong>
+            <small>con @Model.Money(Model.Report.Capital) por senal</small>
+        </article>
+        <article class="metric">
+            <span>TP2 potencial</span>
+            <strong class="@Model.SignedClass(Model.Report.PotentialNetAtTakeProfit2)">@Model.Money(Model.Report.PotentialNetAtTakeProfit2)</strong>
+            <small>escenario extendido</small>
+        </article>
+        <article class="metric">
+            <span>Riesgo stop</span>
+            <strong class="@Model.SignedClass(Model.Report.PotentialLossAtStop)">@Model.Money(Model.Report.PotentialLossAtStop)</strong>
+            <small>lo que doleria</small>
+        </article>
+    </section>
+
+    <section class="report-section">
+        <div class="section-title">
+            <h2>Planes de operacion</h2>
+            <span>@Model.Rows.Count registros</span>
+        </div>
+
+        @if (Model.Rows.Count == 0)
+        {
+            <div class="empty-state">
+                <strong>Sin oportunidades para este filtro.</strong>
+                <span>El monitor puede estar esperando una confluencia mas fuerte.</span>
+            </div>
+        }
+        else
+        {
+            <div class="trade-card-grid">
+                @foreach (var row in Model.Rows.Take(12))
+                {
+                    var targetMove = Math.Abs(Model.PriceMovePercent(row.EntryPrice, row.TakeProfit1));
+                    var stopMove = Math.Abs(Model.PriceMovePercent(row.EntryPrice, row.StopLoss));
+                    <article class="trade-card">
+                        <div class="trade-card-head">
+                            <div>
+                                <strong>@row.Symbol @row.Side</strong>
+                                <span>@Model.SideMeaning(row.Side)</span>
+                            </div>
+                            <div class="trade-badges">
+                                <span class="status @Model.StatusClass(row.Status)">@Model.StatusLabel(row.Status)</span>
+                                <span class="score-pill">@row.Score - @Model.ScoreLabel(row.Score)</span>
+                            </div>
+                        </div>
+
+                        <div class="trade-plan-grid">
+                            <div>
+                                <small>Precio actual</small>
+                                <strong>@Model.Price(row.LastPrice)</strong>
+                            </div>
+                            <div>
+                                <small>Entrada sugerida</small>
+                                <strong>@Model.Price(row.EntryLower) - @Model.Price(row.EntryUpper)</strong>
+                            </div>
+                            <div>
+                                <small>Salida si sale bien</small>
+                                <strong class="gain">TP1 @Model.Price(row.TakeProfit1)</strong>
+                                <span>@targetMove.ToString("N2")% desde entrada</span>
+                            </div>
+                            <div>
+                                <small>Salida si se invalida</small>
+                                <strong class="loss">Stop @Model.Price(row.StopLoss)</strong>
+                                <span>@stopMove.ToString("N2")% desde entrada</span>
+                            </div>
+                        </div>
+
+                        <div class="money-scenario">
+                            <div>
+                                <span>Si tomabas TP1</span>
+                                <strong class="gain">@Model.Money(row.NetProfitAtTakeProfit1)</strong>
+                                <small>@Model.PercentOfCapital(row.NetProfitAtTakeProfit1).ToString("N2")% del monto</small>
+                            </div>
+                            <div>
+                                <span>Si esperabas TP2</span>
+                                <strong class="gain">@Model.Money(row.NetProfitAtTakeProfit2)</strong>
+                                <small>@Model.PercentOfCapital(row.NetProfitAtTakeProfit2).ToString("N2")% del monto</small>
+                            </div>
+                            <div>
+                                <span>Si pegaba stop</span>
+                                <strong class="loss">@Model.Money(row.NetLossAtStop)</strong>
+                                <small>@Model.PercentOfCapital(row.NetLossAtStop).ToString("N2")% del monto</small>
+                            </div>
+                        </div>
+
+                        <div class="trade-explain">
+                            <div>
+                                <h3>Por que aparece</h3>
+                                <ul>
+                                    @foreach (var reason in Model.SplitNotes(row.Reasons).Take(5))
+                                    {
+                                        <li>@reason</li>
+                                    }
+                                </ul>
+                            </div>
+                            <div>
+                                <h3>Que vigilar</h3>
+                                @if (Model.SplitNotes(row.Risks).Count == 0)
+                                {
+                                    <p>Sin riesgos especificos registrados, pero el stop sigue siendo la linea de invalidacion.</p>
+                                }
+                                else
+                                {
+                                    <ul>
+                                        @foreach (var risk in Model.SplitNotes(row.Risks).Take(5))
+                                        {
+                                            <li>@risk</li>
+                                        }
+                                    </ul>
+                                }
+                            </div>
+                        </div>
+
+                        <div class="trade-footer">
+                            <span>@Model.StatusMeaning(row.Status)</span>
+                            <span>Riesgo/beneficio 1:@row.RiskReward.ToString("N2")</span>
+                            <span>Vence @row.ExpiresAt.ToLocalTime().ToString("dd MMM HH:mm")</span>
+                        </div>
+                    </article>
+                }
+            </div>
+        }
+    </section>
+
+    <section class="report-section">
+        <div class="section-title">
+            <h2>Vista tabular</h2>
+            <span>detalle exacto</span>
+        </div>
+
+        @if (Model.Rows.Count > 0)
+        {
+            <div class="table-wrap">
+                <table class="report-table">
+                    <thead>
+                    <tr>
+                        <th>Fecha</th>
+                        <th>Activo</th>
+                        <th>Lado</th>
+                        <th>Estado</th>
+                        <th>Entrada</th>
+                        <th>Salida</th>
+                        <th>TP1 / TP2</th>
+                        <th>Stop</th>
+                        <th>Pude ganar TP1</th>
+                        <th>Pude perder</th>
+                        <th>Realizado</th>
+                        <th>Score</th>
+                    </tr>
+                    </thead>
+                    <tbody>
+                    @foreach (var row in Model.Rows)
+                    {
+                        <tr>
+                            <td>
+                                <strong>@row.ObservedAt.ToLocalTime().ToString("dd MMM HH:mm")</strong>
+                                <small>exp @row.ExpiresAt.ToLocalTime().ToString("HH:mm")</small>
+                            </td>
+                            <td>@row.Symbol</td>
+                            <td>
+                                <span class="side side-@row.Side.ToString().ToLowerInvariant()">@row.Side</span>
+                            </td>
+                            <td>
+                                <span class="status @Model.StatusClass(row.Status)">@Model.StatusLabel(row.Status)</span>
+                            </td>
+                            <td>
+                                <strong>@Model.Price(row.EntryLower) - @Model.Price(row.EntryUpper)</strong>
+                                <small>base @Model.Price(row.EntryPrice)</small>
+                            </td>
+                            <td>
+                                @if (row.ExitPrice.HasValue)
+                                {
+                                    <strong>@Model.Price(row.ExitPrice.Value)</strong>
+                                    <small>@row.ExitTime?.ToLocalTime().ToString("dd MMM HH:mm")</small>
+                                }
+                                else
+                                {
+                                    <span class="muted">Pendiente</span>
+                                }
+                            </td>
+                            <td>
+                                <strong>@Model.Price(row.TakeProfit1)</strong>
+                                <small>@Model.Price(row.TakeProfit2)</small>
+                            </td>
+                            <td>@Model.Price(row.StopLoss)</td>
+                            <td class="gain">@Model.Money(row.NetProfitAtTakeProfit1)</td>
+                            <td class="loss">@Model.Money(row.NetLossAtStop)</td>
+                            <td class="@Model.SignedClass(row.RealizedNetPnL)">@Model.Money(row.RealizedNetPnL)</td>
+                            <td>@row.Score</td>
+                        </tr>
+                    }
+                    </tbody>
+                </table>
+            </div>
+        }
+    </section>
+</section>

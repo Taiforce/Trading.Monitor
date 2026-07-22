@@ -1,0 +1,145 @@
+@page "/conexiones"
+@model ConnectionsModel
+@{
+    ViewData["Title"] = "Conexiones";
+}
+
+<section class="dashboard">
+    <div class="page-head">
+        <div>
+            <p class="eyebrow">Mercado, noticias e IA</p>
+            <h1>Conexiones</h1>
+        </div>
+        <form method="get" class="filter-bar connections-filter">
+            <label>
+                <span>Buscar</span>
+                <input asp-for="Buscar" type="search" placeholder="fuente, url o mensaje"/>
+            </label>
+            <label>
+                <span>Estado</span>
+                <select asp-for="Estado">
+                    <option value="todas">Todas</option>
+                    <option value="sanas">Sanas</option>
+                    <option value="degradadas">Degradadas</option>
+                    <option value="fallidas">Fallidas</option>
+                </select>
+            </label>
+            <label>
+                <span>Tipo</span>
+                <select asp-for="Tipo">
+                    <option value="">Todos</option>
+                    @foreach (var kind in Model.AvailableKinds)
+                    {
+                        <option value="@kind">@kind</option>
+                    }
+                </select>
+            </label>
+            <button type="submit">Filtrar</button>
+        </form>
+    </div>
+
+    <section class="metrics-grid metrics-grid-four" aria-label="Resumen de conexiones">
+        <article class="metric">
+            <span>Fuentes</span>
+            <strong>@Model.Report.SourceHealth.Count</strong>
+            <small>registradas</small>
+        </article>
+        <article class="metric">
+            <span>Sanas</span>
+            <strong>@Model.Report.SourceHealth.Count(row => row.Status == Trading.Monitor.Domain.DataSourceStatus.Healthy)</strong>
+            <small>responden correctamente</small>
+        </article>
+        <article class="metric">
+            <span>Degradadas</span>
+            <strong>@Model.Report.SourceHealth.Count(row => row.Status == Trading.Monitor.Domain.DataSourceStatus.Degraded)</strong>
+            <small>sin datos utiles o parciales</small>
+        </article>
+        <article class="metric">
+            <span>Fallidas</span>
+            <strong>@Model.Report.SourceHealth.Count(row => row.Status == Trading.Monitor.Domain.DataSourceStatus.Failed)</strong>
+            <small>no detienen el servicio</small>
+        </article>
+    </section>
+
+    @if (Model.FilteredSources.Count == 0)
+    {
+        <div class="empty-state">
+            <strong>No hay conexiones para ese filtro.</strong>
+            <span>Prueba cambiando estado, tipo o texto de busqueda.</span>
+        </div>
+    }
+    else
+    {
+        @foreach (var group in Model.SourcesByKind)
+        {
+            <section class="report-section">
+                <div class="section-title">
+                    <h2>@group.Key</h2>
+                    <span>@group.Count() fuentes</span>
+                </div>
+
+                <div class="source-grid">
+                    @foreach (var source in group)
+                    {
+                        <article class="source-row">
+                            <div>
+                                <strong>@source.SourceName</strong>
+                                <span>@(source.Url ?? "sin URL")</span>
+                            </div>
+                            <span class="status @Model.SourceStatusClass(source.Status)">@source.Status</span>
+                            <div>
+                                <small>Ultimo ok</small>
+                                <strong>@(source.LastSuccessAt?.ToLocalTime().ToString("dd MMM HH:mm") ?? "-")</strong>
+                            </div>
+                            <div>
+                                <small>Fallos</small>
+                                <strong>@source.FailureCount</strong>
+                            </div>
+                            <p>@source.LastMessage</p>
+                        </article>
+                    }
+                </div>
+            </section>
+        }
+    }
+
+    <section class="report-section">
+        <div class="section-title">
+            <h2>Investigacion reciente</h2>
+            <span>@Model.Report.RecentResearch.Count items</span>
+        </div>
+
+        @if (Model.Report.RecentResearch.Count == 0)
+        {
+            <div class="empty-state">
+                <strong>Aun no hay investigacion capturada.</strong>
+                <span>Las noticias, reportes macro y resumenes de IA apareceran aqui cuando coincidan con los activos monitoreados.</span>
+            </div>
+        }
+        else
+        {
+            <div class="research-list">
+                @foreach (var item in Model.Report.RecentResearch)
+                {
+                    <article class="research-row">
+                        <div class="research-meta">
+                            <span>@item.PublishedAt.ToLocalTime().ToString("dd MMM HH:mm")</span>
+                            <span>@item.Kind</span>
+                            <span>@item.Source</span>
+                            <span class="@Model.SentimentClass(item.Sentiment)">@item.Sentiment</span>
+                        </div>
+                        @if (item.Url.StartsWith("http", StringComparison.OrdinalIgnoreCase))
+                        {
+                            <a href="@item.Url" target="_blank" rel="noopener">@item.Title</a>
+                        }
+                        else
+                        {
+                            <strong>@item.Title</strong>
+                        }
+                        <small>@item.Symbols</small>
+                    </article>
+                }
+            </div>
+        }
+    </section>
+</section>
