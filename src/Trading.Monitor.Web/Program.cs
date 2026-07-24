@@ -24,8 +24,26 @@ try
     builder.Services.Configure<StorageOptions>(builder.Configuration.GetSection("Storage"));
     builder.Services.Configure<DatabaseOptions>(builder.Configuration.GetSection("Database"));
     builder.Services.Configure<ReportingOptions>(builder.Configuration.GetSection("Reporting"));
+    builder.Services.Configure<ExchangeExecutionOptions>(builder.Configuration.GetSection("ExchangeExecution"));
     builder.Services.AddSingleton<OpportunityProjectionService>();
+    builder.Services.AddSingleton<TradeInstructionService>();
+    builder.Services.AddSingleton<VirtualPortfolioSimulator>();
+    builder.Services.AddSingleton<TraderFollowSimulator>();
     builder.Services.AddSingleton<OperationalLogReader>();
+    builder.Services.AddScoped<LiveOperationsSnapshotService>();
+    builder.Services.AddHttpClient<LiveChartSnapshotService>(client =>
+    {
+        client.BaseAddress = new Uri("https://api.binance.com");
+        client.Timeout = TimeSpan.FromSeconds(10);
+        client.DefaultRequestHeaders.UserAgent.ParseAdd("Trading.Monitor/1.0");
+    });
+    builder.Services.AddHttpClient<ExchangeConnectionStatusService>((serviceProvider, client) =>
+    {
+        var options = serviceProvider.GetRequiredService<Microsoft.Extensions.Options.IOptionsMonitor<ExchangeExecutionOptions>>().CurrentValue;
+        client.BaseAddress = new Uri(options.BaseUrl);
+        client.Timeout = TimeSpan.FromSeconds(10);
+        client.DefaultRequestHeaders.UserAgent.ParseAdd("Trading.Monitor/1.0");
+    });
     builder.Services.AddTradingMonitorDatabase(builder.Configuration, builder.Environment.ContentRootPath);
     builder.Services.AddRazorPages();
 
@@ -44,6 +62,18 @@ try
     app.UseRouting();
     app.UseAuthorization();
     app.MapStaticAssets();
+    app.MapGet("/api/operaciones-vivas", async (decimal? capital, string? estado, string? symbol, string? tipoSenal, LiveOperationsSnapshotService snapshotService, CancellationToken cancellationToken) =>
+    {
+        return Results.Json(await snapshotService.GetAsync(capital, estado, symbol, tipoSenal, cancellationToken));
+    });
+    app.MapGet("/api/grafico-vivo", async (string? symbol, string? interval, decimal? capital, string? estado, string? tipoSenal, LiveChartSnapshotService chartService, CancellationToken cancellationToken) =>
+    {
+        return Results.Json(await chartService.GetAsync(symbol, interval, capital, estado, tipoSenal, cancellationToken));
+    });
+    app.MapGet("/api/exchange/status", async (ExchangeConnectionStatusService statusService, CancellationToken cancellationToken) =>
+    {
+        return Results.Json(await statusService.GetAsync(cancellationToken));
+    });
     app.MapRazorPages().WithStaticAssets();
     app.Run();
 }

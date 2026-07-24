@@ -44,6 +44,7 @@ try
     builder.Services.AddSingleton<TechnicalAnalysisService>();
     builder.Services.AddSingleton<TradingSignalEngine>();
     builder.Services.AddSingleton<OpportunityProjectionService>();
+    builder.Services.AddSingleton<TradeInstructionService>();
     builder.Services.AddSingleton<MarketScanner>();
 
     builder.Services.AddSingleton<IMarketDataProvider>(serviceProvider =>
@@ -73,9 +74,19 @@ try
         if (!options.Enabled)
             return new NoopNewsProvider();
 
-        var client = new HttpClient { Timeout = TimeSpan.FromSeconds(Math.Clamp(options.TimeoutSeconds, 2, 60)) };
-        client.DefaultRequestHeaders.UserAgent.ParseAdd("Trading.Monitor/1.0");
-        return new RssNewsProvider(client, options, serviceProvider.GetRequiredService<ISourceTelemetryRecorder>());
+        var providers = new List<INewsProvider>();
+        var telemetryRecorder = serviceProvider.GetRequiredService<ISourceTelemetryRecorder>();
+
+        var rssClient = CreateResearchClient(null, options.TimeoutSeconds);
+        providers.Add(new RssNewsProvider(rssClient, options, telemetryRecorder));
+
+        if (options.FearGreedEnabled)
+            providers.Add(new FearGreedNewsProvider(CreateResearchClient(options.FearGreedBaseUrl, options.TimeoutSeconds), telemetryRecorder));
+
+        if (options.CryptoPanicEnabled)
+            providers.Add(new CryptoPanicNewsProvider(CreateResearchClient(options.CryptoPanicBaseUrl, options.TimeoutSeconds), options, telemetryRecorder));
+
+        return new CompositeNewsProvider(providers, telemetryRecorder);
     });
 
     builder.Services.AddSingleton<IResearchAnalyzer>(serviceProvider =>
@@ -96,7 +107,8 @@ try
     builder.Services.AddSingleton<INotificationChannel>(serviceProvider =>
     {
         var options = serviceProvider.GetRequiredService<IOptions<NotificationOptions>>().Value;
-        return new EmailNotificationChannel(options.Email, serviceProvider.GetRequiredService<OpportunityProjectionService>(), serviceProvider.GetRequiredService<IOptionsMonitor<ReportingOptions>>());
+        return new EmailNotificationChannel(options.Email, serviceProvider.GetRequiredService<OpportunityProjectionService>(), serviceProvider.GetRequiredService<TradeInstructionService>(),
+            serviceProvider.GetRequiredService<IOptionsMonitor<ReportingOptions>>());
     });
 
     builder.Services.AddSingleton<INotificationChannel>(serviceProvider =>
@@ -104,7 +116,7 @@ try
         var options = serviceProvider.GetRequiredService<IOptions<NotificationOptions>>().Value;
 
         return new TelegramNotificationChannel(new HttpClient { Timeout = TimeSpan.FromSeconds(20) }, options.Telegram, serviceProvider.GetRequiredService<OpportunityProjectionService>(),
-            serviceProvider.GetRequiredService<IOptionsMonitor<ReportingOptions>>());
+            serviceProvider.GetRequiredService<TradeInstructionService>(), serviceProvider.GetRequiredService<IOptionsMonitor<ReportingOptions>>());
     });
 
     builder.Services.AddHostedService<MarketMonitorWorker>();
@@ -126,6 +138,18 @@ static HttpClient CreateMarketClient(string baseUrl, int timeoutSeconds)
 {
     var timeout = TimeSpan.FromSeconds(Math.Clamp(timeoutSeconds, 2, 60));
     var client = new HttpClient(new SocketsHttpHandler { ConnectTimeout = timeout }) { BaseAddress = new Uri(baseUrl), Timeout = timeout };
+    client.DefaultRequestHeaders.UserAgent.ParseAdd("Trading.Monitor/1.0");
+    return client;
+}
+
+static HttpClient CreateResearchClient(string? baseUrl, int timeoutSeconds)
+{
+    var timeout = TimeSpan.FromSeconds(Math.Clamp(timeoutSeconds, 2, 60));
+    var client = new HttpClient(new SocketsHttpHandler { ConnectTimeout = timeout }) { Timeout = timeout };
+
+    if (!string.IsNullOrWhiteSpace(baseUrl))
+        client.BaseAddress = new Uri(baseUrl);
+
     client.DefaultRequestHeaders.UserAgent.ParseAdd("Trading.Monitor/1.0");
     return client;
 }

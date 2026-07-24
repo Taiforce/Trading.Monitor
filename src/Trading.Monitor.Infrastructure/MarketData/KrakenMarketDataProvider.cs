@@ -77,7 +77,8 @@ public sealed class KrakenMarketDataProvider(HttpClient httpClient) : IMarketDat
             "1h" => 60,
             "4h" => 240,
             "1d" => 1440,
-            _ => 5
+            "1w" => 10080,
+            _ => throw new NotSupportedException($"Kraken does not support interval {interval}.")
         };
     }
 

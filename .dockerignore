@@ -5,6 +5,7 @@
 **/obj/
 data/
 logs/
+work/
 src/**/logs/
 *.user
 *.suo

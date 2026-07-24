@@ -17,9 +17,13 @@ public sealed class MarketScanner(
         var opportunities = new List<TradingOpportunity>();
         var symbols = monitorOptions.Symbols.Where(symbol => !string.IsNullOrWhiteSpace(symbol)).Select(symbol => symbol.Trim().ToUpperInvariant()).Distinct(StringComparer.OrdinalIgnoreCase).ToArray();
 
+        var horizons = ResolveHorizons(monitorOptions);
         var intervals = monitorOptions.Intervals.Where(interval => !string.IsNullOrWhiteSpace(interval))
-                                      .Select(interval => interval.Trim().ToLowerInvariant())
-                                      .Distinct(StringComparer.OrdinalIgnoreCase)
+                                      .Concat(horizons.Select(horizon => horizon.TriggerInterval))
+                                      .Concat(horizons.SelectMany(horizon => horizon.RequiredAlignedIntervals))
+                                      .Where(interval => !string.IsNullOrWhiteSpace(interval))
+                                      .Select(NormalizeInterval)
+                                      .Distinct(StringComparer.Ordinal)
                                       .ToArray();
 
         var latestNews = Array.Empty<NewsItem>() as IReadOnlyList<NewsItem>;
@@ -53,7 +57,7 @@ public sealed class MarketScanner(
 
         foreach (var symbol in symbols)
         {
-            var candlesByInterval = new Dictionary<string, IReadOnlyList<MarketCandle>>(StringComparer.OrdinalIgnoreCase);
+            var candlesByInterval = new Dictionary<string, IReadOnlyList<MarketCandle>>(StringComparer.Ordinal);
 
             foreach (var interval in intervals)
             {
@@ -74,10 +78,13 @@ public sealed class MarketScanner(
 
             try
             {
-                var opportunity = signalEngine.Evaluate(symbol, candlesByInterval, latestNews, monitorOptions, riskOptions);
+                foreach (var horizon in horizons)
+                {
+                    var opportunity = signalEngine.Evaluate(symbol, candlesByInterval, latestNews, monitorOptions, riskOptions, horizon);
 
-                if (opportunity is not null)
-                    opportunities.Add(opportunity);
+                    if (opportunity is not null)
+                        opportunities.Add(opportunity);
+                }
             }
             catch (Exception exception)
             {
@@ -86,5 +93,58 @@ public sealed class MarketScanner(
         }
 
         return new MarketScanResult(opportunities, errors);
+    }
+
+    private static IReadOnlyList<TradingHorizonOptions> ResolveHorizons(TradingMonitorOptions monitorOptions)
+    {
+        if (monitorOptions.Horizons is { Length: > 0 })
+            return monitorOptions.Horizons
+                .Where(horizon => !string.IsNullOrWhiteSpace(horizon.TriggerInterval))
+                .Select(horizon => new TradingHorizonOptions
+                {
+                    Name = string.IsNullOrWhiteSpace(horizon.Name) ? NormalizeInterval(horizon.TriggerInterval) : horizon.Name.Trim(),
+                    TriggerInterval = NormalizeInterval(horizon.TriggerInterval),
+                    SignalExpiryMinutes = horizon.SignalExpiryMinutes,
+                    MinimumScore = horizon.MinimumScore,
+                    MinimumConfirmedIntervals = horizon.MinimumConfirmedIntervals,
+                    RequiredAlignedIntervals = horizon.RequiredAlignedIntervals.Select(NormalizeInterval).Distinct(StringComparer.Ordinal).ToArray()
+                })
+                .ToArray();
+
+        return
+        [
+            new TradingHorizonOptions
+            {
+                Name = NormalizeInterval(monitorOptions.TriggerInterval),
+                TriggerInterval = NormalizeInterval(monitorOptions.TriggerInterval),
+                SignalExpiryMinutes = monitorOptions.SignalExpiryMinutes,
+                MinimumScore = monitorOptions.MinimumScore,
+                MinimumConfirmedIntervals = 2,
+                RequiredAlignedIntervals = []
+            }
+        ];
+    }
+
+    private static string NormalizeInterval(string interval)
+    {
+        var value = interval.Trim();
+        if (string.Equals(value, "1M", StringComparison.Ordinal) || string.Equals(value, "1mo", StringComparison.OrdinalIgnoreCase) || string.Equals(value, "1month", StringComparison.OrdinalIgnoreCase))
+            return "1M";
+
+        return value.ToLowerInvariant() switch
+        {
+            "1s" => "1s",
+            "1m" => "1m",
+            "3m" => "3m",
+            "5m" => "5m",
+            "15m" => "15m",
+            "30m" => "30m",
+            "1hr" or "1h" => "1h",
+            "2h" => "2h",
+            "4h" => "4h",
+            "1d" => "1d",
+            "1w" => "1w",
+            _ => "1m"
+        };
     }
 }

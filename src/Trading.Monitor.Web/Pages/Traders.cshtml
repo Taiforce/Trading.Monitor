@@ -1,0 +1,219 @@
+@page "/traders"
+@model TradersModel
+@{
+    ViewData["Title"] = "Traders";
+}
+
+<section class="dashboard">
+    <div class="page-head">
+        <div>
+            <p class="eyebrow">Copy trading y traders publicos</p>
+            <h1>Traders a seguir</h1>
+        </div>
+        <form method="get" class="filter-bar traders-filter">
+            <label>
+                <span>Fuente</span>
+                <select asp-for="Platform">
+                    <option value="">Todas</option>
+                    @foreach (var platform in Model.Platforms)
+                    {
+                        <option value="@platform">@platform</option>
+                    }
+                </select>
+            </label>
+            <label>
+                <span>Buscar</span>
+                <input asp-for="Search" type="search" placeholder="Nombre, mercado, estilo"/>
+            </label>
+            <label>
+                <span>Trades</span>
+                <select asp-for="TradeStatus">
+                    <option value="todas">Todos</option>
+                    <option value="abierta">Abiertos</option>
+                    <option value="cerrada">Cerrados</option>
+                </select>
+            </label>
+            <label class="check-filter">
+                <input asp-for="OnlyWithHistory" type="checkbox"/>
+                <span>Solo con historial</span>
+            </label>
+            <button type="submit">Filtrar</button>
+        </form>
+    </div>
+
+    <div class="insight-strip">
+        <span>Lectura honesta</span>
+        <strong>Esta vista estudia traders y fuentes de copy trading. No copia dinero real: mide historial, riesgo, comisiones y si el historial es verificable antes de pensar en seguir a alguien.</strong>
+    </div>
+
+    <section class="metrics-grid metrics-grid-four" aria-label="Resumen traders">
+        <article class="metric">
+            <span>Fuentes mapeadas</span>
+            <strong>@Model.Report.TotalSources</strong>
+            <small>copy/social trading</small>
+        </article>
+        <article class="metric">
+            <span>Traders vigilados</span>
+            <strong>@Model.Report.TotalTraders</strong>
+            <small>@Model.Report.TradersWithHistory con historial local</small>
+        </article>
+        <article class="metric">
+            <span>Trades abiertos</span>
+            <strong>@Model.Report.OpenTrades</strong>
+            <small>@Model.SelectedTraderName()</small>
+        </article>
+        <article class="metric">
+            <span>Trades cerrados</span>
+            <strong>@Model.Report.ClosedTrades</strong>
+            <small>base para simular</small>
+        </article>
+    </section>
+
+    <section class="report-section">
+        <div class="section-title">
+            <h2>Fuentes donde seguir traders</h2>
+            <span>catalogo investigado</span>
+        </div>
+        <div class="trader-source-grid">
+            @foreach (var source in Model.Report.Sources)
+            {
+                <article>
+                    <div>
+                        <span>@source.Platform</span>
+                        <strong>@source.Name</strong>
+                    </div>
+                    <p>@source.Market</p>
+                    <dl>
+                        <div><dt>Acceso</dt><dd>@source.DataAccess</dd></div>
+                        <div><dt>Calidad</dt><dd>@source.DataQuality</dd></div>
+                    </dl>
+                    <small>@source.Notes</small>
+                    <a href="@source.Url" target="_blank" rel="noopener noreferrer">Abrir fuente</a>
+                </article>
+            }
+        </div>
+    </section>
+
+    <section class="report-section">
+        <div class="section-title">
+            <h2>Traders y rankings</h2>
+            <span>clic para ver historial</span>
+        </div>
+        @if (Model.Report.Traders.Count == 0)
+        {
+            <div class="empty-state">
+                <strong>No encontre traders con esos filtros.</strong>
+                <span>Quita filtros o busca por otra fuente.</span>
+            </div>
+        }
+        else
+        {
+            <div class="trader-grid">
+                @foreach (var trader in Model.Report.Traders)
+                {
+                    var isSelected = Model.TraderId == trader.Id;
+                    <article class="trader-card @(isSelected ? "selected-trader-card" : "")">
+                        <header>
+                            <div>
+                                <span>@trader.Platform</span>
+                                <strong>@trader.DisplayName</strong>
+                                <small>@trader.StrategyType | @trader.Market</small>
+                            </div>
+                            <div class="score-ring @Model.ReliabilityClass(trader.ReliabilityScore)">
+                                <strong>@trader.ReliabilityScore.ToString("N0")</strong>
+                                <small>fiabilidad</small>
+                            </div>
+                        </header>
+                        <p>@trader.PerformanceText</p>
+                        <dl>
+                            <div><dt>Popularidad</dt><dd>@trader.PopularityText</dd></div>
+                            <div><dt>Historial local</dt><dd>@trader.TrackedTrades trades</dd></div>
+                            <div><dt>Win rate local</dt><dd>@(trader.WinRatePercent.HasValue ? $"{trader.WinRatePercent:N2}%" : "-")</dd></div>
+                            <div><dt>Neto local</dt><dd class="@Model.SignedClass(trader.RealizedNetPnL)">@Model.Money(trader.RealizedNetPnL)</dd></div>
+                        </dl>
+                        <small>@trader.DataAvailability</small>
+                        <div class="trade-links">
+                            <a asp-page="/Traders"
+                               asp-route-Platform="@Model.Platform"
+                               asp-route-Search="@Model.Search"
+                               asp-route-TradeStatus="@Model.TradeStatus"
+                               asp-route-OnlyWithHistory="@Model.OnlyWithHistory"
+                               asp-route-TraderId="@trader.Id">Ver historial</a>
+                            <a href="@trader.ProfileUrl" target="_blank" rel="noopener noreferrer">Perfil</a>
+                            <a asp-page="/Portfolio" asp-route-TraderId="@trader.Id">Simular cartera</a>
+                        </div>
+                    </article>
+                }
+            </div>
+        }
+    </section>
+
+    <section class="report-section">
+        <div class="section-title">
+            <h2>Historial de trades</h2>
+            <span>@Model.SelectedTraderName()</span>
+        </div>
+        @if (Model.Report.Trades.Count == 0)
+        {
+            <div class="empty-state">
+                <strong>Sin operaciones importadas o conectadas.</strong>
+                <span>El perfil existe, pero la fuente no expone aqui su historial completo de forma publica. Cuando haya trades reales, esta tabla mostrara abiertos, cerrados, entrada, salida y resultado.</span>
+            </div>
+        }
+        else
+        {
+            <div class="table-wrap">
+                <table class="report-table trader-trades-table">
+                    <thead>
+                    <tr>
+                        <th>Trader</th>
+                        <th>Trade</th>
+                        <th>Tipo</th>
+                        <th>Estado</th>
+                        <th>Entrada</th>
+                        <th>Salida</th>
+                        <th>Resultado</th>
+                        <th>Notas</th>
+                    </tr>
+                    </thead>
+                    <tbody>
+                    @foreach (var trade in Model.Report.Trades)
+                    {
+                        <tr>
+                            <td>
+                                <strong>@trade.TraderName</strong>
+                                <small>@trade.Platform</small>
+                            </td>
+                            <td>
+                                <strong>@trade.Symbol</strong>
+                                <small>@trade.OpenedAt.ToLocalTime().ToString("dd MMM HH:mm")</small>
+                            </td>
+                            <td>@trade.SignalType</td>
+                            <td><span class="status @Model.TradeStatusClass(trade.Status)">@trade.Status</span></td>
+                            <td>
+                                <strong>@Model.Price(trade.EntryPrice)</strong>
+                                <small>@(trade.Quantity.HasValue ? $"{trade.Quantity:N8}" : "-")</small>
+                            </td>
+                            <td>
+                                <strong>@Model.Price(trade.ExitPrice)</strong>
+                                <small>@(trade.ClosedAt.HasValue ? trade.ClosedAt.Value.ToLocalTime().ToString("dd MMM HH:mm") : "-")</small>
+                            </td>
+                            <td class="@Model.SignedClass(trade.NetPnL ?? trade.PnLPercent)">
+                                <strong>@Model.Money(trade.NetPnL)</strong>
+                                <small>@(trade.PnLPercent.HasValue ? $"{trade.PnLPercent:N2}%" : "-")</small>
+                            </td>
+                            <td>
+                                <span>@trade.Notes</span>
+                                @if (!string.IsNullOrWhiteSpace(trade.SourceUrl))
+                                {
+                                    <a href="@trade.SourceUrl" target="_blank" rel="noopener noreferrer">Fuente</a>
+                                }
+                            </td>
+                        </tr>
+                    }
+                    </tbody>
+                </table>
+            </div>
+        }
+    </section>
+</section>

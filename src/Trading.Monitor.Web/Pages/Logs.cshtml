@@ -10,7 +10,7 @@
             <p class="eyebrow">Serilog</p>
             <h1>Logs operativos</h1>
         </div>
-        <form method="get" class="filter-bar">
+        <form method="get" class="filter-bar logs-filter">
             <label>
                 <span>Archivo</span>
                 <select asp-for="LogFile">
@@ -24,7 +24,31 @@
                 <span>Lineas</span>
                 <input asp-for="Lines" type="number" min="50" max="1000" step="50"/>
             </label>
-            <button type="submit">Leer</button>
+            <label>
+                <span>Nivel</span>
+                <select asp-for="Nivel">
+                    <option value="">Todos</option>
+                    @foreach (var level in Model.AvailableLevels)
+                    {
+                        <option value="@level">@level</option>
+                    }
+                </select>
+            </label>
+            <label>
+                <span>Evento</span>
+                <select asp-for="Evento">
+                    <option value="">Todos</option>
+                    @foreach (var eventType in Model.AvailableEvents)
+                    {
+                        <option value="@eventType">@eventType</option>
+                    }
+                </select>
+            </label>
+            <label>
+                <span>Buscar</span>
+                <input asp-for="Buscar" type="search" placeholder="senal, error, binance"/>
+            </label>
+            <button type="submit">Filtrar</button>
         </form>
     </div>
 
@@ -45,15 +69,38 @@
             <small>@(Model.Snapshot.File?.LastWriteTime.ToLocalTime().ToString("dd MMM yyyy") ?? "-")</small>
         </article>
         <article class="metric">
-            <span>Lineas</span>
-            <strong>@Model.Snapshot.Lines.Count</strong>
-            <small>mostradas</small>
+            <span>Eventos vistos</span>
+            <strong>@Model.FilteredEntries.Count</strong>
+            <small>despues de filtros</small>
+        </article>
+    </section>
+
+    <section class="metrics-grid metrics-grid-four" aria-label="Resumen interpretado de logs">
+        <article class="metric metric-soft">
+            <span>Errores</span>
+            <strong class="@(Model.ErrorCount > 0 ? "loss" : "gain")">@Model.ErrorCount</strong>
+            <small>criticos o fallidos</small>
+        </article>
+        <article class="metric metric-soft">
+            <span>Alertas</span>
+            <strong class="@(Model.WarningCount > 0 ? "loss" : "gain")">@Model.WarningCount</strong>
+            <small>avisos sin detener servicio</small>
+        </article>
+        <article class="metric metric-soft">
+            <span>Senales</span>
+            <strong>@Model.SignalCount</strong>
+            <small>entradas/salidas detectadas</small>
+        </article>
+        <article class="metric metric-soft">
+            <span>Barridos</span>
+            <strong>@Model.ScanCount</strong>
+            <small>lecturas de mercado</small>
         </article>
     </section>
 
     <section class="report-section">
         <div class="section-title">
-            <h2>Salida reciente</h2>
+            <h2>Actividad por hora</h2>
             <span>@(Model.Snapshot.File?.DisplayName ?? "sin archivo")</span>
         </div>
 
@@ -64,7 +111,69 @@
                 <span>@Model.Snapshot.ErrorMessage</span>
             </div>
         }
-        else if (Model.Snapshot.Lines.Count == 0)
+        else if (Model.FilteredEntries.Count == 0)
+        {
+            <div class="empty-state">
+                <strong>Sin eventos para mostrar.</strong>
+                <span>Prueba quitando filtros o aumentando el numero de lineas.</span>
+            </div>
+        }
+        else
+        {
+            <div class="log-chart">
+                @foreach (var bucket in Model.Buckets)
+                {
+                    <article>
+                        <span>@bucket.Hour:00</span>
+                        <div>
+                            <i style="width:@Model.BarWidth(bucket.Count)%"></i>
+                        </div>
+                        <strong>@bucket.Count</strong>
+                    </article>
+                }
+            </div>
+        }
+    </section>
+
+    <section class="report-section">
+        <div class="section-title">
+            <h2>Eventos interpretados</h2>
+            <span>@Model.FilteredEntries.Count eventos</span>
+        </div>
+
+        @if (Model.FilteredEntries.Count == 0)
+        {
+            <div class="empty-state">
+                <strong>No hay eventos para ese filtro.</strong>
+                <span>Prueba con otro nivel, evento o busqueda.</span>
+            </div>
+        }
+        else
+        {
+            <div class="log-event-list">
+                @foreach (var entry in Model.FilteredEntries.Take(120))
+                {
+                    <article class="log-event-row">
+                        <div>
+                            <strong>@entry.Time</strong>
+                            <span>@entry.Service</span>
+                        </div>
+                        <span class="status @Model.LevelClass(entry.Level)">@entry.LevelLabel</span>
+                        <span class="@Model.EventClass(entry.EventType)">@entry.EventType</span>
+                        <p>@entry.Message</p>
+                    </article>
+                }
+            </div>
+        }
+    </section>
+
+    <section class="report-section">
+        <div class="section-title">
+            <h2>Texto crudo</h2>
+            <span>auditoria</span>
+        </div>
+
+        @if (Model.Snapshot.Lines.Count == 0)
         {
             <div class="empty-state">
                 <strong>Sin lineas para mostrar.</strong>
@@ -73,10 +182,13 @@
         }
         else
         {
-            <pre class="log-output">@foreach (var line in Model.Snapshot.Lines)
+            <details class="compact-details">
+                <summary>Ver lineas originales</summary>
+                <pre class="log-output">@foreach (var line in Model.Snapshot.Lines)
 {
 @line
 }</pre>
+            </details>
         }
     </section>
 

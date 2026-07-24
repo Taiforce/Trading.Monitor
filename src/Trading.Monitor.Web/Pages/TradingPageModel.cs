@@ -6,6 +6,7 @@ using Trading.Monitor.Application.Abstractions;
 using Trading.Monitor.Application.Configuration;
 using Trading.Monitor.Application.Reporting;
 using Trading.Monitor.Domain;
+using Trading.Monitor.Web.Services;
 
 namespace Trading.Monitor.Web.Pages;
 
@@ -54,9 +55,9 @@ public abstract class TradingPageModel(IOpportunityRepository opportunityReposit
         return status switch
         {
             OpportunityStatus.Open => "Abierta",
-            OpportunityStatus.HitTakeProfit1 => "TP1",
-            OpportunityStatus.HitTakeProfit2 => "TP2",
-            OpportunityStatus.HitStopLoss => "Stop",
+            OpportunityStatus.HitTakeProfit1 => "Ganada",
+            OpportunityStatus.HitTakeProfit2 => "Ganancia extra",
+            OpportunityStatus.HitStopLoss => "Perdida",
             OpportunityStatus.Expired => "Expirada",
             OpportunityStatus.ManuallyClosed => "Cerrada",
             _ => status.ToString()
@@ -132,7 +133,41 @@ public abstract class TradingPageModel(IOpportunityRepository opportunityReposit
 
     public string SideMeaning(MarketSide side)
     {
-        return side == MarketSide.Long ? "Busca ganar si el precio sube." : "Busca ganar si el precio baja.";
+        return SignalTypeFormatter.Description(side);
+    }
+
+    public string BuyLowSellHighValue => SignalTypeFormatter.BuyLowSellHigh;
+
+    public string SellHighBuyLowValue => SignalTypeFormatter.SellHighBuyLow;
+
+    public string SignalTypeLabel(MarketSide side)
+    {
+        return SignalTypeFormatter.Label(side);
+    }
+
+    public string SignalTypeMeaning(MarketSide side)
+    {
+        return SignalTypeFormatter.Description(side);
+    }
+
+    public string SignalTypeRequirement(MarketSide side)
+    {
+        return SignalTypeFormatter.Requirement(side);
+    }
+
+    public string SignalTypeClass(MarketSide side)
+    {
+        return side == MarketSide.Long ? "signal-type-buy" : "signal-type-sell";
+    }
+
+    protected static bool MatchesSignalType(OpportunityReportRow row, string? signalType)
+    {
+        return SignalTypeFormatter.Matches(row.Side, signalType);
+    }
+
+    protected static int SignalTypePriority(OpportunityReportRow row)
+    {
+        return SignalTypeFormatter.Priority(row.Side);
     }
 
     public string StatusMeaning(OpportunityStatus status)
@@ -140,12 +175,26 @@ public abstract class TradingPageModel(IOpportunityRepository opportunityReposit
         return status switch
         {
             OpportunityStatus.Open => "Todavia necesita seguimiento.",
-            OpportunityStatus.HitTakeProfit1 => "Alcanzo el primer objetivo.",
-            OpportunityStatus.HitTakeProfit2 => "Alcanzo el objetivo extendido.",
-            OpportunityStatus.HitStopLoss => "La idea quedo invalidada por stop.",
+            OpportunityStatus.HitTakeProfit1 => "Alcanzo la ganancia objetivo.",
+            OpportunityStatus.HitTakeProfit2 => "Alcanzo una ganancia mas alta.",
+            OpportunityStatus.HitStopLoss => "La idea llego a la perdida maxima.",
             OpportunityStatus.Expired => "La ventana de oportunidad vencio.",
             OpportunityStatus.ManuallyClosed => "Fue cerrada manualmente.",
             _ => "Estado registrado por el sistema."
+        };
+    }
+
+    public string HorizonFor(OpportunityReportRow row)
+    {
+        var minutes = Math.Max(1, (row.ExpiresAt - row.ObservedAt).TotalMinutes);
+
+        return minutes switch
+        {
+            <= 30 => "Rapida",
+            <= 240 => "Intradia",
+            <= 2880 => "Swing",
+            <= 10080 => "Semanal",
+            _ => "Mensual"
         };
     }
 

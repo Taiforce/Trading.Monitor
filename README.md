@@ -11,8 +11,11 @@ Este proyecto no ejecuta ordenes reales. Solo genera propuestas para que una per
 - Evalua coincidencia multi-temporal para LONG o SHORT.
 - Lee noticias RSS, reportes macro/regulatorios configurables y clasifica sentimiento basico por palabras clave.
 - Usa OpenAI como analista de investigacion opcional para resumir contexto reciente.
-- Genera una propuesta con score, zona de entrada, stop, TP1, TP2, relacion riesgo/beneficio, razones, riesgos y vigencia.
+- Genera una propuesta con score, zona de entrada, ganancia objetivo, ganancia extra, perdida maxima, razones, riesgos y vigencia.
+- Convierte cada propuesta en una instruccion operativa: entrar ahora, vigilar, no entrar, salir con ganancia, salir por perdida maxima o descartar por vencimiento.
+- Remarca solo las oportunidades de alta conviccion: score alto, varias temporalidades, riesgo controlado y poco ruido de riesgos. Ninguna senal se presenta como garantia.
 - Calcula cuanto podrias ganar o perder si pusieras el monto configurado en cada oportunidad.
+- Lanza alertas de salida cuando una oportunidad toca ganancia objetivo, ganancia extra, perdida maxima o vence.
 - Evita mandar senales repetidas dentro de una ventana configurable.
 - Guarda historial, salidas, salud de fuentes e investigacion en SQL Server local: base `TradingMarket`.
 - Registra errores y eventos con Serilog en `logs/`.
@@ -88,7 +91,10 @@ http://localhost:5088
 Paginas principales:
 
 - `http://localhost:5088/`: resumen ejecutivo.
-- `http://localhost:5088/acciones`: entradas, salidas, TP, stop y calculos por monto.
+- `http://localhost:5088/acciones`: entradas, salidas, ganancia objetivo, perdida maxima y calculos por monto.
+- `http://localhost:5088/api/operaciones-vivas?capital=1000`: JSON del tablero vivo.
+- `http://localhost:5088/api/grafico-vivo?symbol=BTCUSDT&interval=1m&capital=1000`: velas 1m y niveles de entrada, ganancia y perdida maxima.
+- `http://localhost:5088/api/exchange/status`: estado seguro de integracion con exchange.
 - `http://localhost:5088/reportes`: reportes por simbolo, dia, win rate y PnL.
 - `http://localhost:5088/conexiones`: salud de exchanges, noticias, reportes e IA.
 - `http://localhost:5088/logs`: visor local de logs Serilog.
@@ -145,10 +151,16 @@ Campos importantes:
 - `Reporting:EstimatedFeePercentPerSide`: comision estimada por lado.
 - `Database:ConnectionString`: conexion SQL Server usada por Entity Framework.
 - `News:Feeds`: fuentes RSS, reportes y recursos a revisar.
+- `News:FearGreedEnabled`: agrega el indice publico Fear & Greed como contexto de sentimiento.
+- `News:CryptoPanicEnabled`: activa CryptoPanic si configuras `CRYPTOPANIC_AUTH_TOKEN`.
+- `News:CryptoPanicAuthTokenEnvironmentVariable`: nombre de la variable que contiene el token de CryptoPanic.
 - `OpenAi:Enabled`: activa o desactiva el resumen de investigacion con OpenAI.
 - `OpenAi:Model`: modelo usado para el resumen de investigacion.
 - `Notifications:Email`: SMTP para correo.
 - `Notifications:Telegram`: bot token y chat id.
+- `ExchangeExecution:Mode`: `Paper` por defecto. `Live` solo debe usarse con llaves sin retiro, limites y `AllowLiveOrders=true`.
+- `ExchangeExecution:MaxCapitalPerTrade`: limite por operacion para la fase live.
+- `ExchangeExecution:DailyLossLimit`: limite diario de perdida.
 
 Tambien puedes usar variables de entorno:
 
@@ -172,6 +184,7 @@ dotnet test
 
 - WebSocket de Binance y Coinbase para menor latencia.
 - Calendario economico y eventos macro con proveedor dedicado.
+- Backtesting por estrategia antes de subir el score minimo.
 - Filtros por estrategia, sesion, fuente y regimen de mercado.
 - Paper trading con estadisticas de acierto, drawdown y profit factor.
 - Conectores adicionales para acciones, opciones o futuros.

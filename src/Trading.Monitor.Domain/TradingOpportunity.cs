@@ -4,5 +4,5 @@ public sealed record TradingOpportunity(string Symbol, MarketSide Side, int Scor
     decimal StopLoss, decimal TakeProfit1, decimal TakeProfit2, decimal RiskReward, IReadOnlyList<string> ConfirmingIntervals, IReadOnlyList<string> Reasons, IReadOnlyList<string> Risks,
     IReadOnlyList<NewsItem> RelatedNews)
 {
-    public string AlertKey => $"{Symbol}:{Side}:{ObservedAt:yyyyMMddHHmm}:{Math.Round(LastPrice, 2)}";
+    public string AlertKey => $"{Symbol}:{Side}:{ObservedAt:yyyyMMddHHmm}:{ExpiresAt:yyyyMMddHHmm}:{Math.Round(LastPrice, 2)}";
 }

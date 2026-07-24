@@ -15,4 +15,10 @@ public sealed class RiskOptions
     public decimal MinimumAtrPercent { get; set; } = 0.05m;
 
     public decimal MaximumAtrPercent { get; set; } = 8.00m;
+
+    public decimal EstimatedFeePercentPerSide { get; set; } = 0.10m;
+
+    public decimal EstimatedSpreadPercent { get; set; } = 0.05m;
+
+    public decimal MinimumNetProfitPercentAfterCosts { get; set; } = 0.35m;
 }

@@ -14,6 +14,12 @@ public sealed class TradingMonitorDbContext : DbContext
 
     public DbSet<ResearchItemEntity> ResearchItems => Set<ResearchItemEntity>();
 
+    public DbSet<TraderSourceEntity> TraderSources => Set<TraderSourceEntity>();
+
+    public DbSet<TraderProfileEntity> TraderProfiles => Set<TraderProfileEntity>();
+
+    public DbSet<TraderTradeEntity> TraderTrades => Set<TraderTradeEntity>();
+
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
         var opportunity = modelBuilder.Entity<TradingOpportunityEntity>();
@@ -75,5 +81,54 @@ public sealed class TradingMonitorDbContext : DbContext
         researchItem.Property(entity => entity.Title).HasMaxLength(2048);
         researchItem.Property(entity => entity.Url).HasMaxLength(2048);
         researchItem.Property(entity => entity.Sentiment).HasConversion<string>().HasMaxLength(16);
+
+        var traderSource = modelBuilder.Entity<TraderSourceEntity>();
+        traderSource.ToTable("trader_sources");
+        traderSource.HasKey(entity => entity.Id);
+        traderSource.HasIndex(entity => entity.Platform).IsUnique();
+        traderSource.Property(entity => entity.Platform).HasMaxLength(64);
+        traderSource.Property(entity => entity.Name).HasMaxLength(160);
+        traderSource.Property(entity => entity.Market).HasMaxLength(128);
+        traderSource.Property(entity => entity.Url).HasMaxLength(2048);
+        traderSource.Property(entity => entity.DataAccess).HasMaxLength(256);
+        traderSource.Property(entity => entity.DataQuality).HasMaxLength(256);
+        traderSource.Property(entity => entity.Notes).HasMaxLength(2048);
+
+        var traderProfile = modelBuilder.Entity<TraderProfileEntity>();
+        traderProfile.ToTable("trader_profiles");
+        traderProfile.HasKey(entity => entity.Id);
+        traderProfile.HasIndex(entity => new { entity.Platform, entity.ExternalId }).IsUnique();
+        traderProfile.Property(entity => entity.Platform).HasMaxLength(64);
+        traderProfile.Property(entity => entity.DisplayName).HasMaxLength(160);
+        traderProfile.Property(entity => entity.ExternalId).HasMaxLength(160);
+        traderProfile.Property(entity => entity.ProfileUrl).HasMaxLength(2048);
+        traderProfile.Property(entity => entity.Market).HasMaxLength(128);
+        traderProfile.Property(entity => entity.StrategyType).HasMaxLength(160);
+        traderProfile.Property(entity => entity.PopularityText).HasMaxLength(512);
+        traderProfile.Property(entity => entity.PerformanceText).HasMaxLength(512);
+        traderProfile.Property(entity => entity.DataAvailability).HasMaxLength(512);
+        traderProfile.Property(entity => entity.Notes).HasMaxLength(2048);
+
+        var traderTrade = modelBuilder.Entity<TraderTradeEntity>();
+        traderTrade.ToTable("trader_trades");
+        traderTrade.HasKey(entity => entity.Id);
+        traderTrade.HasIndex(entity => new { entity.TraderProfileId, entity.OpenedAt });
+        traderTrade.HasIndex(entity => new { entity.TraderProfileId, entity.ExternalTradeId }).IsUnique();
+        traderTrade.Property(entity => entity.ExternalTradeId).HasMaxLength(160);
+        traderTrade.Property(entity => entity.Symbol).HasMaxLength(32);
+        traderTrade.Property(entity => entity.Side).HasConversion<string>().HasMaxLength(16);
+        traderTrade.Property(entity => entity.Status).HasMaxLength(24);
+        traderTrade.Property(entity => entity.EntryPrice).HasColumnType("decimal(18,8)");
+        traderTrade.Property(entity => entity.ExitPrice).HasColumnType("decimal(18,8)");
+        traderTrade.Property(entity => entity.Quantity).HasColumnType("decimal(18,8)");
+        traderTrade.Property(entity => entity.PnLPercent).HasColumnType("decimal(18,4)");
+        traderTrade.Property(entity => entity.NetPnL).HasColumnType("decimal(18,2)");
+        traderTrade.Property(entity => entity.Leverage).HasColumnType("decimal(18,4)");
+        traderTrade.Property(entity => entity.SourceUrl).HasMaxLength(2048);
+        traderTrade.Property(entity => entity.Notes).HasMaxLength(2048);
+        traderTrade.HasOne(entity => entity.TraderProfile)
+            .WithMany()
+            .HasForeignKey(entity => entity.TraderProfileId)
+            .OnDelete(DeleteBehavior.Cascade);
     }
 }

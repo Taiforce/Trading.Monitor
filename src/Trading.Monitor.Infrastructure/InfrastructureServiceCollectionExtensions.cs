@@ -21,6 +21,7 @@ public static class InfrastructureServiceCollectionExtensions
             sqlServer => sqlServer.EnableRetryOnFailure(5, TimeSpan.FromSeconds(8), null)));
 
         services.AddScoped<IOpportunityRepository, EfOpportunityRepository>();
+        services.AddScoped<ITraderResearchRepository, EfTraderResearchRepository>();
         services.AddScoped<ISignalStore>(provider => provider.GetRequiredService<IOpportunityRepository>());
         services.AddSingleton<ISourceTelemetryRecorder, SourceTelemetryRecorder>();
 

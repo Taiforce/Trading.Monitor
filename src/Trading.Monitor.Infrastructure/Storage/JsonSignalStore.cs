@@ -29,7 +29,7 @@ public sealed class JsonSignalStore(string path) : ISignalStore
                 if (saved.ObservedAt < cutoff)
                     continue;
 
-                if (string.Equals(saved.Symbol, opportunity.Symbol, StringComparison.OrdinalIgnoreCase) && saved.Side == opportunity.Side)
+                if (string.Equals(saved.Symbol, opportunity.Symbol, StringComparison.OrdinalIgnoreCase) && saved.Side == opportunity.Side && IsSameSignalFamily(saved, opportunity))
                     return true;
             }
 
@@ -88,5 +88,14 @@ public sealed class JsonSignalStore(string path) : ISignalStore
             if (opportunity is not null)
                 yield return opportunity;
         }
+    }
+
+    private static bool IsSameSignalFamily(TradingOpportunity saved, TradingOpportunity incoming)
+    {
+        var savedMinutes = Math.Max(1m, (decimal)(saved.ExpiresAt - saved.ObservedAt).TotalMinutes);
+        var incomingMinutes = Math.Max(1m, (decimal)(incoming.ExpiresAt - incoming.ObservedAt).TotalMinutes);
+        var ratio = Math.Max(savedMinutes, incomingMinutes) / Math.Min(savedMinutes, incomingMinutes);
+
+        return ratio < 2m;
     }
 }

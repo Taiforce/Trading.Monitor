@@ -46,6 +46,34 @@ public class TradingSignalEngineTests
         Assert.Null(opportunity);
     }
 
+    [Fact]
+    public void Evaluate_ReturnsNoOpportunityWhenNetEdgeDoesNotClearCosts()
+    {
+        var engine = new TradingSignalEngine(new TechnicalAnalysisService());
+
+        var candles = new Dictionary<string, IReadOnlyList<MarketCandle>>(StringComparer.OrdinalIgnoreCase)
+        {
+            ["1m"] = BuildTrend("BTCUSDT", "1m", 50000m, 20m),
+            ["5m"] = BuildTrend("BTCUSDT", "5m", 50000m, 25m),
+            ["15m"] = BuildTrend("BTCUSDT", "15m", 50000m, 30m),
+            ["1h"] = BuildTrend("BTCUSDT", "1h", 50000m, 35m)
+        };
+
+        var opportunity = engine.Evaluate(
+            "BTCUSDT",
+            candles,
+            [],
+            new TradingMonitorOptions { MinimumScore = 70, TriggerInterval = "5m", SignalExpiryMinutes = 8 },
+            new RiskOptions
+            {
+                EstimatedFeePercentPerSide = 2m,
+                EstimatedSpreadPercent = 1m,
+                MinimumNetProfitPercentAfterCosts = 25m
+            });
+
+        Assert.Null(opportunity);
+    }
+
     private static IReadOnlyList<MarketCandle> BuildTrend(string symbol, string interval, decimal startPrice, decimal step)
     {
         var candles = new List<MarketCandle>();
@@ -55,10 +83,12 @@ public class TradingSignalEngineTests
         for (var i = 0; i < 250; i++)
         {
             var open = price;
-            var close = price + step;
-            var high = close + step * 0.8m;
-            var low = open - step * 0.8m;
-            var volume = i == 249 ? 250m : 100m + i % 10;
+            var move = i % 6 < 4 ? step * 0.95m : -step * 0.75m;
+
+            var close = price + move;
+            var high = Math.Max(open, close) + step * 0.8m;
+            var low = Math.Min(open, close) - step * 0.8m;
+            var volume = 110m + i % 10;
 
             candles.Add(new MarketCandle(symbol, interval, now.AddMinutes(i), now.AddMinutes(i + 1), open, high, low, close, volume, volume * close));
 

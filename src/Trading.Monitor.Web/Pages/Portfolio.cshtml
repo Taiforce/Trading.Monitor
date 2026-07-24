@@ -1,0 +1,278 @@
+@page "/cartera"
+@model PortfolioModel
+@{
+    ViewData["Title"] = "Cartera";
+}
+
+<section class="dashboard">
+    <div class="page-head">
+        <div>
+            <p class="eyebrow">Simulador compuesto</p>
+            <h1>Cartera virtual</h1>
+        </div>
+        <form method="get" class="filter-bar portfolio-filter">
+            <label>
+                <span>Monto inicial</span>
+                <input asp-for="InitialCapital" type="number" min="0.01" step="0.01"/>
+            </label>
+            <label>
+                <span>Activo</span>
+                <select asp-for="Symbol">
+                    <option value="">Todos</option>
+                    @foreach (var symbol in Model.Symbols)
+                    {
+                        <option value="@symbol">@symbol</option>
+                    }
+                </select>
+            </label>
+            <label>
+                <span>Tipo de senal</span>
+                <select asp-for="TipoSenal">
+                    <option value="">Todas</option>
+                    <option value="@Model.BuyLowSellHighValue">Compra bajo - vende alto</option>
+                    <option value="@Model.SellHighBuyLowValue">Vende alto - compra bajo</option>
+                </select>
+            </label>
+            <label>
+                <span>Desde</span>
+                <input asp-for="Desde" type="date"/>
+            </label>
+            <label>
+                <span>Hasta</span>
+                <input asp-for="Hasta" type="date"/>
+            </label>
+            <label>
+                <span>Score min</span>
+                <input asp-for="ScoreMinimo" type="number" min="0" max="100" step="5"/>
+            </label>
+            <label>
+                <span>Trader</span>
+                <select asp-for="TraderId">
+                    <option value="">Sin trader</option>
+                    @foreach (var trader in Model.Traders)
+                    {
+                        <option value="@trader.Id">@trader.Platform - @trader.DisplayName</option>
+                    }
+                </select>
+            </label>
+            <button type="submit">Simular</button>
+        </form>
+    </div>
+
+    <div class="insight-strip">
+        <span>Regla</span>
+        <strong>Usa todo el saldo en cada senal cerrada. Si no tienes BTC/ETH, filtra por Compra bajo - vende alto para simular operaciones spot normales.</strong>
+    </div>
+
+    <section class="metrics-grid metrics-grid-four" aria-label="Resumen cartera virtual">
+        <article class="metric">
+            <span>Saldo final</span>
+            <strong class="@Model.ResultClass(Model.Simulation.NetPnL)">@Model.Money(Model.Simulation.FinalBalance)</strong>
+            <small>inicio @Model.Money(Model.Simulation.InitialCapital)</small>
+        </article>
+        <article class="metric">
+            <span>Resultado neto</span>
+            <strong class="@Model.ResultClass(Model.Simulation.NetPnL)">@Model.Money(Model.Simulation.NetPnL)</strong>
+            <small>@Model.Simulation.ReturnPercent.ToString("N2")%</small>
+        </article>
+        <article class="metric">
+            <span>Operaciones usadas</span>
+            <strong>@Model.Simulation.AppliedTrades</strong>
+            <small>@Model.Simulation.SkippedTrades omitidas, @Model.WinRate() win rate</small>
+        </article>
+        <article class="metric">
+            <span>Caida maxima</span>
+            <strong class="loss">@Model.Simulation.MaxDrawdown.ToString("N2")%</strong>
+            <small>pico @Model.Money(Model.Simulation.PeakBalance)</small>
+        </article>
+    </section>
+
+    <section class="report-section">
+        <div class="section-title">
+            <h2>Curva de cartera</h2>
+            <span>@Model.FilteredSignals.Count senales en el rango</span>
+        </div>
+        <div class="equity-chart">
+            <svg viewBox="0 0 1000 170" role="img" aria-label="Evolucion de cartera virtual">
+                <line x1="0" y1="150" x2="1000" y2="150"></line>
+                <polyline points="@Model.EquityPolyline"></polyline>
+            </svg>
+        </div>
+    </section>
+
+    <section class="report-section">
+        <div class="section-title">
+            <h2>Si hubieras seguido a un trader</h2>
+            <span>@Model.SelectedTraderName()</span>
+        </div>
+
+        @if (!Model.TraderId.HasValue)
+        {
+            <div class="empty-state">
+                <strong>Elige un trader para simular.</strong>
+                <span>El simulador usara sus trades cerrados importados o conectados y pondra todo el saldo en cada operacion.</span>
+                <a asp-page="/Traders">Ver traders disponibles</a>
+            </div>
+        }
+        else if (Model.TraderSimulation.Trades.Count == 0)
+        {
+            <div class="empty-state">
+                <strong>Este trader aun no tiene historial local.</strong>
+                <span>La plataforma puede mostrar perfil/ranking publico, pero no hay trades reales importados para calcular cartera.</span>
+                <a asp-page="/Traders" asp-route-TraderId="@Model.TraderId">Ver ficha del trader</a>
+            </div>
+        }
+        else
+        {
+            <section class="metrics-grid metrics-grid-four" aria-label="Resumen cartera por trader">
+                <article class="metric">
+                    <span>Saldo final trader</span>
+                    <strong class="@Model.ResultClass(Model.TraderSimulation.NetPnL)">@Model.Money(Model.TraderSimulation.FinalBalance)</strong>
+                    <small>inicio @Model.Money(Model.TraderSimulation.InitialCapital)</small>
+                </article>
+                <article class="metric">
+                    <span>Resultado trader</span>
+                    <strong class="@Model.ResultClass(Model.TraderSimulation.NetPnL)">@Model.Money(Model.TraderSimulation.NetPnL)</strong>
+                    <small>@Model.TraderSimulation.ReturnPercent.ToString("N2")%</small>
+                </article>
+                <article class="metric">
+                    <span>Trades usados</span>
+                    <strong>@Model.TraderSimulation.AppliedTrades</strong>
+                    <small>@Model.TraderSimulation.SkippedTrades omitidos, @Model.TraderWinRate() win rate</small>
+                </article>
+                <article class="metric">
+                    <span>Caida maxima trader</span>
+                    <strong class="loss">@Model.TraderSimulation.MaxDrawdown.ToString("N2")%</strong>
+                    <small>pico @Model.Money(Model.TraderSimulation.PeakBalance)</small>
+                </article>
+            </section>
+
+            <div class="equity-chart trader-equity-chart">
+                <svg viewBox="0 0 1000 170" role="img" aria-label="Evolucion de cartera siguiendo trader">
+                    <line x1="0" y1="150" x2="1000" y2="150"></line>
+                    <polyline points="@Model.TraderEquityPolyline"></polyline>
+                </svg>
+            </div>
+
+            <div class="table-wrap">
+                <table class="report-table portfolio-table">
+                    <thead>
+                    <tr>
+                        <th>#</th>
+                        <th>Trader</th>
+                        <th>Trade</th>
+                        <th>Entrada</th>
+                        <th>Salida</th>
+                        <th>Antes</th>
+                        <th>Resultado</th>
+                        <th>Despues</th>
+                    </tr>
+                    </thead>
+                    <tbody>
+                    @foreach (var row in Model.TraderSimulation.Trades)
+                    {
+                        <tr class="@(row.WasApplied ? "" : "muted-row")">
+                            <td>@row.Sequence</td>
+                            <td>
+                                <strong>@row.TraderName</strong>
+                                <small>@row.Platform</small>
+                            </td>
+                            <td>
+                                <strong>@row.Symbol</strong>
+                                <small>@row.SignalType</small>
+                                <small>@row.OpenedAt.ToLocalTime().ToString("dd MMM HH:mm")</small>
+                            </td>
+                            <td>
+                                <strong>@Model.Price(row.EntryPrice)</strong>
+                                <small>@(row.WasApplied ? Model.Quantity(row) : "-")</small>
+                            </td>
+                            <td>
+                                <strong>@(row.ExitPrice.HasValue ? Model.Price(row.ExitPrice.Value) : "-")</strong>
+                                <small>@(row.ClosedAt.HasValue ? row.ClosedAt.Value.ToLocalTime().ToString("dd MMM HH:mm") : row.SkipReason)</small>
+                            </td>
+                            <td>@Model.Money(row.StartingBalance)</td>
+                            <td class="@Model.ResultClass(row.NetPnL)">
+                                <strong>@(row.WasApplied ? Model.Money(row.NetPnL) : row.SkipReason)</strong>
+                                <small>@(row.WasApplied ? $"{row.ReturnPercent:N2}%" : "")</small>
+                            </td>
+                            <td>
+                                <strong>@Model.Money(row.EndingBalance)</strong>
+                                <small>comision @Model.Money(row.Fees)</small>
+                            </td>
+                        </tr>
+                    }
+                    </tbody>
+                </table>
+            </div>
+        }
+    </section>
+
+    <section class="report-section">
+        <div class="section-title">
+            <h2>Secuencia compuesta</h2>
+            <span>saldo completo por senal</span>
+        </div>
+
+        @if (Model.Simulation.Trades.Count == 0)
+        {
+            <div class="empty-state">
+                <strong>Sin senales para simular.</strong>
+                <span>Cambia el rango de fechas, activo o score minimo.</span>
+            </div>
+        }
+        else
+        {
+            <div class="table-wrap">
+                <table class="report-table portfolio-table">
+                    <thead>
+                    <tr>
+                        <th>#</th>
+                        <th>Senal</th>
+                        <th>Entrada</th>
+                        <th>Salida</th>
+                        <th>Antes</th>
+                        <th>Simulador</th>
+                        <th>Resultado</th>
+                        <th>Despues</th>
+                    </tr>
+                    </thead>
+                    <tbody>
+                    @foreach (var row in Model.Simulation.Trades)
+                    {
+                        <tr class="@(row.WasApplied ? "" : "muted-row")">
+                            <td>@row.Sequence</td>
+                            <td>
+                                <strong>@row.Symbol</strong>
+                                <small>@row.Horizon | @row.OperationType</small>
+                                <small>@row.SignalTime.ToLocalTime().ToString("dd MMM HH:mm")</small>
+                            </td>
+                            <td>
+                                <strong>@row.EntryTime.ToLocalTime().ToString("HH:mm")</strong>
+                                <small>@Model.Price(row.EntryPrice)</small>
+                            </td>
+                            <td>
+                                <strong>@(row.ExitTime.HasValue ? row.ExitTime.Value.ToLocalTime().ToString("dd MMM HH:mm") : "-")</strong>
+                                <small>@(row.ExitPrice.HasValue ? Model.Price(row.ExitPrice.Value) : row.SkipReason)</small>
+                            </td>
+                            <td>@Model.Money(row.StartingBalance)</td>
+                            <td>
+                                <strong>@(row.WasApplied ? Model.Quantity(row) : "-")</strong>
+                                <small>comision @Model.Money(row.Fees)</small>
+                                <small>empate @Model.Price(Model.BreakEvenPrice(row))</small>
+                            </td>
+                            <td class="@Model.ResultClass(row.NetPnL)">
+                                <strong>@(row.WasApplied ? Model.Money(row.NetPnL) : Model.AppliedLabel(row))</strong>
+                                <small>@(row.WasApplied ? $"{row.ReturnPercent:N2}%" : "")</small>
+                            </td>
+                            <td>
+                                <strong>@Model.Money(row.EndingBalance)</strong>
+                                <small>@Model.AppliedLabel(row)</small>
+                            </td>
+                        </tr>
+                    }
+                    </tbody>
+                </table>
+            </div>
+        }
+    </section>
+</section>

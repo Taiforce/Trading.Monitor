@@ -4,6 +4,7 @@ obj/
 .idea/
 data/
 logs/
+work/
 *.user
 *.suo
 appsettings.Local.json

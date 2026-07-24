@@ -42,7 +42,7 @@
         <article class="metric">
             <span>Fuentes</span>
             <strong>@Model.Report.SourceHealth.Count</strong>
-            <small>registradas</small>
+            <small>registradas por telemetria</small>
         </article>
         <article class="metric">
             <span>Sanas</span>
@@ -61,6 +61,62 @@
         </article>
     </section>
 
+    <section class="metrics-grid metrics-grid-four" aria-label="Mapa de fuentes">
+        <article class="metric metric-soft">
+            <span>Conectadas hoy</span>
+            <strong class="gain">@Model.CatalogInUseCount</strong>
+            <small>ya participan o estan listas</small>
+        </article>
+        <article class="metric metric-soft">
+            <span>Por conectar</span>
+            <strong>@Model.CatalogCandidateCount</strong>
+            <small>requieren llave, plan o reglas</small>
+        </article>
+        <article class="metric metric-soft">
+            <span>Tipos cubiertos</span>
+            <strong>@Model.Catalog.Select(item => item.Group).Distinct().Count()</strong>
+            <small>mercado, noticias, macro, IA</small>
+        </article>
+        <article class="metric metric-soft">
+            <span>Modo seguro</span>
+            <strong class="gain">Paper</strong>
+            <small>sin ordenes reales automaticas</small>
+        </article>
+    </section>
+
+    @if (Model.ExchangeStatus is not null)
+    {
+        <details class="report-section fold-panel" open>
+            <summary>
+                <h2>Exchange</h2>
+                <span>@Model.ExchangeStatus.Provider</span>
+            </summary>
+            <div class="fold-body">
+                <div class="exchange-status-grid">
+                    <article>
+                        <span>API publica</span>
+                        <strong class="@(Model.ExchangeStatus.PublicApiHealthy ? "gain" : "loss")">@(Model.ExchangeStatus.PublicApiHealthy ? "OK" : "Falla")</strong>
+                    </article>
+                    <article>
+                        <span>Modo</span>
+                        <strong>@Model.ExchangeStatus.Mode</strong>
+                    </article>
+                    <article>
+                        <span>Llaves</span>
+                        <strong class="@(Model.ExchangeStatus.ApiKeyConfigured && Model.ExchangeStatus.ApiSecretConfigured ? "gain" : "loss")">
+                            @(Model.ExchangeStatus.ApiKeyConfigured && Model.ExchangeStatus.ApiSecretConfigured ? "Configuradas" : "Faltan")
+                        </strong>
+                    </article>
+                    <article>
+                        <span>Ordenes reales</span>
+                        <strong class="@(Model.ExchangeStatus.LiveTradingAllowed ? "loss" : "gain")">@(Model.ExchangeStatus.LiveTradingAllowed ? "Habilitadas" : "Bloqueadas")</strong>
+                    </article>
+                </div>
+                <p class="exchange-status-note">@Model.ExchangeStatus.Message @Model.ExchangeStatus.Safety</p>
+            </div>
+        </details>
+    }
+
     @if (Model.FilteredSources.Count == 0)
     {
         <div class="empty-state">
@@ -70,76 +126,107 @@
     }
     else
     {
+        var sourceGroupIndex = 0;
         @foreach (var group in Model.SourcesByKind)
         {
-            <section class="report-section">
-                <div class="section-title">
+            var isFirstGroup = sourceGroupIndex++ == 0;
+            <details class="report-section fold-panel" open="@isFirstGroup">
+                <summary>
                     <h2>@group.Key</h2>
                     <span>@group.Count() fuentes</span>
-                </div>
+                </summary>
 
-                <div class="source-grid">
-                    @foreach (var source in group)
-                    {
-                        <article class="source-row">
-                            <div>
-                                <strong>@source.SourceName</strong>
-                                <span>@(source.Url ?? "sin URL")</span>
-                            </div>
-                            <span class="status @Model.SourceStatusClass(source.Status)">@source.Status</span>
-                            <div>
-                                <small>Ultimo ok</small>
-                                <strong>@(source.LastSuccessAt?.ToLocalTime().ToString("dd MMM HH:mm") ?? "-")</strong>
-                            </div>
-                            <div>
-                                <small>Fallos</small>
-                                <strong>@source.FailureCount</strong>
-                            </div>
-                            <p>@source.LastMessage</p>
-                        </article>
-                    }
+                <div class="fold-body">
+                    <div class="source-grid">
+                        @foreach (var source in group)
+                        {
+                            <article class="source-row">
+                                <div>
+                                    <strong>@source.SourceName</strong>
+                                    <span>@(source.Url ?? "sin URL")</span>
+                                </div>
+                                <span class="status @Model.SourceStatusClass(source.Status)">@source.Status</span>
+                                <div>
+                                    <small>Ultimo ok</small>
+                                    <strong>@(source.LastSuccessAt?.ToLocalTime().ToString("dd MMM HH:mm") ?? "-")</strong>
+                                </div>
+                                <div>
+                                    <small>Fallos</small>
+                                    <strong>@source.FailureCount</strong>
+                                </div>
+                                <p>@source.LastMessage</p>
+                            </article>
+                        }
+                    </div>
                 </div>
-            </section>
+            </details>
         }
     }
 
-    <section class="report-section">
-        <div class="section-title">
-            <h2>Investigacion reciente</h2>
-            <span>@Model.Report.RecentResearch.Count items</span>
-        </div>
+    <details class="report-section fold-panel">
+        <summary>
+            <h2>Mapa de fuentes</h2>
+            <span>conectadas y candidatas</span>
+        </summary>
 
-        @if (Model.Report.RecentResearch.Count == 0)
-        {
-            <div class="empty-state">
-                <strong>Aun no hay investigacion capturada.</strong>
-                <span>Las noticias, reportes macro y resumenes de IA apareceran aqui cuando coincidan con los activos monitoreados.</span>
-            </div>
-        }
-        else
-        {
-            <div class="research-list">
-                @foreach (var item in Model.Report.RecentResearch)
+        <div class="fold-body">
+            <div class="catalog-grid">
+                @foreach (var item in Model.Catalog)
                 {
-                    <article class="research-row">
-                        <div class="research-meta">
-                            <span>@item.PublishedAt.ToLocalTime().ToString("dd MMM HH:mm")</span>
-                            <span>@item.Kind</span>
-                            <span>@item.Source</span>
-                            <span class="@Model.SentimentClass(item.Sentiment)">@item.Sentiment</span>
+                    <article class="catalog-card">
+                        <div>
+                            <span>@item.Group</span>
+                            <strong>@item.Name</strong>
                         </div>
-                        @if (item.Url.StartsWith("http", StringComparison.OrdinalIgnoreCase))
-                        {
-                            <a href="@item.Url" target="_blank" rel="noopener">@item.Title</a>
-                        }
-                        else
-                        {
-                            <strong>@item.Title</strong>
-                        }
-                        <small>@item.Symbols</small>
+                        <span class="status @Model.CatalogStatusClass(item.Status)">@item.Status</span>
+                        <p>@item.Use</p>
+                        <small>@item.Requirement</small>
+                        <a href="@item.Url" target="_blank" rel="noopener">Ver fuente</a>
                     </article>
                 }
             </div>
-        }
-    </section>
+        </div>
+    </details>
+
+    <details class="report-section fold-panel">
+        <summary>
+            <h2>Investigacion reciente</h2>
+            <span>@Model.Report.RecentResearch.Count items</span>
+        </summary>
+
+        <div class="fold-body">
+            @if (Model.Report.RecentResearch.Count == 0)
+            {
+                <div class="empty-state">
+                    <strong>Aun no hay investigacion capturada.</strong>
+                    <span>Las noticias, reportes macro y resumenes de IA apareceran aqui cuando coincidan con los activos monitoreados.</span>
+                </div>
+            }
+            else
+            {
+                <div class="research-list">
+                    @foreach (var item in Model.Report.RecentResearch)
+                    {
+                        <article class="research-row">
+                            <div class="research-meta">
+                                <span>@item.PublishedAt.ToLocalTime().ToString("dd MMM HH:mm")</span>
+                                <span>@item.Kind</span>
+                                <span>@item.Source</span>
+                                <span class="@Model.SentimentClass(item.Sentiment)">@item.Sentiment</span>
+                            </div>
+                            @if (item.Url.StartsWith("http", StringComparison.OrdinalIgnoreCase))
+                            {
+                                <a href="@item.Url" target="_blank" rel="noopener">@item.Title</a>
+                            }
+                            else
+                            {
+                                <strong>@item.Title</strong>
+                            }
+                            <small>@item.Symbols</small>
+                        </article>
+                    }
+                </div>
+            }
+        </div>
+    </details>
 </section>

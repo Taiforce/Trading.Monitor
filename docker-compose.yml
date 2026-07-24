@@ -29,11 +29,25 @@ services:
     environment:
       ASPNETCORE_ENVIRONMENT: Production
       ASPNETCORE_URLS: http://+:8080
+      TZ: ${APP_TIME_ZONE:-America/Mexico_City}
       Database__Provider: SqlServer
       Database__ConnectionString: Server=sqlserver,1433;Database=TradingMarket;User Id=sa;Password=${SQLSERVER_SA_PASSWORD:-TradingMarket_2026!Local};TrustServerCertificate=True;Encrypt=True;MultipleActiveResultSets=True
       Logs__DirectoryPath: /shared-logs
       Reporting__DefaultCapital: ${REPORTING_DEFAULT_CAPITAL:-1000}
       Reporting__EstimatedFeePercentPerSide: ${REPORTING_FEE_PERCENT_PER_SIDE:-0.1}
+      Reporting__MinimumNetProfitPercentAfterCosts: ${REPORTING_MIN_NET_PROFIT_AFTER_COSTS:-0.35}
+      ExchangeExecution__Enabled: ${EXCHANGE_EXECUTION_ENABLED:-false}
+      ExchangeExecution__Provider: ${EXCHANGE_EXECUTION_PROVIDER:-BinanceSpot}
+      ExchangeExecution__Mode: ${EXCHANGE_EXECUTION_MODE:-Paper}
+      ExchangeExecution__BaseUrl: ${EXCHANGE_EXECUTION_BASE_URL:-https://api.binance.com}
+      ExchangeExecution__ApiKeyEnvironmentVariable: BINANCE_API_KEY
+      ExchangeExecution__ApiSecretEnvironmentVariable: BINANCE_API_SECRET
+      ExchangeExecution__AllowLiveOrders: ${EXCHANGE_ALLOW_LIVE_ORDERS:-false}
+      ExchangeExecution__UseTestOrderEndpoint: ${EXCHANGE_USE_TEST_ORDER_ENDPOINT:-true}
+      ExchangeExecution__MaxCapitalPerTrade: ${EXCHANGE_MAX_CAPITAL_PER_TRADE:-100}
+      ExchangeExecution__DailyLossLimit: ${EXCHANGE_DAILY_LOSS_LIMIT:-50}
+      BINANCE_API_KEY: ${BINANCE_API_KEY:-}
+      BINANCE_API_SECRET: ${BINANCE_API_SECRET:-}
     volumes:
       - ./logs/web:/app/logs
       - ./logs:/shared-logs:ro
@@ -54,11 +68,27 @@ services:
       - .env.local
     environment:
       DOTNET_ENVIRONMENT: Production
+      TZ: ${APP_TIME_ZONE:-America/Mexico_City}
       Database__Provider: SqlServer
       Database__ConnectionString: Server=sqlserver,1433;Database=TradingMarket;User Id=sa;Password=${SQLSERVER_SA_PASSWORD:-TradingMarket_2026!Local};TrustServerCertificate=True;Encrypt=True;MultipleActiveResultSets=True
       TradingMonitor__Enabled: ${TRADING_MONITOR_ENABLED:-true}
-      TradingMonitor__MinimumScore: ${TRADING_MINIMUM_SCORE:-80}
+      TradingMonitor__MinimumScore: ${TRADING_MINIMUM_SCORE:-88}
       TradingMonitor__EvaluationIntervalSeconds: ${TRADING_EVALUATION_INTERVAL_SECONDS:-60}
+      TradingMonitor__Intervals__0: ${TRADING_INTERVAL_0:-1s}
+      TradingMonitor__Intervals__1: ${TRADING_INTERVAL_1:-1m}
+      TradingMonitor__Intervals__2: ${TRADING_INTERVAL_2:-5m}
+      TradingMonitor__Intervals__3: ${TRADING_INTERVAL_3:-15m}
+      TradingMonitor__Intervals__4: ${TRADING_INTERVAL_4:-1h}
+      TradingMonitor__Intervals__5: ${TRADING_INTERVAL_5:-4h}
+      TradingMonitor__Intervals__6: ${TRADING_INTERVAL_6:-1d}
+      TradingMonitor__Intervals__7: ${TRADING_INTERVAL_7:-1w}
+      TradingMonitor__Intervals__8: ${TRADING_INTERVAL_8:-1M}
+      Risk__Target1R: ${RISK_TARGET_1R:-2.2}
+      Risk__Target2R: ${RISK_TARGET_2R:-3.4}
+      Risk__MinimumRiskReward: ${RISK_MINIMUM_RISK_REWARD:-2.2}
+      Risk__EstimatedFeePercentPerSide: ${RISK_FEE_PERCENT_PER_SIDE:-0.1}
+      Risk__EstimatedSpreadPercent: ${RISK_SPREAD_PERCENT:-0.05}
+      Risk__MinimumNetProfitPercentAfterCosts: ${RISK_MIN_NET_PROFIT_AFTER_COSTS:-0.35}
       MarketSources__BinanceEnabled: ${MARKET_BINANCE_ENABLED:-true}
       MarketSources__BinanceUsEnabled: ${MARKET_BINANCE_US_ENABLED:-true}
       MarketSources__CoinbaseEnabled: ${MARKET_COINBASE_ENABLED:-true}
@@ -69,6 +99,10 @@ services:
       MarketSources__KrakenBaseUrl: ${KRAKEN_BASE_URL:-https://api.kraken.com}
       MarketSources__TimeoutSeconds: ${MARKET_TIMEOUT_SECONDS:-10}
       News__Enabled: ${NEWS_ENABLED:-true}
+      News__FearGreedEnabled: ${NEWS_FEAR_GREED_ENABLED:-true}
+      News__CryptoPanicEnabled: ${NEWS_CRYPTOPANIC_ENABLED:-true}
+      News__CryptoPanicAuthTokenEnvironmentVariable: CRYPTOPANIC_AUTH_TOKEN
+      CRYPTOPANIC_AUTH_TOKEN: ${CRYPTOPANIC_AUTH_TOKEN:-}
       OpenAi__Enabled: ${OPENAI_ENABLED:-true}
       OpenAi__ApiKeyEnvironmentVariable: OPENAI_API_KEY
       OpenAi__BaseUrl: ${OPENAI_BASE_URL:-https://api.openai.com}
@@ -77,6 +111,19 @@ services:
       OpenAi__MaxNewsItems: ${OPENAI_MAX_NEWS_ITEMS:-12}
       Reporting__DefaultCapital: ${REPORTING_DEFAULT_CAPITAL:-1000}
       Reporting__EstimatedFeePercentPerSide: ${REPORTING_FEE_PERCENT_PER_SIDE:-0.1}
+      Reporting__MinimumNetProfitPercentAfterCosts: ${REPORTING_MIN_NET_PROFIT_AFTER_COSTS:-0.35}
+      ExchangeExecution__Enabled: ${EXCHANGE_EXECUTION_ENABLED:-false}
+      ExchangeExecution__Provider: ${EXCHANGE_EXECUTION_PROVIDER:-BinanceSpot}
+      ExchangeExecution__Mode: ${EXCHANGE_EXECUTION_MODE:-Paper}
+      ExchangeExecution__BaseUrl: ${EXCHANGE_EXECUTION_BASE_URL:-https://api.binance.com}
+      ExchangeExecution__ApiKeyEnvironmentVariable: BINANCE_API_KEY
+      ExchangeExecution__ApiSecretEnvironmentVariable: BINANCE_API_SECRET
+      ExchangeExecution__AllowLiveOrders: ${EXCHANGE_ALLOW_LIVE_ORDERS:-false}
+      ExchangeExecution__UseTestOrderEndpoint: ${EXCHANGE_USE_TEST_ORDER_ENDPOINT:-true}
+      ExchangeExecution__MaxCapitalPerTrade: ${EXCHANGE_MAX_CAPITAL_PER_TRADE:-100}
+      ExchangeExecution__DailyLossLimit: ${EXCHANGE_DAILY_LOSS_LIMIT:-50}
+      BINANCE_API_KEY: ${BINANCE_API_KEY:-}
+      BINANCE_API_SECRET: ${BINANCE_API_SECRET:-}
       Notifications__ConsoleEnabled: ${NOTIFICATIONS_CONSOLE_ENABLED:-true}
       Notifications__Email__Enabled: ${EMAIL_ENABLED:-false}
       Notifications__Email__Host: ${EMAIL_HOST:-}

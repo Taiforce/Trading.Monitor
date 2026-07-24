@@ -28,9 +28,11 @@ public sealed class EfOpportunityRepository : IOpportunityRepository
     {
         var cutoff = DateTimeOffset.UtcNow.Subtract(duplicateWindow);
 
-        var entities = await _dbContext.Opportunities.AsNoTracking().Where(entity => entity.Symbol == opportunity.Symbol && entity.Side == opportunity.Side).ToArrayAsync(cancellationToken);
+        var entities = await _dbContext.Opportunities.AsNoTracking()
+            .Where(entity => entity.Symbol == opportunity.Symbol && entity.Side == opportunity.Side && entity.ObservedAt >= cutoff)
+            .ToArrayAsync(cancellationToken);
 
-        return entities.Any(entity => entity.ObservedAt >= cutoff);
+        return entities.Any(entity => IsSameSignalFamily(entity.ObservedAt, entity.ExpiresAt, opportunity));
     }
 
     public async Task SaveAsync(TradingOpportunity opportunity, CancellationToken cancellationToken)
@@ -82,7 +84,15 @@ public sealed class EfOpportunityRepository : IOpportunityRepository
     {
         var entities = (await _dbContext.Opportunities.AsNoTracking().ToArrayAsync(cancellationToken)).OrderByDescending(entity => entity.ObservedAt).Take(Math.Clamp(limit, 1, 500)).ToArray();
 
-        return entities.Select(entity => ToReportRow(entity, _reportingOptions.CurrentValue.DefaultCapital)).ToArray();
+        return ApplyQualityFilter(entities.Select(entity => ToReportRow(entity, _reportingOptions.CurrentValue.DefaultCapital)).ToArray());
+    }
+
+    public async Task<IReadOnlyList<OpportunityReportRow>> GetSignalsAsync(decimal capital, CancellationToken cancellationToken)
+    {
+        capital = capital <= 0m ? _reportingOptions.CurrentValue.DefaultCapital : capital;
+        var entities = (await _dbContext.Opportunities.AsNoTracking().ToArrayAsync(cancellationToken)).OrderByDescending(entity => entity.ObservedAt).ToArray();
+
+        return ApplyQualityFilter(entities.Select(entity => ToReportRow(entity, capital)).ToArray());
     }
 
     public async Task<IReadOnlyList<OpportunityReportRow>> GetOpenAsync(CancellationToken cancellationToken)
@@ -115,7 +125,7 @@ public sealed class EfOpportunityRepository : IOpportunityRepository
         var entities = (await _dbContext.Opportunities.AsNoTracking().ToArrayAsync(cancellationToken)).OrderByDescending(entity => entity.ObservedAt).ToArray();
 
         capital = capital <= 0m ? _reportingOptions.CurrentValue.DefaultCapital : capital;
-        var rows = entities.Select(entity => ToReportRow(entity, capital)).ToArray();
+        var rows = ApplyQualityFilter(entities.Select(entity => ToReportRow(entity, capital)).ToArray());
         var closed = rows.Where(row => row.Status != OpportunityStatus.Open).ToArray();
         var winners = closed.Count(row => row.RealizedNetPnL > 0m);
         var losers = closed.Count(row => row.RealizedNetPnL < 0m);
@@ -175,8 +185,19 @@ public sealed class EfOpportunityRepository : IOpportunityRepository
 
         return new OpportunityReportRow(entity.Id, entity.Symbol, entity.Side, entity.Status, entity.Score, entity.ObservedAt, entity.ExpiresAt, entity.ExitTime, entity.LastPrice, entity.EntryLower,
             entity.EntryUpper, projection.EntryPrice, entity.StopLoss, entity.TakeProfit1, entity.TakeProfit2, entity.ExitPrice, projection.Capital, projection.EstimatedQuantity, projection.EstimatedFees,
-            projection.NetProfitAtTakeProfit1, projection.NetProfitAtTakeProfit2, projection.NetLossAtStop, realizedNet, entity.RiskReward, string.Join(" | ", ReadStringArray(entity.ReasonsJson)),
-            string.Join(" | ", ReadStringArray(entity.RisksJson)));
+            projection.NetProfitAtTakeProfit1, projection.NetProfitAtTakeProfit2, projection.NetLossAtStop, realizedNet, entity.RiskReward, string.Join(" | ", ReadStringArray(entity.ConfirmingIntervalsJson)),
+            string.Join(" | ", ReadStringArray(entity.ReasonsJson)), string.Join(" | ", ReadStringArray(entity.RisksJson)));
+    }
+
+    private OpportunityReportRow[] ApplyQualityFilter(IReadOnlyList<OpportunityReportRow> rows)
+    {
+        var minimumPercent = Math.Max(0m, _reportingOptions.CurrentValue.MinimumNetProfitPercentAfterCosts);
+        if (minimumPercent <= 0m)
+            return rows.ToArray();
+
+        return rows
+            .Where(row => row.Capital > 0m && row.NetProfitAtTakeProfit1 > 0m && row.NetProfitAtTakeProfit1 / row.Capital * 100m >= minimumPercent)
+            .ToArray();
     }
 
     private decimal? CalculateNetPnL(TradingOpportunityEntity entity, OpportunityProjection projection)
@@ -187,6 +208,15 @@ public sealed class EfOpportunityRepository : IOpportunityRepository
         var gross = OpportunityProjectionService.CalculateGrossPnL(entity.Side, projection.EntryPrice, entity.ExitPrice.Value, projection.EstimatedQuantity);
 
         return Math.Round(gross - projection.EstimatedFees, 2);
+    }
+
+    private static bool IsSameSignalFamily(DateTimeOffset observedAt, DateTimeOffset expiresAt, TradingOpportunity opportunity)
+    {
+        var existingMinutes = Math.Max(1m, (decimal)(expiresAt - observedAt).TotalMinutes);
+        var incomingMinutes = Math.Max(1m, (decimal)(opportunity.ExpiresAt - opportunity.ObservedAt).TotalMinutes);
+        var ratio = Math.Max(existingMinutes, incomingMinutes) / Math.Min(existingMinutes, incomingMinutes);
+
+        return ratio < 2m;
     }
 
     private static TradingOpportunity ToOpportunity(TradingOpportunityEntity entity)

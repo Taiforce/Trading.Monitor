@@ -15,7 +15,7 @@
         <form method="get" class="capital-form">
             <label asp-for="Capital">Monto por oportunidad</label>
             <div class="capital-control">
-                <input asp-for="Capital" type="number" min="1" step="50"/>
+                <input asp-for="Capital" type="number" min="0.01" step="0.01"/>
                 <button type="submit">Recalcular</button>
             </div>
         </form>
@@ -38,12 +38,12 @@
             <small>@Model.Report.ClosedSignals cerradas</small>
         </article>
         <article class="metric">
-            <span>Potencial TP1</span>
+            <span>Ganancia objetivo</span>
             <strong class="@Model.SignedClass(Model.Report.PotentialNetAtTakeProfit1)">@Model.Money(Model.Report.PotentialNetAtTakeProfit1)</strong>
             <small>con @Model.Money(Model.Report.Capital) por senal</small>
         </article>
         <article class="metric">
-            <span>Riesgo a stop</span>
+            <span>Perdida maxima</span>
             <strong class="@Model.SignedClass(Model.Report.PotentialLossAtStop)">@Model.Money(Model.Report.PotentialLossAtStop)</strong>
             <small>perdida neta estimada</small>
         </article>
@@ -62,11 +62,15 @@
     <section class="quick-links" aria-label="Secciones">
         <a asp-page="/Actions" asp-route-Capital="@Model.Report.Capital">
             <strong>Acciones</strong>
-            <span>Entradas, salidas, TP, stop y monto hipotetico.</span>
+            <span>Hora de entrada, salida, ganancia, perdida y monto hipotetico.</span>
         </a>
         <a asp-page="/Reports" asp-route-Capital="@Model.Report.Capital">
             <strong>Reportes</strong>
             <span>Rendimiento por simbolo, dia y score.</span>
+        </a>
+        <a asp-page="/Portfolio" asp-route-InitialCapital="@Model.Report.Capital">
+            <strong>Cartera</strong>
+            <span>Simula interes compuesto usando todo el saldo por senal.</span>
         </a>
         <a asp-page="/Connections">
             <strong>Conexiones</strong>
@@ -99,16 +103,16 @@
                     {
                         <article class="compact-row">
                             <div>
-                                <strong>@row.Symbol @row.Side</strong>
+                                <strong>@row.Symbol @Model.SignalTypeLabel(row.Side)</strong>
                                 <span>Entrada @Model.Price(row.EntryLower) - @Model.Price(row.EntryUpper)</span>
                             </div>
                             <span class="status @Model.StatusClass(row.Status)">@Model.StatusLabel(row.Status)</span>
                             <div>
-                                <small>TP1</small>
+                                <small>Ganar</small>
                                 <strong class="gain">@Model.Money(row.NetProfitAtTakeProfit1)</strong>
                             </div>
                             <div>
-                                <small>Stop</small>
+                                <small>Perder max</small>
                                 <strong class="loss">@Model.Money(row.NetLossAtStop)</strong>
                             </div>
                         </article>

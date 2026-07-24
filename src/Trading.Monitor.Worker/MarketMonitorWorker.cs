@@ -51,8 +51,8 @@ public sealed class MarketMonitorWorker(ILogger<MarketMonitorWorker> logger, Mar
         var monitor = monitorOptions.CurrentValue;
         var risk = riskOptions.CurrentValue;
         var news = newsOptions.CurrentValue;
-        var symbols = Normalize(monitor.Symbols);
-        var intervals = Normalize(monitor.Intervals);
+        var symbols = NormalizeSymbols(monitor.Symbols);
+        var intervals = NormalizeIntervals(monitor.Intervals);
 
         logger.LogInformation("Scanning {Symbols} across {Intervals}. Minimum score: {MinimumScore}", string.Join(", ", symbols), string.Join(", ", intervals), monitor.MinimumScore);
 
@@ -79,14 +79,14 @@ public sealed class MarketMonitorWorker(ILogger<MarketMonitorWorker> logger, Mar
 
         if (isDuplicate)
         {
-            logger.LogInformation("Skipping duplicate {Symbol} {Side} signal within {DuplicateWindow}.", opportunity.Symbol, opportunity.Side, duplicateWindow);
+            logger.LogInformation("Skipping duplicate {Symbol} {SignalType} signal within {DuplicateWindow}.", opportunity.Symbol, SignalTypeDescriptor.Label(opportunity.Side), duplicateWindow);
             return;
         }
 
         await repository.SaveAsync(opportunity, cancellationToken);
 
-        logger.LogInformation("New signal {Symbol} {Side} score {Score}. Entry {EntryLower}-{EntryUpper}, stop {StopLoss}, TP1 {TakeProfit1}.", opportunity.Symbol, opportunity.Side, opportunity.Score,
-            opportunity.EntryLower, opportunity.EntryUpper, opportunity.StopLoss, opportunity.TakeProfit1);
+        logger.LogInformation("New signal {Symbol} {SignalType} score {Score}. Entry {EntryLower}-{EntryUpper}, perdida maxima {StopLoss}, ganancia objetivo {TakeProfit1}.", opportunity.Symbol,
+            SignalTypeDescriptor.Label(opportunity.Side), opportunity.Score, opportunity.EntryLower, opportunity.EntryUpper, opportunity.StopLoss, opportunity.TakeProfit1);
 
         foreach (var channel in notificationChannels)
         {
@@ -121,7 +121,8 @@ public sealed class MarketMonitorWorker(ILogger<MarketMonitorWorker> logger, Mar
         {
             try
             {
-                var candles = await marketDataProvider.GetCandlesAsync(opportunity.Symbol, monitor.TriggerInterval, Math.Min(1000, Math.Max(100, monitor.CandleLimit)), cancellationToken);
+                var trackingInterval = ResolveExitTrackingInterval(opportunity);
+                var candles = await marketDataProvider.GetCandlesAsync(opportunity.Symbol, trackingInterval, Math.Min(1000, Math.Max(100, monitor.CandleLimit)), cancellationToken);
 
                 var exit = ResolveExit(opportunity, candles);
 
@@ -133,12 +134,33 @@ public sealed class MarketMonitorWorker(ILogger<MarketMonitorWorker> logger, Mar
                 var net = gross - opportunity.EstimatedFees;
                 await repository.UpdateExitAsync(opportunity.Id, exit, gross, net, cancellationToken);
 
-                logger.LogInformation("Opportunity {Symbol} {Side} closed as {Status} at {ExitPrice}. Net PnL for {Capital}: {NetPnL}", opportunity.Symbol, opportunity.Side, exit.Status, exit.ExitPrice,
-                    opportunity.Capital, Math.Round(net, 2));
+                logger.LogInformation("Opportunity {Symbol} {SignalType} closed as {Status} at {ExitPrice}. Net PnL for {Capital}: {NetPnL}", opportunity.Symbol,
+                    SignalTypeDescriptor.Label(opportunity.Side), exit.Status, exit.ExitPrice, opportunity.Capital, Math.Round(net, 2));
+
+                await SendExitNotificationsAsync(opportunity, exit, net, cancellationToken);
             }
             catch (Exception exception)
             {
                 logger.LogWarning(exception, "Could not update open opportunity {OpportunityId}.", opportunity.Id);
+            }
+        }
+    }
+
+    private async Task SendExitNotificationsAsync(OpportunityReportRow opportunity, OpportunityExit exit, decimal net, CancellationToken cancellationToken)
+    {
+        foreach (var channel in notificationChannels)
+        {
+            if (!IsChannelEnabled(channel.Name))
+                continue;
+
+            try
+            {
+                await channel.SendExitAsync(opportunity, exit, net, cancellationToken);
+                logger.LogInformation("Exit signal sent through {Channel}.", channel.Name);
+            }
+            catch (Exception exception)
+            {
+                logger.LogError(exception, "Failed to send exit signal through {Channel}.", channel.Name);
             }
         }
     }
@@ -153,37 +175,52 @@ public sealed class MarketMonitorWorker(ILogger<MarketMonitorWorker> logger, Mar
             {
                 if (candle.Low <= opportunity.StopLoss)
                 {
-                    return new OpportunityExit(OpportunityStatus.HitStopLoss, candle.CloseTime, opportunity.StopLoss, "Stop loss touched before target in tracked candle sequence.");
+                    return new OpportunityExit(OpportunityStatus.HitStopLoss, candle.CloseTime, opportunity.StopLoss, "Perdida maxima tocada antes de la ganancia objetivo.");
                 }
 
                 if (candle.High >= opportunity.TakeProfit2)
-                    return new OpportunityExit(OpportunityStatus.HitTakeProfit2, candle.CloseTime, opportunity.TakeProfit2, "Take profit 2 touched.");
+                    return new OpportunityExit(OpportunityStatus.HitTakeProfit2, candle.CloseTime, opportunity.TakeProfit2, "Ganancia extra alcanzada.");
 
                 if (candle.High >= opportunity.TakeProfit1)
-                    return new OpportunityExit(OpportunityStatus.HitTakeProfit1, candle.CloseTime, opportunity.TakeProfit1, "Take profit 1 touched.");
+                    return new OpportunityExit(OpportunityStatus.HitTakeProfit1, candle.CloseTime, opportunity.TakeProfit1, "Ganancia objetivo alcanzada.");
             }
             else
             {
                 if (candle.High >= opportunity.StopLoss)
                 {
-                    return new OpportunityExit(OpportunityStatus.HitStopLoss, candle.CloseTime, opportunity.StopLoss, "Stop loss touched before target in tracked candle sequence.");
+                    return new OpportunityExit(OpportunityStatus.HitStopLoss, candle.CloseTime, opportunity.StopLoss, "Perdida maxima tocada antes de la ganancia objetivo.");
                 }
 
                 if (candle.Low <= opportunity.TakeProfit2)
-                    return new OpportunityExit(OpportunityStatus.HitTakeProfit2, candle.CloseTime, opportunity.TakeProfit2, "Take profit 2 touched.");
+                    return new OpportunityExit(OpportunityStatus.HitTakeProfit2, candle.CloseTime, opportunity.TakeProfit2, "Ganancia extra alcanzada.");
 
                 if (candle.Low <= opportunity.TakeProfit1)
-                    return new OpportunityExit(OpportunityStatus.HitTakeProfit1, candle.CloseTime, opportunity.TakeProfit1, "Take profit 1 touched.");
+                    return new OpportunityExit(OpportunityStatus.HitTakeProfit1, candle.CloseTime, opportunity.TakeProfit1, "Ganancia objetivo alcanzada.");
             }
         }
 
         if (DateTimeOffset.UtcNow > opportunity.ExpiresAt && relevantCandles.Length > 0)
         {
             var last = relevantCandles[^1];
-            return new OpportunityExit(OpportunityStatus.Expired, last.CloseTime, last.Close, "Signal expired before hitting stop or target.");
+            return new OpportunityExit(OpportunityStatus.Expired, last.CloseTime, last.Close, "La oportunidad vencio antes de tocar ganancia o perdida maxima.");
         }
 
         return null;
+    }
+
+    private static string ResolveExitTrackingInterval(OpportunityReportRow opportunity)
+    {
+        var minutes = Math.Max(1, (opportunity.ExpiresAt - opportunity.ObservedAt).TotalMinutes);
+
+        return minutes switch
+        {
+            <= 30 => "1m",
+            <= 240 => "5m",
+            <= 2880 => "15m",
+            <= 10080 => "1h",
+            <= 43200 => "4h",
+            _ => "1d"
+        };
     }
 
     private static Task DelayAsync(TradingMonitorOptions monitor, CancellationToken cancellationToken)
@@ -192,8 +229,26 @@ public sealed class MarketMonitorWorker(ILogger<MarketMonitorWorker> logger, Mar
         return Task.Delay(TimeSpan.FromSeconds(seconds), cancellationToken);
     }
 
-    private static string[] Normalize(IEnumerable<string> values)
+    private bool IsChannelEnabled(string channelName)
+    {
+        var notifications = notificationOptions.CurrentValue;
+
+        return channelName switch
+        {
+            "console" => notifications.ConsoleEnabled,
+            "email" => notifications.Email.Enabled,
+            "telegram" => notifications.Telegram.Enabled,
+            _ => true
+        };
+    }
+
+    private static string[] NormalizeSymbols(IEnumerable<string> values)
     {
         return values.Where(value => !string.IsNullOrWhiteSpace(value)).Select(value => value.Trim()).Distinct(StringComparer.OrdinalIgnoreCase).ToArray();
+    }
+
+    private static string[] NormalizeIntervals(IEnumerable<string> values)
+    {
+        return values.Where(value => !string.IsNullOrWhiteSpace(value)).Select(value => value.Trim()).Distinct(StringComparer.Ordinal).ToArray();
     }
 }
