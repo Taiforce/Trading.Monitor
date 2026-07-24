@@ -46,6 +46,7 @@
     const intervalStorageKey = "trading-monitor-chart-interval";
     const lineStyleDashed = lwc.LineStyle?.Dashed ?? 2;
     const crosshairModeNormal = lwc.CrosshairMode?.Normal ?? 0;
+    const appTimeZone = resolveTimeZone(document.documentElement.dataset.appTimezone);
 
     let chart;
     let candleSeries;
@@ -107,7 +108,8 @@
                 barSpacing: 8,
                 minBarSpacing: 2,
                 fixLeftEdge: false,
-                fixRightEdge: false
+                fixRightEdge: false,
+                tickMarkFormatter: formatChartTick
             },
             crosshair: {
                 mode: crosshairModeNormal,
@@ -137,7 +139,8 @@
             },
             localization: {
                 locale: navigator.language || "es-MX",
-                priceFormatter: formatPrice
+                priceFormatter: formatPrice,
+                timeFormatter: formatChartDateTime
             }
         });
 
@@ -939,12 +942,48 @@
             return "-";
         }
 
-        return new Date(value).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+        return new Date(value).toLocaleTimeString([], withTimeZone({ hour: "2-digit", minute: "2-digit" }));
     }
 
     function formatDateTime(value) {
-        const date = typeof value === "number" ? new Date(value * 1000) : new Date(value);
-        return date.toLocaleString([], { month: "short", day: "2-digit", hour: "2-digit", minute: "2-digit", second: "2-digit" });
+        return chartTimeToDate(value).toLocaleString([], withTimeZone({ month: "short", day: "2-digit", hour: "2-digit", minute: "2-digit", second: "2-digit" }));
+    }
+
+    function formatChartDateTime(value) {
+        return chartTimeToDate(value).toLocaleString([], withTimeZone({ month: "short", day: "2-digit", hour: "2-digit", minute: "2-digit", second: "2-digit" }));
+    }
+
+    function formatChartTick(value) {
+        return chartTimeToDate(value).toLocaleString([], withTimeZone({ month: "short", day: "2-digit", hour: "2-digit", minute: "2-digit" }));
+    }
+
+    function chartTimeToDate(value) {
+        if (typeof value === "number") {
+            return new Date(value * 1000);
+        }
+
+        if (value && typeof value === "object" && "year" in value) {
+            return new Date(Date.UTC(value.year, value.month - 1, value.day));
+        }
+
+        return new Date(value);
+    }
+
+    function withTimeZone(options) {
+        return appTimeZone ? { ...options, timeZone: appTimeZone } : options;
+    }
+
+    function resolveTimeZone(value) {
+        if (!value) {
+            return null;
+        }
+
+        try {
+            new Intl.DateTimeFormat(undefined, { timeZone: value }).format(new Date());
+            return value;
+        } catch {
+            return null;
+        }
     }
 
     function escapeHtml(value) {

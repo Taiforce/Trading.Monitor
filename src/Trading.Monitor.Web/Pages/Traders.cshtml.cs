@@ -89,6 +89,21 @@ public sealed class TradersModel(ITraderResearchRepository traderRepository, ILo
         return Report.SelectedTrader?.DisplayName ?? "todos los traders";
     }
 
+    public IReadOnlyList<TraderProfileReportRow> TradersFor(string platform)
+    {
+        return Report.Traders
+            .Where(row => string.Equals(row.Platform, platform, StringComparison.OrdinalIgnoreCase))
+            .ToArray();
+    }
+
+    public IReadOnlyList<TraderTradeReportRow> TradesFor(Guid traderId)
+    {
+        return Report.Trades
+            .Where(row => row.TraderId == traderId)
+            .OrderByDescending(row => row.OpenedAt)
+            .ToArray();
+    }
+
     private static TraderResearchReport EmptyReport()
     {
         return new TraderResearchReport([], [], [], null, 0, 0, 0, 0, 0);

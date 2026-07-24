@@ -28,9 +28,6 @@ public sealed class EfTraderResearchRepository : ITraderResearchRepository
         var selectedTrader = filter.TraderId.HasValue ? traders.FirstOrDefault(row => row.Id == filter.TraderId.Value) : null;
         var filteredTrades = ApplyTradeFilters(trades, filter).ToArray();
 
-        if (filter.TraderId.HasValue)
-            filteredTrades = filteredTrades.Where(row => row.TraderId == filter.TraderId.Value).ToArray();
-
         return new TraderResearchReport(
             sources,
             traders,

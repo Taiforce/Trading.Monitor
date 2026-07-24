@@ -1,13 +1,16 @@
 (() => {
     const containers = document.querySelectorAll("[data-master-detail]");
+    const appTimeZone = resolveTimeZone(document.documentElement.dataset.appTimezone);
 
     containers.forEach(container => {
-        const items = [...container.querySelectorAll("[data-detail-key]")];
-        const panels = [...container.querySelectorAll("[data-detail-panel]")];
+        const items = directItems(container);
+        const panels = directPanels(container);
 
         if (items.length === 0 || panels.length === 0) {
             return;
         }
+
+        setupInternalFilters(container, items);
 
         items.forEach(item => {
             item.addEventListener("click", () => activate(container, item.dataset.detailKey));
@@ -18,11 +21,11 @@
     });
 
     function activate(container, key) {
-        container.querySelectorAll("[data-detail-key]").forEach(item => {
+        directItems(container).forEach(item => {
             item.classList.toggle("active", item.dataset.detailKey === key);
         });
 
-        container.querySelectorAll("[data-detail-panel]").forEach(panel => {
+        directPanels(container).forEach(panel => {
             const isActive = panel.getAttribute("data-detail-panel") === key;
             panel.classList.toggle("active", isActive);
 
@@ -30,6 +33,79 @@
                 renderSignalReplay(panel);
             }
         });
+    }
+
+    function directItems(container) {
+        const list = container.querySelector(":scope > .master-list");
+        return list ? [...list.querySelectorAll(":scope > [data-detail-key]")] : [];
+    }
+
+    function directPanels(container) {
+        return [...container.querySelectorAll(":scope > .detail-stack > [data-detail-panel]")];
+    }
+
+    function setupInternalFilters(container, items) {
+        if (items.length < 8 || container.querySelector(":scope > .internal-filter-bar")) {
+            return;
+        }
+
+        const list = container.querySelector(":scope > .master-list");
+        if (!list) {
+            return;
+        }
+
+        const statuses = unique(items.map(item => item.dataset.filterStatus).filter(Boolean));
+        const types = unique(items.map(item => item.dataset.filterType).filter(Boolean));
+        const filter = document.createElement("div");
+        filter.className = "internal-filter-bar";
+        filter.innerHTML = `
+            <label>
+                <span>Buscar</span>
+                <input type="search" data-internal-search placeholder="Filtrar esta lista"/>
+            </label>
+            ${statuses.length > 1 ? `<label><span>Estado</span><select data-internal-status><option value="">Todos</option>${statuses.map(value => `<option value="${escapeAttribute(value)}">${escapeHtml(value)}</option>`).join("")}</select></label>` : ""}
+            ${types.length > 1 ? `<label><span>Tipo</span><select data-internal-type><option value="">Todos</option>${types.map(value => `<option value="${escapeAttribute(value)}">${escapeHtml(value)}</option>`).join("")}</select></label>` : ""}
+            <strong data-filter-count>${items.length}</strong>`;
+        container.insertBefore(filter, list);
+
+        const search = filter.querySelector("[data-internal-search]");
+        const status = filter.querySelector("[data-internal-status]");
+        const type = filter.querySelector("[data-internal-type]");
+        const count = filter.querySelector("[data-filter-count]");
+        const apply = () => {
+            const query = (search?.value || "").trim().toLowerCase();
+            const selectedStatus = status?.value || "";
+            const selectedType = type?.value || "";
+            let visible = 0;
+
+            items.forEach(item => {
+                const text = (item.dataset.filterText || item.textContent || "").toLowerCase();
+                const matches = (!query || text.includes(query))
+                    && (!selectedStatus || item.dataset.filterStatus === selectedStatus)
+                    && (!selectedType || item.dataset.filterType === selectedType);
+
+                item.hidden = !matches;
+                if (matches) {
+                    visible += 1;
+                }
+            });
+
+            if (count) {
+                count.textContent = String(visible);
+            }
+
+            const active = items.find(item => item.classList.contains("active"));
+            if (!active || active.hidden) {
+                const firstVisible = items.find(item => !item.hidden);
+                if (firstVisible) {
+                    activate(container, firstVisible.dataset.detailKey);
+                }
+            }
+        };
+
+        search?.addEventListener("input", apply);
+        status?.addEventListener("change", apply);
+        type?.addEventListener("change", apply);
     }
 
     async function renderSignalReplay(panel) {
@@ -88,11 +164,13 @@
                 secondsVisible: true,
                 rightOffset: 5,
                 barSpacing: 8,
-                minBarSpacing: 2
+                minBarSpacing: 2,
+                tickMarkFormatter: formatChartTick
             },
             localization: {
                 locale: navigator.language || "es-MX",
-                priceFormatter: formatPrice
+                priceFormatter: formatPrice,
+                timeFormatter: formatChartDateTime
             }
         });
 
@@ -106,6 +184,7 @@
             lastValueVisible: true
         });
         candleSeries.setData(candles);
+        const hover = createHoverCard(host);
 
         const route = buildRoute(panel, candles);
         if (route.length >= 2) {
@@ -130,6 +209,7 @@
             candleSeries.setMarkers(markers);
         }
 
+        chart.subscribeCrosshairMove(param => showHoverInfo(host, hover, candleSeries, param));
         chart.timeScale().fitContent();
         new ResizeObserver(() => {
             chart.applyOptions({ width: host.clientWidth, height: host.clientWidth < 760 ? 320 : 380 });
@@ -264,9 +344,102 @@
         return Math.floor(new Date(value).getTime() / 1000);
     }
 
+    function createHoverCard(host) {
+        const hover = document.createElement("div");
+        hover.className = "chart-hover-card report-chart-hover";
+        hover.hidden = true;
+        host.appendChild(hover);
+        return hover;
+    }
+
+    function showHoverInfo(host, hover, candleSeries, param) {
+        if (!hover || !param?.time || !param.point || param.point.x < 0 || param.point.y < 0) {
+            if (hover) {
+                hover.hidden = true;
+            }
+            return;
+        }
+
+        const candle = param.seriesData.get(candleSeries);
+        if (!candle) {
+            hover.hidden = true;
+            return;
+        }
+
+        const change = Number(candle.close) - Number(candle.open);
+        const changePercent = Number(candle.open) === 0 ? 0 : change / Number(candle.open) * 100;
+        hover.innerHTML = `
+            <strong>${escapeHtml(formatChartDateTime(param.time))}</strong>
+            <dl>
+                <div><dt>Abrio</dt><dd>${formatPrice(candle.open)}</dd></div>
+                <div><dt>Alto</dt><dd>${formatPrice(candle.high)}</dd></div>
+                <div><dt>Bajo</dt><dd>${formatPrice(candle.low)}</dd></div>
+                <div><dt>Cerro</dt><dd class="${change >= 0 ? "gain" : "loss"}">${formatPrice(candle.close)} (${changePercent.toFixed(2)}%)</dd></div>
+            </dl>`;
+        hover.hidden = false;
+
+        const x = Math.min(host.clientWidth - 230, Math.max(12, param.point.x + 16));
+        const y = Math.min(host.clientHeight - 126, Math.max(12, param.point.y + 16));
+        hover.style.transform = `translate(${x}px, ${y}px)`;
+    }
+
+    function formatChartDateTime(value) {
+        return chartTimeToDate(value).toLocaleString([], withTimeZone({ month: "short", day: "2-digit", hour: "2-digit", minute: "2-digit", second: "2-digit" }));
+    }
+
+    function formatChartTick(value) {
+        return chartTimeToDate(value).toLocaleString([], withTimeZone({ month: "short", day: "2-digit", hour: "2-digit", minute: "2-digit" }));
+    }
+
+    function chartTimeToDate(value) {
+        if (typeof value === "number") {
+            return new Date(value * 1000);
+        }
+
+        if (value && typeof value === "object" && "year" in value) {
+            return new Date(Date.UTC(value.year, value.month - 1, value.day));
+        }
+
+        return new Date(value);
+    }
+
+    function withTimeZone(options) {
+        return appTimeZone ? { ...options, timeZone: appTimeZone } : options;
+    }
+
+    function resolveTimeZone(value) {
+        if (!value) {
+            return null;
+        }
+
+        try {
+            new Intl.DateTimeFormat(undefined, { timeZone: value }).format(new Date());
+            return value;
+        } catch {
+            return null;
+        }
+    }
+
+    function unique(values) {
+        return [...new Set(values)].sort((a, b) => a.localeCompare(b));
+    }
+
     function formatPrice(value) {
         const number = Number(value || 0);
         const decimals = Math.abs(number) >= 1000 ? 2 : Math.abs(number) >= 1 ? 4 : 8;
         return number.toLocaleString("en-US", { minimumFractionDigits: decimals, maximumFractionDigits: decimals });
+    }
+
+    function escapeHtml(value) {
+        return String(value ?? "")
+            .replaceAll("&", "&amp;")
+            .replaceAll("<", "&lt;")
+            .replaceAll(">", "&gt;")
+            .replaceAll("\"", "&quot;")
+            .replaceAll("'", "&#039;");
+    }
+
+    function escapeAttribute(value) {
+        return escapeHtml(value).replaceAll("`", "&#096;");
     }
 })();

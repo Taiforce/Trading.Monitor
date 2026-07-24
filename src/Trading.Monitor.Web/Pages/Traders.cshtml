@@ -2,6 +2,10 @@
 @model TradersModel
 @{
     ViewData["Title"] = "Traders";
+    var selectedSourcePlatform = Model.Report.SelectedTrader?.Platform
+        ?? Model.Report.Traders.FirstOrDefault()?.Platform
+        ?? Model.Report.Sources.FirstOrDefault()?.Platform
+        ?? "";
 }
 
 <section class="dashboard">
@@ -71,181 +75,215 @@
 
     <section class="report-section">
         <div class="section-title">
-            <h2>Fuentes donde seguir traders</h2>
-            <span>catalogo investigado</span>
+            <h2>Fuentes, traders e historial</h2>
+            <span>elige una fuente y luego un trader</span>
         </div>
-        <div class="master-detail compact-workbench" data-master-detail>
-            <div class="master-list" aria-label="Fuentes de traders">
-                @for (var index = 0; index < Model.Report.Sources.Count; index++)
-                {
-                    var source = Model.Report.Sources[index];
-                    var key = $"source-{index}";
-                    <button type="button" class="master-item @(index == 0 ? "active" : "")" data-detail-key="@key">
-                        <span class="master-kicker">@source.Platform</span>
-                        <strong>@source.Name</strong>
-                        <small>@source.Market</small>
-                        <div class="master-item-extra">
-                            <span>@(source.SupportsCopyTrading ? "Copy trading disponible" : "Solo investigacion")</span>
-                        </div>
-                    </button>
-                }
-            </div>
-            <div class="detail-stack">
-                @for (var index = 0; index < Model.Report.Sources.Count; index++)
-                {
-                    var source = Model.Report.Sources[index];
-                    var key = $"source-{index}";
-                    <article class="detail-panel @(index == 0 ? "active" : "")" data-detail-panel="@key">
-                        <div class="section-title">
-                            <h2>@source.Name</h2>
-                            <span>@source.Platform</span>
-                        </div>
-                        <div class="detail-grid">
-                            <article><span>Mercado</span><strong>@source.Market</strong><small>universo principal</small></article>
-                            <article><span>Acceso</span><strong>@source.DataAccess</strong><small>como se obtiene informacion</small></article>
-                            <article><span>Calidad</span><strong>@source.DataQuality</strong><small>que tan verificable es</small></article>
-                            <article><span>Copy trading</span><strong>@(source.SupportsCopyTrading ? "Si" : "No")</strong><small>requiere revisar comisiones y riesgo</small></article>
-                        </div>
-                        <p class="detail-copy">@source.Notes</p>
-                        <div class="trade-links">
-                            <a href="@source.Url" target="_blank" rel="noopener noreferrer">Abrir fuente</a>
-                        </div>
-                    </article>
-                }
-            </div>
-        </div>
-    </section>
 
-    <section class="report-section">
-        <div class="section-title">
-            <h2>Traders y rankings</h2>
-            <span>clic para ver historial</span>
-        </div>
-        @if (Model.Report.Traders.Count == 0)
+        @if (Model.Report.Sources.Count == 0)
         {
             <div class="empty-state">
-                <strong>No encontre traders con esos filtros.</strong>
-                <span>Quita filtros o busca por otra fuente.</span>
+                <strong>Sin fuentes para mostrar.</strong>
+                <span>Cuando se agreguen fuentes de copy trading apareceran aqui.</span>
             </div>
         }
         else
         {
-            <div class="master-detail trader-workbench" data-master-detail>
-                <div class="master-list" aria-label="Traders y rankings">
-                    @for (var index = 0; index < Model.Report.Traders.Count; index++)
+            <div class="master-detail source-workbench" data-master-detail>
+                <div class="master-list" aria-label="Fuentes de traders">
+                    @for (var sourceIndex = 0; sourceIndex < Model.Report.Sources.Count; sourceIndex++)
                     {
-                        var trader = Model.Report.Traders[index];
-                        var key = $"trader-{trader.Id}";
-                        var isSelected = Model.TraderId == trader.Id || (!Model.TraderId.HasValue && index == 0);
-                        <button type="button" class="master-item @(isSelected ? "active" : "")" data-detail-key="@key">
-                            <span class="master-kicker">@trader.Platform | fiabilidad @trader.ReliabilityScore.ToString("N0")</span>
-                            <strong>@trader.DisplayName</strong>
-                            <small>@trader.StrategyType | @trader.Market</small>
-                            <span class="@Model.SignedClass(trader.RealizedNetPnL)">Neto local @Model.Money(trader.RealizedNetPnL)</span>
+                        var source = Model.Report.Sources[sourceIndex];
+                        var sourceTraders = Model.TradersFor(source.Platform);
+                        var sourceTrades = sourceTraders.Sum(trader => Model.TradesFor(trader.Id).Count);
+                        var key = $"source-{sourceIndex}";
+                        var isActive = string.Equals(source.Platform, selectedSourcePlatform, StringComparison.OrdinalIgnoreCase);
+                        <button type="button"
+                                class="master-item @(isActive ? "active" : "")"
+                                data-detail-key="@key"
+                                data-filter-text="@($"{source.Platform} {source.Name} {source.Market} {source.DataAccess} {source.DataQuality} {source.Notes}")"
+                                data-filter-status="@(sourceTraders.Count > 0 ? "Con traders" : "Sin traders")"
+                                data-filter-type="@(source.SupportsCopyTrading ? "Copy trading" : "Investigacion")">
+                            <span class="master-kicker">@source.Platform</span>
+                            <strong>@source.Name</strong>
+                            <small>@source.Market</small>
                             <div class="master-item-extra">
-                                <span>@trader.TrackedTrades trades</span>
-                                <span>Win rate @(trader.WinRatePercent.HasValue ? $"{trader.WinRatePercent:N2}%" : "-")</span>
+                                <span>@(source.SupportsCopyTrading ? "Copy trading disponible" : "Solo investigacion")</span>
+                                <span>@sourceTraders.Count traders</span>
+                                <span>@sourceTrades trades</span>
+                                <span>@source.DataQuality</span>
                             </div>
                         </button>
                     }
                 </div>
+
                 <div class="detail-stack">
-                    @for (var index = 0; index < Model.Report.Traders.Count; index++)
+                    @for (var sourceIndex = 0; sourceIndex < Model.Report.Sources.Count; sourceIndex++)
                     {
-                        var trader = Model.Report.Traders[index];
-                        var key = $"trader-{trader.Id}";
-                        var isSelected = Model.TraderId == trader.Id || (!Model.TraderId.HasValue && index == 0);
-                        <article class="detail-panel @(isSelected ? "active" : "")" data-detail-panel="@key">
+                        var source = Model.Report.Sources[sourceIndex];
+                        var sourceTraders = Model.TradersFor(source.Platform);
+                        var sourceHasSelectedTrader = sourceTraders.Any(trader => Model.TraderId == trader.Id);
+                        var activeTraderId = sourceHasSelectedTrader ? Model.TraderId : sourceTraders.FirstOrDefault()?.Id;
+                        var key = $"source-{sourceIndex}";
+                        var isActive = string.Equals(source.Platform, selectedSourcePlatform, StringComparison.OrdinalIgnoreCase);
+                        <article class="detail-panel @(isActive ? "active" : "")" data-detail-panel="@key">
                             <div class="section-title">
-                                <h2>@trader.DisplayName</h2>
-                                <span>@trader.Platform | @trader.Market</span>
-                            </div>
-                            <div class="trader-detail-head">
-                                <div class="score-ring @Model.ReliabilityClass(trader.ReliabilityScore)">
-                                    <strong>@trader.ReliabilityScore.ToString("N0")</strong>
-                                    <small>fiabilidad</small>
-                                </div>
-                                <p>@trader.PerformanceText</p>
+                                <h2>@source.Name</h2>
+                                <span>@source.Platform | @source.Market</span>
                             </div>
                             <div class="detail-grid">
-                                <article><span>Popularidad</span><strong>@trader.PopularityText</strong><small>senal social</small></article>
-                                <article><span>Historial local</span><strong>@trader.TrackedTrades trades</strong><small>@trader.OpenTrades abiertos, @trader.ClosedTrades cerrados</small></article>
-                                <article><span>Win rate local</span><strong>@(trader.WinRatePercent.HasValue ? $"{trader.WinRatePercent:N2}%" : "-")</strong><small>solo trades importados</small></article>
-                                <article><span>Neto local</span><strong class="@Model.SignedClass(trader.RealizedNetPnL)">@Model.Money(trader.RealizedNetPnL)</strong><small>resultado medido</small></article>
-                                <article><span>Datos</span><strong>@trader.DataAvailability</strong><small>transparencia</small></article>
-                                <article><span>Ultima lectura</span><strong>@(trader.LastSyncedAt.HasValue ? trader.LastSyncedAt.Value.ToLocalTime().ToString("dd MMM HH:mm") : "-")</strong><small>sincronizacion</small></article>
+                                <article><span>Mercado</span><strong>@source.Market</strong><small>universo principal</small></article>
+                                <article><span>Acceso</span><strong>@source.DataAccess</strong><small>como se obtiene informacion</small></article>
+                                <article><span>Calidad</span><strong>@source.DataQuality</strong><small>que tan verificable es</small></article>
+                                <article><span>Copy trading</span><strong>@(source.SupportsCopyTrading ? "Si" : "No")</strong><small>revisar comisiones y riesgo</small></article>
                             </div>
-                            <p class="detail-copy">@trader.Notes</p>
+                            <p class="detail-copy">@source.Notes</p>
                             <div class="trade-links">
-                                <a asp-page="/Traders"
-                                   asp-route-Platform="@Model.Platform"
-                                   asp-route-Search="@Model.Search"
-                                   asp-route-TradeStatus="@Model.TradeStatus"
-                                   asp-route-OnlyWithHistory="@Model.OnlyWithHistory"
-                                   asp-route-TraderId="@trader.Id">Ver historial</a>
-                                <a href="@trader.ProfileUrl" target="_blank" rel="noopener noreferrer">Perfil</a>
-                                <a asp-page="/Portfolio" asp-route-TraderId="@trader.Id">Simular cartera</a>
+                                <a href="@source.Url" target="_blank" rel="noopener noreferrer">Abrir fuente</a>
                             </div>
-                        </article>
-                    }
-                </div>
-            </div>
-        }
-    </section>
 
-    <section class="report-section">
-        <div class="section-title">
-            <h2>Historial de trades</h2>
-            <span>@Model.SelectedTraderName()</span>
-        </div>
-        @if (Model.Report.Trades.Count == 0)
-        {
-            <div class="empty-state">
-                <strong>Sin operaciones importadas o conectadas.</strong>
-                <span>El perfil existe, pero la fuente no expone aqui su historial completo de forma publica. Cuando haya trades reales, esta tabla mostrara abiertos, cerrados, entrada, salida y resultado.</span>
-            </div>
-        }
-        else
-        {
-            <div class="master-detail trader-workbench" data-master-detail>
-                <div class="master-list" aria-label="Historial de trades">
-                    @for (var index = 0; index < Model.Report.Trades.Count; index++)
-                    {
-                        var trade = Model.Report.Trades[index];
-                        <button type="button" class="master-item @(index == 0 ? "active" : "")" data-detail-key="@trade.Id">
-                            <span class="master-kicker">@trade.TraderName | @trade.OpenedAt.ToLocalTime().ToString("dd MMM HH:mm")</span>
-                            <strong>@trade.Symbol - @trade.SignalType</strong>
-                            <span class="status @Model.TradeStatusClass(trade.Status)">@trade.Status</span>
-                            <small class="@Model.SignedClass(trade.NetPnL ?? trade.PnLPercent)">Resultado @Model.Money(trade.NetPnL)</small>
-                            <div class="master-item-extra">
-                                <span>Entrada @Model.Price(trade.EntryPrice)</span>
-                                <span>Salida @Model.Price(trade.ExitPrice)</span>
-                            </div>
-                        </button>
-                    }
-                </div>
-                <div class="detail-stack">
-                    @for (var index = 0; index < Model.Report.Trades.Count; index++)
-                    {
-                        var trade = Model.Report.Trades[index];
-                        <article class="detail-panel @(index == 0 ? "active" : "")" data-detail-panel="@trade.Id">
-                            <div class="section-title">
-                                <h2>@trade.Symbol - @trade.SignalType</h2>
-                                <span>@trade.TraderName | @trade.Status</span>
-                            </div>
-                            <div class="detail-grid">
-                                <article><span>Trader</span><strong>@trade.TraderName</strong><small>@trade.Platform</small></article>
-                                <article><span>Entrada</span><strong>@trade.OpenedAt.ToLocalTime().ToString("dd MMM HH:mm")</strong><small>@Model.Price(trade.EntryPrice)</small></article>
-                                <article><span>Salida</span><strong>@(trade.ClosedAt.HasValue ? trade.ClosedAt.Value.ToLocalTime().ToString("dd MMM HH:mm") : "-")</strong><small>@Model.Price(trade.ExitPrice)</small></article>
-                                <article><span>Cantidad</span><strong>@(trade.Quantity.HasValue ? $"{trade.Quantity:N8}" : "-")</strong><small>unidades</small></article>
-                                <article><span>Resultado</span><strong class="@Model.SignedClass(trade.NetPnL ?? trade.PnLPercent)">@Model.Money(trade.NetPnL)</strong><small>@(trade.PnLPercent.HasValue ? $"{trade.PnLPercent:N2}%" : "-")</small></article>
-                                <article><span>Apalancamiento</span><strong>@(trade.Leverage.HasValue ? $"{trade.Leverage:N2}x" : "-")</strong><small>riesgo</small></article>
-                            </div>
-                            <p class="detail-copy">@trade.Notes</p>
-                            @if (!string.IsNullOrWhiteSpace(trade.SourceUrl))
+                            @if (sourceTraders.Count == 0)
                             {
-                                <div class="trade-links">
-                                    <a href="@trade.SourceUrl" target="_blank" rel="noopener noreferrer">Abrir fuente</a>
+                                <div class="empty-state">
+                                    <strong>No hay traders de esta fuente con los filtros actuales.</strong>
+                                    <span>Quita filtros o prueba otra fuente.</span>
+                                </div>
+                            }
+                            else
+                            {
+                                <div class="section-title compact-title">
+                                    <h2>Traders en @source.Platform</h2>
+                                    <span>@sourceTraders.Count encontrados</span>
+                                </div>
+                                <div class="master-detail trader-workbench nested-workbench" data-master-detail>
+                                    <div class="master-list" aria-label="Traders de esta fuente">
+                                        @for (var traderIndex = 0; traderIndex < sourceTraders.Count; traderIndex++)
+                                        {
+                                            var trader = sourceTraders[traderIndex];
+                                            var traderTrades = Model.TradesFor(trader.Id);
+                                            var traderKey = $"trader-{trader.Id}";
+                                            var isTraderActive = trader.Id == activeTraderId;
+                                            <button type="button"
+                                                    class="master-item @(isTraderActive ? "active" : "")"
+                                                    data-detail-key="@traderKey"
+                                                    data-filter-text="@($"{trader.DisplayName} {trader.Platform} {trader.Market} {trader.StrategyType} {trader.PerformanceText} {trader.PopularityText}")"
+                                                    data-filter-status="@(trader.TrackedTrades > 0 ? "Con historial" : "Sin historial")"
+                                                    data-filter-type="@trader.StrategyType">
+                                                <span class="master-kicker">fiabilidad @trader.ReliabilityScore.ToString("N0") | @trader.Market</span>
+                                                <strong>@trader.DisplayName</strong>
+                                                <small>@trader.StrategyType</small>
+                                                <span class="@Model.SignedClass(trader.RealizedNetPnL)">Neto local @Model.Money(trader.RealizedNetPnL)</span>
+                                                <div class="master-item-extra">
+                                                    <span>@traderTrades.Count trades</span>
+                                                    <span>@trader.OpenTrades abiertos</span>
+                                                    <span>@trader.ClosedTrades cerrados</span>
+                                                    <span>Win rate @(trader.WinRatePercent.HasValue ? $"{trader.WinRatePercent:N2}%" : "-")</span>
+                                                </div>
+                                            </button>
+                                        }
+                                    </div>
+
+                                    <div class="detail-stack">
+                                        @for (var traderIndex = 0; traderIndex < sourceTraders.Count; traderIndex++)
+                                        {
+                                            var trader = sourceTraders[traderIndex];
+                                            var traderTrades = Model.TradesFor(trader.Id);
+                                            var traderKey = $"trader-{trader.Id}";
+                                            var isTraderActive = trader.Id == activeTraderId;
+                                            <article class="detail-panel @(isTraderActive ? "active" : "")" data-detail-panel="@traderKey">
+                                                <div class="section-title">
+                                                    <h2>@trader.DisplayName</h2>
+                                                    <span>@trader.Platform | @trader.Market</span>
+                                                </div>
+                                                <div class="trader-detail-head">
+                                                    <div class="score-ring @Model.ReliabilityClass(trader.ReliabilityScore)">
+                                                        <strong>@trader.ReliabilityScore.ToString("N0")</strong>
+                                                        <small>fiabilidad</small>
+                                                    </div>
+                                                    <p>@trader.PerformanceText</p>
+                                                </div>
+                                                <div class="detail-grid">
+                                                    <article><span>Popularidad</span><strong>@trader.PopularityText</strong><small>senal social</small></article>
+                                                    <article><span>Historial local</span><strong>@trader.TrackedTrades trades</strong><small>@trader.OpenTrades abiertos, @trader.ClosedTrades cerrados</small></article>
+                                                    <article><span>Win rate local</span><strong>@(trader.WinRatePercent.HasValue ? $"{trader.WinRatePercent:N2}%" : "-")</strong><small>solo trades importados</small></article>
+                                                    <article><span>Neto local</span><strong class="@Model.SignedClass(trader.RealizedNetPnL)">@Model.Money(trader.RealizedNetPnL)</strong><small>resultado medido</small></article>
+                                                    <article><span>Datos</span><strong>@trader.DataAvailability</strong><small>transparencia</small></article>
+                                                    <article><span>Ultima lectura</span><strong>@(trader.LastSyncedAt.HasValue ? trader.LastSyncedAt.Value.ToLocalTime().ToString("dd MMM HH:mm") : "-")</strong><small>sincronizacion</small></article>
+                                                </div>
+                                                <p class="detail-copy">@trader.Notes</p>
+                                                <div class="trade-links">
+                                                    <a href="@trader.ProfileUrl" target="_blank" rel="noopener noreferrer">Perfil</a>
+                                                    <a asp-page="/Portfolio" asp-route-TraderId="@trader.Id">Simular cartera</a>
+                                                </div>
+
+                                                @if (traderTrades.Count == 0)
+                                                {
+                                                    <div class="empty-state">
+                                                        <strong>Este trader aun no tiene trades locales.</strong>
+                                                        <span>La fuente existe, pero no hay historial verificable guardado para calcular resultados.</span>
+                                                    </div>
+                                                }
+                                                else
+                                                {
+                                                    <div class="section-title compact-title">
+                                                        <h2>Trades de @trader.DisplayName</h2>
+                                                        <span>@traderTrades.Count operaciones</span>
+                                                    </div>
+                                                    <div class="master-detail trades-workbench nested-workbench" data-master-detail>
+                                                        <div class="master-list" aria-label="Trades del trader">
+                                                            @for (var tradeIndex = 0; tradeIndex < traderTrades.Count; tradeIndex++)
+                                                            {
+                                                                var trade = traderTrades[tradeIndex];
+                                                                var tradeKey = $"trade-{trade.Id}";
+                                                                <button type="button"
+                                                                        class="master-item @(tradeIndex == 0 ? "active" : "")"
+                                                                        data-detail-key="@tradeKey"
+                                                                        data-filter-text="@($"{trade.Symbol} {trade.SignalType} {trade.Status} {trade.OpenedAt.ToLocalTime():dd MMM HH:mm} {trade.Notes}")"
+                                                                        data-filter-status="@trade.Status"
+                                                                        data-filter-type="@trade.SignalType">
+                                                                    <span class="master-kicker">@trade.OpenedAt.ToLocalTime().ToString("dd MMM HH:mm")</span>
+                                                                    <strong>@trade.Symbol - @trade.SignalType</strong>
+                                                                    <span class="status @Model.TradeStatusClass(trade.Status)">@trade.Status</span>
+                                                                    <small class="@Model.SignedClass(trade.NetPnL ?? trade.PnLPercent)">Resultado @Model.Money(trade.NetPnL)</small>
+                                                                    <div class="master-item-extra">
+                                                                        <span>Entrada @Model.Price(trade.EntryPrice)</span>
+                                                                        <span>Salida @Model.Price(trade.ExitPrice)</span>
+                                                                    </div>
+                                                                </button>
+                                                            }
+                                                        </div>
+                                                        <div class="detail-stack">
+                                                            @for (var tradeIndex = 0; tradeIndex < traderTrades.Count; tradeIndex++)
+                                                            {
+                                                                var trade = traderTrades[tradeIndex];
+                                                                var tradeKey = $"trade-{trade.Id}";
+                                                                <article class="detail-panel @(tradeIndex == 0 ? "active" : "")" data-detail-panel="@tradeKey">
+                                                                    <div class="section-title">
+                                                                        <h2>@trade.Symbol - @trade.SignalType</h2>
+                                                                        <span>@trade.Status</span>
+                                                                    </div>
+                                                                    <div class="detail-grid">
+                                                                        <article><span>Entrada</span><strong>@trade.OpenedAt.ToLocalTime().ToString("dd MMM HH:mm")</strong><small>@Model.Price(trade.EntryPrice)</small></article>
+                                                                        <article><span>Salida</span><strong>@(trade.ClosedAt.HasValue ? trade.ClosedAt.Value.ToLocalTime().ToString("dd MMM HH:mm") : "-")</strong><small>@Model.Price(trade.ExitPrice)</small></article>
+                                                                        <article><span>Cantidad</span><strong>@(trade.Quantity.HasValue ? $"{trade.Quantity:N8}" : "-")</strong><small>unidades</small></article>
+                                                                        <article><span>Resultado</span><strong class="@Model.SignedClass(trade.NetPnL ?? trade.PnLPercent)">@Model.Money(trade.NetPnL)</strong><small>@(trade.PnLPercent.HasValue ? $"{trade.PnLPercent:N2}%" : "-")</small></article>
+                                                                        <article><span>Apalancamiento</span><strong>@(trade.Leverage.HasValue ? $"{trade.Leverage:N2}x" : "-")</strong><small>riesgo</small></article>
+                                                                        <article><span>Origen</span><strong>@trade.Platform</strong><small>@trade.TraderName</small></article>
+                                                                    </div>
+                                                                    <p class="detail-copy">@trade.Notes</p>
+                                                                    @if (!string.IsNullOrWhiteSpace(trade.SourceUrl))
+                                                                    {
+                                                                        <div class="trade-links">
+                                                                            <a href="@trade.SourceUrl" target="_blank" rel="noopener noreferrer">Abrir trade</a>
+                                                                        </div>
+                                                                    }
+                                                                </article>
+                                                            }
+                                                        </div>
+                                                    </div>
+                                                }
+                                            </article>
+                                        }
+                                    </div>
                                 </div>
                             }
                         </article>

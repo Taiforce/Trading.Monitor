@@ -156,7 +156,12 @@
                     {
                         var entry = Model.FilteredEntries[index];
                         var key = $"log-{index}";
-                        <button type="button" class="master-item @(index == 0 ? "active" : "")" data-detail-key="@key">
+                        <button type="button"
+                                class="master-item @(index == 0 ? "active" : "")"
+                                data-detail-key="@key"
+                                data-filter-text="@($"{entry.Time} {entry.Service} {entry.EventType} {entry.LevelLabel} {entry.Message}")"
+                                data-filter-status="@entry.LevelLabel"
+                                data-filter-type="@entry.EventType">
                             <span class="master-kicker">@entry.Time | @entry.Service</span>
                             <strong>@entry.EventType</strong>
                             <span class="status @Model.LevelClass(entry.Level)">@entry.LevelLabel</span>

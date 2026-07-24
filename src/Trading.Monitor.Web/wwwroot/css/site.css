@@ -1353,6 +1353,68 @@ td small,
     align-items: start;
 }
 
+.master-detail > .internal-filter-bar {
+    grid-column: 1;
+}
+
+.master-detail > .internal-filter-bar + .master-list {
+    grid-column: 1;
+}
+
+.master-detail > .internal-filter-bar ~ .detail-stack {
+    grid-column: 2;
+    grid-row: 1 / span 2;
+}
+
+.internal-filter-bar {
+    display: grid;
+    grid-template-columns: minmax(140px, 1fr) minmax(118px, 150px) minmax(132px, 170px) auto;
+    gap: 8px;
+    align-items: end;
+    background: var(--surface-2);
+    border: 1px solid var(--line);
+    border-radius: 6px;
+    padding: 10px;
+}
+
+.internal-filter-bar label {
+    display: grid;
+    gap: 5px;
+    margin: 0;
+}
+
+.internal-filter-bar span {
+    color: var(--muted);
+    font-size: 0.7rem;
+    font-weight: 900;
+    text-transform: uppercase;
+}
+
+.internal-filter-bar input,
+.internal-filter-bar select {
+    min-height: 34px;
+    width: 100%;
+    background: var(--surface);
+    color: var(--ink);
+    border: 1px solid var(--line);
+    border-radius: 6px;
+    padding: 0 9px;
+    font: inherit;
+    font-size: 0.82rem;
+}
+
+.internal-filter-bar strong {
+    min-height: 34px;
+    display: inline-grid;
+    place-items: center;
+    border: 1px solid var(--line);
+    border-radius: 6px;
+    color: var(--steel);
+    background: var(--surface);
+    padding: 0 10px;
+    font-size: 0.84rem;
+}
+
 .master-list {
     max-height: min(740px, calc(100vh - 230px));
     min-height: 420px;
@@ -1498,6 +1560,7 @@ td small,
 
 .signal-replay-chart {
     min-height: 380px;
+    position: relative;
     display: grid;
     place-items: center;
     background: #0b0e11;
@@ -1505,6 +1568,34 @@ td small,
     border-radius: var(--radius);
     color: #848e9c;
     overflow: hidden;
+}
+
+.report-chart-hover {
+    top: 0;
+    left: 0;
+}
+
+.compact-title {
+    margin-top: 4px;
+}
+
+.nested-workbench {
+    grid-template-columns: minmax(230px, 0.72fr) minmax(0, 1.28fr);
+    gap: 10px;
+    background: var(--surface);
+    border: 1px solid var(--line);
+    border-radius: var(--radius);
+    padding: 10px;
+}
+
+.nested-workbench > .master-list {
+    min-height: 280px;
+    max-height: min(560px, calc(100vh - 300px));
+}
+
+.trades-workbench > .master-list {
+    min-height: 240px;
+    max-height: min(460px, calc(100vh - 320px));
 }
 
 .trader-detail-head {
@@ -2275,6 +2366,17 @@ td small,
     .log-file-link,
     .source-row,
     .exchange-status-grid {
+        grid-template-columns: 1fr;
+    }
+
+    .master-detail > .internal-filter-bar,
+    .master-detail > .internal-filter-bar + .master-list,
+    .master-detail > .internal-filter-bar ~ .detail-stack {
+        grid-column: 1;
+        grid-row: auto;
+    }
+
+    .internal-filter-bar {
         grid-template-columns: 1fr;
     }
 }

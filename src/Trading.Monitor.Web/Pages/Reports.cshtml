@@ -265,7 +265,12 @@
                     {
                         var row = Model.FilteredRows[index];
                         var isActive = index == 0;
-                        <button type="button" class="master-item @(isActive ? "active" : "")" data-detail-key="@row.Id">
+                        <button type="button"
+                                class="master-item @(isActive ? "active" : "")"
+                                data-detail-key="@row.Id"
+                                data-filter-text="@($"{row.Symbol} {Model.SignalTypeLabel(row.Side)} {Model.StatusLabel(row.Status)} {Model.HorizonFor(row)} score {row.Score} entrada {Model.EntryWindow(row)} salida {Model.ExitLimit(row)}")"
+                                data-filter-status="@Model.StatusLabel(row.Status)"
+                                data-filter-type="@Model.SignalTypeLabel(row.Side)">
                             <span class="master-kicker">@row.ObservedAt.ToLocalTime().ToString("dd MMM HH:mm") | @Model.HorizonFor(row)</span>
                             <strong>@row.Symbol - @Model.SignalTypeLabel(row.Side)</strong>
                             <span class="status @Model.StatusClass(row.Status)">@Model.StatusLabel(row.Status)</span>

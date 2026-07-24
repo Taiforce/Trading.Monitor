@@ -160,7 +160,12 @@
                     {
                         var row = Model.TraderSimulation.Trades[index];
                         var key = $"trader-{row.Sequence}";
-                        <button type="button" class="master-item @(index == 0 ? "active" : "") @(row.WasApplied ? "" : "muted-row")" data-detail-key="@key">
+                        <button type="button"
+                                class="master-item @(index == 0 ? "active" : "") @(row.WasApplied ? "" : "muted-row")"
+                                data-detail-key="@key"
+                                data-filter-text="@($"{row.TraderName} {row.Platform} {row.Symbol} {row.SignalType} {row.OpenedAt.ToLocalTime():dd MMM HH:mm} {row.SkipReason}")"
+                                data-filter-status="@(row.WasApplied ? "Aplicada" : "Omitida")"
+                                data-filter-type="@row.SignalType">
                             <span class="master-kicker">#@row.Sequence | @row.Platform</span>
                             <strong>@row.TraderName - @row.Symbol</strong>
                             <small>@row.SignalType | @row.OpenedAt.ToLocalTime().ToString("dd MMM HH:mm")</small>
@@ -220,7 +225,12 @@
                     {
                         var row = Model.Simulation.Trades[index];
                         var key = $"portfolio-{row.Sequence}";
-                        <button type="button" class="master-item @(index == 0 ? "active" : "") @(row.WasApplied ? "" : "muted-row")" data-detail-key="@key">
+                        <button type="button"
+                                class="master-item @(index == 0 ? "active" : "") @(row.WasApplied ? "" : "muted-row")"
+                                data-detail-key="@key"
+                                data-filter-text="@($"{row.Symbol} {row.OperationType} {row.Horizon} {row.SignalTime.ToLocalTime():dd MMM HH:mm} {row.SkipReason}")"
+                                data-filter-status="@(row.WasApplied ? "Aplicada" : "Omitida")"
+                                data-filter-type="@row.OperationType">
                             <span class="master-kicker">#@row.Sequence | @row.SignalTime.ToLocalTime().ToString("dd MMM HH:mm")</span>
                             <strong>@row.Symbol - @row.OperationType</strong>
                             <small>@row.Horizon | entrada @Model.Price(row.EntryPrice)</small>

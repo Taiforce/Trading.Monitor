@@ -30,6 +30,7 @@ services:
       ASPNETCORE_ENVIRONMENT: Production
       ASPNETCORE_URLS: http://+:8080
       TZ: ${APP_TIME_ZONE:-America/Mexico_City}
+      TradingMonitor__DisplayTimeZone: ${APP_TIME_ZONE:-America/Mexico_City}
       Database__Provider: SqlServer
       Database__ConnectionString: Server=sqlserver,1433;Database=TradingMarket;User Id=sa;Password=${SQLSERVER_SA_PASSWORD:-TradingMarket_2026!Local};TrustServerCertificate=True;Encrypt=True;MultipleActiveResultSets=True
       Logs__DirectoryPath: /shared-logs
@@ -69,6 +70,7 @@ services:
     environment:
       DOTNET_ENVIRONMENT: Production
       TZ: ${APP_TIME_ZONE:-America/Mexico_City}
+      TradingMonitor__DisplayTimeZone: ${APP_TIME_ZONE:-America/Mexico_City}
       Database__Provider: SqlServer
       Database__ConnectionString: Server=sqlserver,1433;Database=TradingMarket;User Id=sa;Password=${SQLSERVER_SA_PASSWORD:-TradingMarket_2026!Local};TrustServerCertificate=True;Encrypt=True;MultipleActiveResultSets=True
       TradingMonitor__Enabled: ${TRADING_MONITOR_ENABLED:-true}

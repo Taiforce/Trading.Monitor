@@ -1,5 +1,15 @@
+@inject Microsoft.Extensions.Configuration.IConfiguration Configuration
+@{
+    var appTimeZone = Configuration["TradingMonitor:DisplayTimeZone"];
+    if (string.IsNullOrWhiteSpace(appTimeZone))
+        appTimeZone = Configuration["APP_TIME_ZONE"] ?? Configuration["TZ"] ?? "America/Mexico_City";
+
+    if (string.Equals(appTimeZone, "UTC", StringComparison.OrdinalIgnoreCase) ||
+        string.Equals(appTimeZone, "Etc/UTC", StringComparison.OrdinalIgnoreCase))
+        appTimeZone = "America/Mexico_City";
+}
 <!DOCTYPE html>
-<html lang="es">
+<html lang="es" data-app-timezone="@appTimeZone">
 <head>
     <meta charset="utf-8"/>
     <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
