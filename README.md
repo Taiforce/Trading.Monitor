@@ -76,6 +76,14 @@ Autenticacion: Windows Authentication
 Base: TradingMarket
 ```
 
+Si levantas la app con Docker, los datos vivos quedan primero en `localhost,14333`. Para copiarlos a la base `localhost` que ya ves con Windows Authentication en SSMS:
+
+```powershell
+.\scripts\Sync-TradingMarketToLocalSql.ps1
+```
+
+Ese script crea las tablas faltantes en `TradingMarket`, limpia la copia local y trae oportunidades, fuentes, eventos, noticias y traders desde la base de Docker.
+
 Luego construye y levanta los servicios:
 
 ```powershell

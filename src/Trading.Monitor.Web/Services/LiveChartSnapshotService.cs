@@ -76,35 +76,219 @@ public sealed class LiveChartSnapshotService(
 
     private async Task<IReadOnlyList<LiveCandleDto>> GetCandlesAsync(string symbol, string interval, CancellationToken cancellationToken)
     {
-        var requestUri = $"/api/v3/klines?symbol={Uri.EscapeDataString(symbol)}&interval={Uri.EscapeDataString(interval)}&limit=120";
-        using var response = await httpClient.GetAsync(requestUri, cancellationToken);
-        var body = await response.Content.ReadAsStringAsync(cancellationToken);
-
-        if (!response.IsSuccessStatusCode)
-            return [];
-
-        using var document = JsonDocument.Parse(body);
-        var candles = new List<LiveCandleDto>();
-
-        foreach (var item in document.RootElement.EnumerateArray())
+        foreach (var provider in CandleProviders)
         {
-            var values = item.EnumerateArray().ToArray();
-            candles.Add(new LiveCandleDto(
-                DateTimeOffset.FromUnixTimeMilliseconds(values[0].GetInt64()),
-                DateTimeOffset.FromUnixTimeMilliseconds(values[6].GetInt64()),
-                ReadDecimal(values[1]),
-                ReadDecimal(values[2]),
-                ReadDecimal(values[3]),
-                ReadDecimal(values[4]),
-                ReadDecimal(values[5])));
+            var candles = await provider(this, symbol, interval, cancellationToken);
+            if (candles.Count > 0)
+                return candles;
         }
 
-        return candles;
+        return [];
     }
 
     private static decimal ReadDecimal(JsonElement element)
     {
-        return decimal.Parse(element.GetString() ?? "0", NumberStyles.Float, CultureInfo.InvariantCulture);
+        return element.ValueKind == JsonValueKind.Number
+            ? element.GetDecimal()
+            : decimal.Parse(element.GetString() ?? "0", NumberStyles.Float, CultureInfo.InvariantCulture);
+    }
+
+    private static readonly Func<LiveChartSnapshotService, string, string, CancellationToken, Task<IReadOnlyList<LiveCandleDto>>>[] CandleProviders =
+    [
+        static (service, symbol, interval, cancellationToken) => service.GetBinanceCandlesAsync(symbol, interval, cancellationToken),
+        static (service, symbol, interval, cancellationToken) => service.GetCoinbaseCandlesAsync(symbol, interval, cancellationToken),
+        static (service, symbol, interval, cancellationToken) => service.GetKrakenCandlesAsync(symbol, interval, cancellationToken)
+    ];
+
+    private async Task<IReadOnlyList<LiveCandleDto>> GetBinanceCandlesAsync(string symbol, string interval, CancellationToken cancellationToken)
+    {
+        var requestUri = $"https://api.binance.com/api/v3/klines?symbol={Uri.EscapeDataString(symbol)}&interval={Uri.EscapeDataString(interval)}&limit=120";
+        var document = await GetJsonDocumentAsync(requestUri, cancellationToken);
+        if (document is null)
+            return [];
+
+        using (document)
+        {
+            var candles = new List<LiveCandleDto>();
+            foreach (var item in document.RootElement.EnumerateArray())
+            {
+                var values = item.EnumerateArray().ToArray();
+                candles.Add(new LiveCandleDto(
+                    DateTimeOffset.FromUnixTimeMilliseconds(values[0].GetInt64()),
+                    DateTimeOffset.FromUnixTimeMilliseconds(values[6].GetInt64()),
+                    ReadDecimal(values[1]),
+                    ReadDecimal(values[2]),
+                    ReadDecimal(values[3]),
+                    ReadDecimal(values[4]),
+                    ReadDecimal(values[5])));
+            }
+
+            return candles.OrderBy(candle => candle.OpenTime).ToArray();
+        }
+    }
+
+    private async Task<IReadOnlyList<LiveCandleDto>> GetCoinbaseCandlesAsync(string symbol, string interval, CancellationToken cancellationToken)
+    {
+        var product = ToCoinbaseProduct(symbol);
+        if (product is null)
+            return [];
+
+        var granularity = ToCoinbaseGranularity(interval);
+        var end = DateTimeOffset.UtcNow;
+        var start = end.AddSeconds(-granularity * 120);
+        var requestUri = string.Create(
+            CultureInfo.InvariantCulture,
+            $"https://api.exchange.coinbase.com/products/{Uri.EscapeDataString(product)}/candles?granularity={granularity}&start={Uri.EscapeDataString(start.UtcDateTime.ToString("O", CultureInfo.InvariantCulture))}&end={Uri.EscapeDataString(end.UtcDateTime.ToString("O", CultureInfo.InvariantCulture))}");
+        var document = await GetJsonDocumentAsync(requestUri, cancellationToken);
+        if (document is null)
+            return [];
+
+        using (document)
+        {
+            var candles = new List<LiveCandleDto>();
+            foreach (var item in document.RootElement.EnumerateArray())
+            {
+                var values = item.EnumerateArray().ToArray();
+                if (values.Length < 6)
+                    continue;
+
+                var openTime = DateTimeOffset.FromUnixTimeSeconds(values[0].GetInt64());
+                candles.Add(new LiveCandleDto(
+                    openTime,
+                    openTime.AddSeconds(granularity),
+                    ReadDecimal(values[3]),
+                    ReadDecimal(values[2]),
+                    ReadDecimal(values[1]),
+                    ReadDecimal(values[4]),
+                    ReadDecimal(values[5])));
+            }
+
+            return candles.OrderBy(candle => candle.OpenTime).TakeLast(120).ToArray();
+        }
+    }
+
+    private async Task<IReadOnlyList<LiveCandleDto>> GetKrakenCandlesAsync(string symbol, string interval, CancellationToken cancellationToken)
+    {
+        var pair = ToKrakenPair(symbol);
+        if (pair is null)
+            return [];
+
+        var krakenInterval = ToKrakenInterval(interval);
+        var requestUri = $"https://api.kraken.com/0/public/OHLC?pair={Uri.EscapeDataString(pair)}&interval={krakenInterval}";
+        var document = await GetJsonDocumentAsync(requestUri, cancellationToken);
+        if (document is null)
+            return [];
+
+        using (document)
+        {
+            if (!document.RootElement.TryGetProperty("result", out var result))
+                return [];
+
+            JsonElement? series = null;
+            foreach (var property in result.EnumerateObject())
+            {
+                if (!string.Equals(property.Name, "last", StringComparison.OrdinalIgnoreCase))
+                {
+                    series = property.Value;
+                    break;
+                }
+            }
+
+            if (series is null)
+                return [];
+
+            var candles = new List<LiveCandleDto>();
+            foreach (var item in series.Value.EnumerateArray())
+            {
+                var values = item.EnumerateArray().ToArray();
+                if (values.Length < 7)
+                    continue;
+
+                var openTime = DateTimeOffset.FromUnixTimeSeconds(values[0].GetInt64());
+                candles.Add(new LiveCandleDto(
+                    openTime,
+                    openTime.AddMinutes(krakenInterval),
+                    ReadDecimal(values[1]),
+                    ReadDecimal(values[2]),
+                    ReadDecimal(values[3]),
+                    ReadDecimal(values[4]),
+                    ReadDecimal(values[6])));
+            }
+
+            return candles.OrderBy(candle => candle.OpenTime).TakeLast(120).ToArray();
+        }
+    }
+
+    private async Task<JsonDocument?> GetJsonDocumentAsync(string requestUri, CancellationToken cancellationToken)
+    {
+        try
+        {
+            using var response = await httpClient.GetAsync(requestUri, cancellationToken);
+            if (!response.IsSuccessStatusCode)
+                return null;
+
+            await using var stream = await response.Content.ReadAsStreamAsync(cancellationToken);
+            return await JsonDocument.ParseAsync(stream, cancellationToken: cancellationToken);
+        }
+        catch (HttpRequestException)
+        {
+            return null;
+        }
+        catch (TaskCanceledException) when (!cancellationToken.IsCancellationRequested)
+        {
+            return null;
+        }
+        catch (JsonException)
+        {
+            return null;
+        }
+    }
+
+    private static string? ToCoinbaseProduct(string symbol)
+    {
+        return symbol switch
+        {
+            "BTCUSDT" or "BTCUSD" => "BTC-USD",
+            "ETHUSDT" or "ETHUSD" => "ETH-USD",
+            _ => null
+        };
+    }
+
+    private static string? ToKrakenPair(string symbol)
+    {
+        return symbol switch
+        {
+            "BTCUSDT" or "BTCUSD" => "XBTUSD",
+            "ETHUSDT" or "ETHUSD" => "ETHUSD",
+            _ => null
+        };
+    }
+
+    private static int ToCoinbaseGranularity(string interval)
+    {
+        return interval switch
+        {
+            "5m" => 300,
+            "15m" => 900,
+            "1h" => 3600,
+            "2h" or "4h" => 21600,
+            "1d" or "1w" or "1M" => 86400,
+            _ => 60
+        };
+    }
+
+    private static int ToKrakenInterval(string interval)
+    {
+        return interval switch
+        {
+            "5m" => 5,
+            "15m" => 15,
+            "30m" => 30,
+            "1h" => 60,
+            "2h" or "4h" => 240,
+            "1d" or "1w" or "1M" => 1440,
+            _ => 1
+        };
     }
 
     private static LiveChartAnalysisDto Analyze(string interval, IReadOnlyList<LiveCandleDto> candles, decimal capital, decimal feePercentPerSide)

@@ -33,7 +33,6 @@ try
     builder.Services.AddScoped<LiveOperationsSnapshotService>();
     builder.Services.AddHttpClient<LiveChartSnapshotService>(client =>
     {
-        client.BaseAddress = new Uri("https://api.binance.com");
         client.Timeout = TimeSpan.FromSeconds(10);
         client.DefaultRequestHeaders.UserAgent.ParseAdd("Trading.Monitor/1.0");
     });
