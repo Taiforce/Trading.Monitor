@@ -1294,6 +1294,241 @@ td small,
     font-size: 0.92rem;
 }
 
+.compact-insight {
+    margin-bottom: 12px;
+}
+
+.learning-grid {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 10px;
+}
+
+.learning-card {
+    display: grid;
+    gap: 10px;
+    background: var(--surface-2);
+    border: 1px solid var(--line);
+    border-left: 5px solid var(--steel);
+    border-radius: var(--radius);
+    padding: 12px;
+}
+
+.learning-card:has(.gain) {
+    border-left-color: var(--good);
+}
+
+.learning-card:has(.loss) {
+    border-left-color: var(--bad);
+}
+
+.learning-card strong,
+.learning-card span {
+    display: block;
+}
+
+.learning-card span,
+.learning-card dt {
+    color: var(--muted);
+    font-size: 0.78rem;
+    font-weight: 800;
+}
+
+.learning-card dl {
+    display: grid;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: 8px;
+    margin: 0;
+}
+
+.learning-card dd {
+    margin: 2px 0 0;
+    font-weight: 900;
+}
+
+.master-detail {
+    display: grid;
+    grid-template-columns: minmax(280px, 0.82fr) minmax(460px, 1.18fr);
+    gap: 14px;
+    align-items: start;
+}
+
+.master-list {
+    max-height: min(740px, calc(100vh - 230px));
+    min-height: 420px;
+    display: grid;
+    align-content: start;
+    gap: 8px;
+    overflow-y: auto;
+    padding-right: 6px;
+    scrollbar-color: color-mix(in srgb, var(--accent) 70%, var(--line)) transparent;
+    scrollbar-width: thin;
+}
+
+.master-list::-webkit-scrollbar {
+    width: 8px;
+}
+
+.master-list::-webkit-scrollbar-thumb {
+    background: color-mix(in srgb, var(--accent) 70%, var(--line));
+    border-radius: 999px;
+}
+
+.master-item {
+    width: 100%;
+    display: grid;
+    gap: 6px;
+    text-align: left;
+    background: var(--surface-2);
+    color: var(--ink);
+    border: 1px solid var(--line);
+    border-left: 5px solid var(--steel);
+    border-radius: var(--radius);
+    padding: 12px;
+    font: inherit;
+    cursor: pointer;
+}
+
+.master-item:hover,
+.master-item.active {
+    border-color: color-mix(in srgb, var(--accent) 46%, var(--line));
+}
+
+.master-item.active {
+    border-left-color: var(--accent);
+    background: color-mix(in srgb, var(--accent) 7%, var(--surface));
+    box-shadow: 0 0 0 2px color-mix(in srgb, var(--accent) 16%, transparent);
+}
+
+.master-item strong,
+.master-item span,
+.master-item small {
+    display: block;
+    overflow-wrap: anywhere;
+}
+
+.master-item small,
+.master-kicker,
+.master-item-extra {
+    color: var(--muted);
+}
+
+.master-kicker {
+    font-size: 0.75rem;
+    font-weight: 900;
+    text-transform: uppercase;
+}
+
+.master-item-extra {
+    display: none;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 6px 10px;
+    border-top: 1px solid var(--line);
+    padding-top: 8px;
+    font-size: 0.78rem;
+    font-weight: 800;
+}
+
+.master-item.active .master-item-extra {
+    display: grid;
+}
+
+.detail-stack {
+    min-width: 0;
+}
+
+.detail-panel {
+    display: none;
+}
+
+.detail-panel.active {
+    display: grid;
+    gap: 12px;
+}
+
+.detail-grid {
+    display: grid;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: 10px;
+}
+
+.detail-grid > article {
+    background: var(--surface-2);
+    border: 1px solid var(--line);
+    border-radius: 6px;
+    padding: 11px;
+}
+
+.detail-grid span,
+.detail-grid small {
+    display: block;
+    color: var(--muted);
+    font-size: 0.76rem;
+    font-weight: 800;
+}
+
+.detail-grid strong {
+    display: block;
+    margin-top: 3px;
+    overflow-wrap: anywhere;
+}
+
+.detail-copy {
+    margin: 0;
+    color: var(--muted);
+    line-height: 1.4;
+}
+
+.detail-notes {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 12px;
+    margin-top: 10px;
+}
+
+.detail-notes div {
+    display: grid;
+    gap: 6px;
+}
+
+.detail-notes span {
+    color: var(--muted);
+    line-height: 1.35;
+}
+
+.signal-replay-chart {
+    min-height: 380px;
+    display: grid;
+    place-items: center;
+    background: #0b0e11;
+    border: 1px solid #1e2329;
+    border-radius: var(--radius);
+    color: #848e9c;
+    overflow: hidden;
+}
+
+.trader-detail-head {
+    display: grid;
+    grid-template-columns: 86px minmax(0, 1fr);
+    gap: 14px;
+    align-items: center;
+    background: var(--surface-2);
+    border: 1px solid var(--line);
+    border-radius: var(--radius);
+    padding: 12px;
+}
+
+.trader-detail-head p {
+    margin: 0;
+    color: var(--muted);
+    line-height: 1.4;
+}
+
+.compact-log-output {
+    max-height: 180px;
+    margin-top: 8px;
+}
+
 .equity-chart {
     background: var(--surface-2);
     border: 1px solid var(--line);
@@ -2005,6 +2240,8 @@ td small,
     .catalog-grid,
     .trader-source-grid,
     .trader-grid,
+    .master-detail,
+    .learning-grid,
     .priority-grid,
     .signal-summary-grid,
     .trade-plan-grid,
@@ -2027,6 +2264,9 @@ td small,
     .analysis-conversion,
     .signal-fast-grid,
     .signal-money-grid,
+    .detail-grid,
+    .detail-notes,
+    .trader-detail-head,
     .symbol-row,
     .daily-row,
     .compact-row,

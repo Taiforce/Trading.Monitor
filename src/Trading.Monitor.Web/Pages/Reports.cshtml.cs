@@ -10,10 +10,24 @@ using Trading.Monitor.Web.Services;
 
 namespace Trading.Monitor.Web.Pages;
 
-public sealed class ReportsModel(IOpportunityRepository opportunityRepository, IOptionsMonitor<ReportingOptions> reportingOptions, TradeInstructionService tradeInstructionService, ILogger<ReportsModel> logger)
-    : TradingPageModel(opportunityRepository, reportingOptions)
+public sealed class ReportsModel : TradingPageModel
 {
     private static readonly CultureInfo NumberCulture = CultureInfo.GetCultureInfo("en-US");
+    private readonly IOpportunityRepository _opportunityRepository;
+    private readonly TradeInstructionService _tradeInstructionService;
+    private readonly ILogger<ReportsModel> _logger;
+
+    public ReportsModel(
+        IOpportunityRepository opportunityRepository,
+        IOptionsMonitor<ReportingOptions> reportingOptions,
+        TradeInstructionService tradeInstructionService,
+        ILogger<ReportsModel> logger)
+        : base(opportunityRepository, reportingOptions)
+    {
+        _opportunityRepository = opportunityRepository;
+        _tradeInstructionService = tradeInstructionService;
+        _logger = logger;
+    }
 
     public decimal MaxSymbolValue { get; private set; }
 
@@ -63,6 +77,10 @@ public sealed class ReportsModel(IOpportunityRepository opportunityRepository, I
 
     public decimal FilteredAverageScore { get; private set; }
 
+    public IReadOnlyList<SignalLearningRow> LearningRows { get; private set; } = [];
+
+    public string LearningReadout { get; private set; } = "";
+
     [BindProperty(SupportsGet = true)]
     public string Estado { get; set; } = "todas";
 
@@ -83,12 +101,14 @@ public sealed class ReportsModel(IOpportunityRepository opportunityRepository, I
 
     public async Task OnGetAsync(CancellationToken cancellationToken)
     {
-        logger.LogInformation("Loading reports page for capital {Capital}.", Capital);
+        _logger.LogInformation("Loading reports page for capital {Capital}.", Capital);
         await LoadReportAsync(cancellationToken);
 
-        Symbols = Report.RecentSignals.Select(row => row.Symbol).Distinct(StringComparer.OrdinalIgnoreCase).OrderBy(row => row).ToArray();
-        FilteredRows = ApplyFilters(Report.RecentSignals).ToArray();
+        var allSignals = await _opportunityRepository.GetSignalsAsync(Capital, cancellationToken);
+        Symbols = allSignals.Select(row => row.Symbol).Distinct(StringComparer.OrdinalIgnoreCase).OrderBy(row => row).ToArray();
+        FilteredRows = ApplyFilters(allSignals).ToArray();
         BuildFilteredMetrics();
+        LearningRows = BuildLearningRows(FilteredRows);
 
         MaxSymbolValue = FilteredSymbolBreakdown
             .Select(row => Math.Max(Math.Abs(row.PotentialNetAtTakeProfit1), Math.Abs(row.PotentialLossAtStop)))
@@ -100,10 +120,11 @@ public sealed class ReportsModel(IOpportunityRepository opportunityRepository, I
         BestDay = FilteredDailyBreakdown.OrderByDescending(row => row.RealizedNetPnL).FirstOrDefault();
         AveragePotentialTp1 = FilteredTotalSignals == 0 ? 0m : Math.Round(FilteredPotentialTarget / FilteredTotalSignals, 2);
         AverageStopLoss = FilteredTotalSignals == 0 ? 0m : Math.Round(FilteredPotentialLoss / FilteredTotalSignals, 2);
-        HighConvictionRows = FilteredRows.Where(row => tradeInstructionService.Create(row).Highlight).ToArray();
+        HighConvictionRows = FilteredRows.Where(row => _tradeInstructionService.Create(row).Highlight).ToArray();
         AverageHighConvictionTp1 = HighConvictionRows.Count == 0 ? 0m : Math.Round(HighConvictionRows.Average(row => row.NetProfitAtTakeProfit1), 2);
         AverageHighConvictionStop = HighConvictionRows.Count == 0 ? 0m : Math.Round(HighConvictionRows.Average(row => row.NetLossAtStop), 2);
         ExecutiveReadout = BuildExecutiveReadout();
+        LearningReadout = BuildLearningReadout();
     }
 
     private IEnumerable<OpportunityReportRow> ApplyFilters(IEnumerable<OpportunityReportRow> rows)
@@ -196,6 +217,76 @@ public sealed class ReportsModel(IOpportunityRepository opportunityRepository, I
         return "El sistema esta generando datos utiles, pero la muestra aun necesita mas cierres para juzgar calidad real.";
     }
 
+    private IReadOnlyList<SignalLearningRow> BuildLearningRows(IReadOnlyList<OpportunityReportRow> rows)
+    {
+        var closed = rows.Where(row => row.Status != OpportunityStatus.Open).ToArray();
+        if (closed.Length == 0)
+            return [];
+
+        return closed
+            .GroupBy(row => $"{row.Symbol} | {SignalTypeLabel(row.Side)} | {HorizonFor(row)}")
+            .Select(group =>
+            {
+                var items = group.ToArray();
+                var winners = items.Count(row => row.RealizedNetPnL > 0m);
+                var losers = items.Count(row => row.RealizedNetPnL < 0m);
+                var winRate = items.Length == 0 ? 0m : Math.Round((decimal)winners / items.Length * 100m, 2);
+                var net = items.Sum(row => row.RealizedNetPnL ?? 0m);
+                var averageScore = items.Length == 0 ? 0m : Math.Round(items.Average(row => (decimal)row.Score), 1);
+                var recommendation = BuildLearningRecommendation(items.Length, winRate, net, averageScore);
+
+                return new SignalLearningRow(group.Key, items.Length, winners, losers, winRate, net, averageScore, recommendation, LearningClass(winRate, net, items.Length));
+            })
+            .OrderBy(row => row.ClassName == "loss" ? 0 : row.ClassName == "gain" ? 2 : 1)
+            .ThenByDescending(row => row.TotalSignals)
+            .Take(12)
+            .ToArray();
+    }
+
+    private string BuildLearningReadout()
+    {
+        if (LearningRows.Count == 0)
+            return "Aun no hay cierres suficientes para aprender de las propias senales.";
+
+        var risky = LearningRows.FirstOrDefault(row => row.ClassName == "loss");
+        if (risky is not null)
+            return $"El sistema debe ponerse mas exigente con {risky.Pattern}: {risky.WinRate:N1}% win rate y {Money(risky.RealizedNetPnL)} neto.";
+
+        var strong = LearningRows.FirstOrDefault(row => row.ClassName == "gain");
+        if (strong is not null)
+            return $"El mejor patron medido es {strong.Pattern}: {strong.WinRate:N1}% win rate y {Money(strong.RealizedNetPnL)} neto.";
+
+        return "Los patrones cerrados todavia estan neutrales; conviene acumular mas muestra antes de ajustar fuerte.";
+    }
+
+    private static string BuildLearningRecommendation(int total, decimal winRate, decimal net, decimal averageScore)
+    {
+        if (total < 5)
+            return "Muestra pequena: observar antes de cambiar reglas.";
+
+        if (winRate < 42m && net < 0m)
+            return $"Bloquear o subir score minimo sobre {Math.Min(100, Math.Ceiling(averageScore + 3m)):N0}.";
+
+        if (winRate >= 55m && net > 0m)
+            return "Priorizar con el mismo riesgo; no aumentar capital automaticamente.";
+
+        if (net < 0m)
+            return "Reducir frecuencia y exigir mas confirmaciones.";
+
+        return "Mantener en observacion; ventaja todavia moderada.";
+    }
+
+    private static string LearningClass(decimal winRate, decimal net, int total)
+    {
+        if (total >= 5 && winRate < 42m && net < 0m)
+            return "loss";
+
+        if (total >= 5 && winRate >= 55m && net > 0m)
+            return "gain";
+
+        return "flat";
+    }
+
     public string Quantity(OpportunityReportRow row)
     {
         return $"{row.EstimatedQuantity.ToString("N8", NumberCulture)} {Asset(row.Symbol)}";
@@ -224,7 +315,7 @@ public sealed class ReportsModel(IOpportunityRepository opportunityRepository, I
 
     public TradeInstruction InstructionFor(OpportunityReportRow row)
     {
-        return tradeInstructionService.Create(row);
+        return _tradeInstructionService.Create(row);
     }
 
     public string OperationType(OpportunityReportRow row)
@@ -254,6 +345,54 @@ public sealed class ReportsModel(IOpportunityRepository opportunityRepository, I
         return $"{Money(row.Capital)} -> {Quantity(row)}";
     }
 
+    public string ChartIntervalFor(OpportunityReportRow row)
+    {
+        var minutes = Math.Max(1, (row.ExpiresAt - row.ObservedAt).TotalMinutes);
+
+        return minutes switch
+        {
+            <= 30 => "1m",
+            <= 240 => "5m",
+            <= 2880 => "15m",
+            <= 10080 => "1h",
+            <= 43200 => "4h",
+            _ => "1d"
+        };
+    }
+
+    public DateTimeOffset ReplayFrom(OpportunityReportRow row)
+    {
+        var interval = ChartIntervalFor(row);
+        var buffer = interval switch
+        {
+            "1m" => TimeSpan.FromMinutes(30),
+            "5m" => TimeSpan.FromHours(2),
+            "15m" => TimeSpan.FromHours(8),
+            "1h" => TimeSpan.FromDays(2),
+            "4h" => TimeSpan.FromDays(7),
+            _ => TimeSpan.FromDays(20)
+        };
+
+        return row.ObservedAt.Subtract(buffer);
+    }
+
+    public DateTimeOffset ReplayTo(OpportunityReportRow row)
+    {
+        var end = row.ExitTime ?? row.ExpiresAt;
+        var interval = ChartIntervalFor(row);
+        var buffer = interval switch
+        {
+            "1m" => TimeSpan.FromMinutes(30),
+            "5m" => TimeSpan.FromHours(2),
+            "15m" => TimeSpan.FromHours(8),
+            "1h" => TimeSpan.FromDays(2),
+            "4h" => TimeSpan.FromDays(7),
+            _ => TimeSpan.FromDays(20)
+        };
+
+        return end.Add(buffer);
+    }
+
     public string RealNet(OpportunityReportRow row)
     {
         return row.RealizedNetPnL.HasValue ? Money(row.RealizedNetPnL.Value) : "Pendiente";
@@ -275,3 +414,5 @@ public sealed class ReportsModel(IOpportunityRepository opportunityRepository, I
         return symbol.ToUpperInvariant();
     }
 }
+
+public sealed record SignalLearningRow(string Pattern, int TotalSignals, int Winners, int Losers, decimal WinRate, decimal RealizedNetPnL, decimal AverageScore, string Recommendation, string ClassName);

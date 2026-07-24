@@ -65,9 +65,10 @@ try
     {
         return Results.Json(await snapshotService.GetAsync(capital, estado, symbol, tipoSenal, cancellationToken));
     });
-    app.MapGet("/api/grafico-vivo", async (string? symbol, string? interval, decimal? capital, string? estado, string? tipoSenal, LiveChartSnapshotService chartService, CancellationToken cancellationToken) =>
+    app.MapGet("/api/grafico-vivo", async (string? symbol, string? interval, decimal? capital, string? estado, string? tipoSenal, DateTimeOffset? from, DateTimeOffset? to,
+        LiveChartSnapshotService chartService, CancellationToken cancellationToken) =>
     {
-        return Results.Json(await chartService.GetAsync(symbol, interval, capital, estado, tipoSenal, cancellationToken));
+        return Results.Json(await chartService.GetAsync(symbol, interval, capital, estado, tipoSenal, from, to, cancellationToken));
     });
     app.MapGet("/api/exchange/status", async (ExchangeConnectionStatusService statusService, CancellationToken cancellationToken) =>
     {

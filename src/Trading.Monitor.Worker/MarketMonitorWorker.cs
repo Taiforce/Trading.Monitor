@@ -83,6 +83,22 @@ public sealed class MarketMonitorWorker(ILogger<MarketMonitorWorker> logger, Mar
             return;
         }
 
+        var learningDecision = await EvaluateLearningAsync(repository, opportunity, cancellationToken);
+        if (!learningDecision.Allow)
+        {
+            logger.LogWarning("Self-learning blocked {Symbol} {SignalType}: {Reason}", opportunity.Symbol, SignalTypeDescriptor.Label(opportunity.Side), learningDecision.Reason);
+            return;
+        }
+
+        if (learningDecision.ScoreAdjustment > 0)
+        {
+            opportunity = opportunity with
+            {
+                Score = Math.Min(100, opportunity.Score + learningDecision.ScoreAdjustment),
+                Reasons = opportunity.Reasons.Append(learningDecision.Reason).Distinct(StringComparer.OrdinalIgnoreCase).ToArray()
+            };
+        }
+
         await repository.SaveAsync(opportunity, cancellationToken);
 
         logger.LogInformation("New signal {Symbol} {SignalType} score {Score}. Entry {EntryLower}-{EntryUpper}, perdida maxima {StopLoss}, ganancia objetivo {TakeProfit1}.", opportunity.Symbol,
@@ -144,6 +160,33 @@ public sealed class MarketMonitorWorker(ILogger<MarketMonitorWorker> logger, Mar
                 logger.LogWarning(exception, "Could not update open opportunity {OpportunityId}.", opportunity.Id);
             }
         }
+    }
+
+    private static async Task<SignalLearningDecision> EvaluateLearningAsync(IOpportunityRepository repository, TradingOpportunity opportunity, CancellationToken cancellationToken)
+    {
+        var history = await repository.GetSignalsAsync(1000m, cancellationToken);
+        var horizon = ResolveHorizon(opportunity.ObservedAt, opportunity.ExpiresAt);
+        var similar = history
+            .Where(row => row.Status != OpportunityStatus.Open)
+            .Where(row => string.Equals(row.Symbol, opportunity.Symbol, StringComparison.OrdinalIgnoreCase))
+            .Where(row => row.Side == opportunity.Side)
+            .Where(row => ResolveHorizon(row.ObservedAt, row.ExpiresAt) == horizon)
+            .ToArray();
+
+        if (similar.Length < 5)
+            return new SignalLearningDecision(true, 0, $"Aprendizaje propio: muestra pequena ({similar.Length}/5) para {horizon}; se permite sin ajuste.");
+
+        var winners = similar.Count(row => row.RealizedNetPnL > 0m);
+        var winRate = (decimal)winners / similar.Length * 100m;
+        var net = similar.Sum(row => row.RealizedNetPnL ?? 0m);
+
+        if (winRate < 42m && net < 0m)
+            return new SignalLearningDecision(false, 0, $"patron {horizon} con {similar.Length} cierres, win rate {winRate:N1}% y neto {net:C2}.");
+
+        if (winRate >= 55m && net > 0m)
+            return new SignalLearningDecision(true, 2, $"Aprendizaje propio: patron {horizon} favorable; {similar.Length} cierres, win rate {winRate:N1}%, neto {net:C2}.");
+
+        return new SignalLearningDecision(true, 0, $"Aprendizaje propio: patron {horizon} neutral; {similar.Length} cierres, win rate {winRate:N1}%, neto {net:C2}.");
     }
 
     private async Task SendExitNotificationsAsync(OpportunityReportRow opportunity, OpportunityExit exit, decimal net, CancellationToken cancellationToken)
@@ -223,6 +266,20 @@ public sealed class MarketMonitorWorker(ILogger<MarketMonitorWorker> logger, Mar
         };
     }
 
+    private static string ResolveHorizon(DateTimeOffset observedAt, DateTimeOffset expiresAt)
+    {
+        var minutes = Math.Max(1, (expiresAt - observedAt).TotalMinutes);
+
+        return minutes switch
+        {
+            <= 30 => "Rapida",
+            <= 240 => "Intradia",
+            <= 2880 => "Swing",
+            <= 10080 => "Semanal",
+            _ => "Mensual"
+        };
+    }
+
     private static Task DelayAsync(TradingMonitorOptions monitor, CancellationToken cancellationToken)
     {
         var seconds = Math.Max(10, monitor.EvaluationIntervalSeconds);
@@ -252,3 +309,5 @@ public sealed class MarketMonitorWorker(ILogger<MarketMonitorWorker> logger, Mar
         return values.Where(value => !string.IsNullOrWhiteSpace(value)).Select(value => value.Trim()).Distinct(StringComparer.Ordinal).ToArray();
     }
 }
+
+internal sealed record SignalLearningDecision(bool Allow, int ScoreAdjustment, string Reason);

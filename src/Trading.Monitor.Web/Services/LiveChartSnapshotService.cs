@@ -12,7 +12,7 @@ public sealed class LiveChartSnapshotService(
     LiveOperationsSnapshotService operationsSnapshotService,
     IOptionsMonitor<ReportingOptions> reportingOptions)
 {
-    public async Task<LiveChartSnapshot> GetAsync(string? symbol, string? interval, decimal? capital, string? estado, string? tipoSenal, CancellationToken cancellationToken)
+    public async Task<LiveChartSnapshot> GetAsync(string? symbol, string? interval, decimal? capital, string? estado, string? tipoSenal, DateTimeOffset? from, DateTimeOffset? to, CancellationToken cancellationToken)
     {
         var resolvedSymbol = string.IsNullOrWhiteSpace(symbol) ? "BTCUSDT" : symbol.Trim().ToUpperInvariant();
         var resolvedInterval = NormalizeInterval(interval);
@@ -20,7 +20,8 @@ public sealed class LiveChartSnapshotService(
         if (resolvedCapital <= 0m)
             resolvedCapital = reportingOptions.CurrentValue.DefaultCapital;
 
-        var candles = await GetCandlesAsync(resolvedSymbol, resolvedInterval, cancellationToken);
+        var range = ResolveCandleRange(resolvedInterval, from, to);
+        var candles = await GetCandlesAsync(resolvedSymbol, resolvedInterval, range.From, range.To, cancellationToken);
         var operations = await operationsSnapshotService.GetAsync(resolvedCapital, estado, resolvedSymbol, tipoSenal, cancellationToken);
         var currentPrice = candles.LastOrDefault()?.Close;
         var matchingOperations = operations.Operations
@@ -74,11 +75,11 @@ public sealed class LiveChartSnapshotService(
         return decimal.TryParse(value, NumberStyles.Currency, CultureInfo.GetCultureInfo("en-US"), out var parsed) ? parsed : null;
     }
 
-    private async Task<IReadOnlyList<LiveCandleDto>> GetCandlesAsync(string symbol, string interval, CancellationToken cancellationToken)
+    private async Task<IReadOnlyList<LiveCandleDto>> GetCandlesAsync(string symbol, string interval, DateTimeOffset? from, DateTimeOffset? to, CancellationToken cancellationToken)
     {
         foreach (var provider in CandleProviders)
         {
-            var candles = await provider(this, symbol, interval, cancellationToken);
+            var candles = await provider(this, symbol, interval, from, to, cancellationToken);
             if (candles.Count > 0)
                 return candles;
         }
@@ -93,16 +94,22 @@ public sealed class LiveChartSnapshotService(
             : decimal.Parse(element.GetString() ?? "0", NumberStyles.Float, CultureInfo.InvariantCulture);
     }
 
-    private static readonly Func<LiveChartSnapshotService, string, string, CancellationToken, Task<IReadOnlyList<LiveCandleDto>>>[] CandleProviders =
+    private static readonly Func<LiveChartSnapshotService, string, string, DateTimeOffset?, DateTimeOffset?, CancellationToken, Task<IReadOnlyList<LiveCandleDto>>>[] CandleProviders =
     [
-        static (service, symbol, interval, cancellationToken) => service.GetBinanceCandlesAsync(symbol, interval, cancellationToken),
-        static (service, symbol, interval, cancellationToken) => service.GetCoinbaseCandlesAsync(symbol, interval, cancellationToken),
-        static (service, symbol, interval, cancellationToken) => service.GetKrakenCandlesAsync(symbol, interval, cancellationToken)
+        static (service, symbol, interval, from, to, cancellationToken) => service.GetBinanceCandlesAsync(symbol, interval, from, to, cancellationToken),
+        static (service, symbol, interval, from, to, cancellationToken) => service.GetCoinbaseCandlesAsync(symbol, interval, from, to, cancellationToken),
+        static (service, symbol, interval, from, to, cancellationToken) => service.GetKrakenCandlesAsync(symbol, interval, from, to, cancellationToken)
     ];
 
-    private async Task<IReadOnlyList<LiveCandleDto>> GetBinanceCandlesAsync(string symbol, string interval, CancellationToken cancellationToken)
+    private async Task<IReadOnlyList<LiveCandleDto>> GetBinanceCandlesAsync(string symbol, string interval, DateTimeOffset? from, DateTimeOffset? to, CancellationToken cancellationToken)
     {
-        var requestUri = $"https://api.binance.com/api/v3/klines?symbol={Uri.EscapeDataString(symbol)}&interval={Uri.EscapeDataString(interval)}&limit=120";
+        var requestUri = $"https://api.binance.com/api/v3/klines?symbol={Uri.EscapeDataString(symbol)}&interval={Uri.EscapeDataString(interval)}&limit=180";
+        if (from.HasValue)
+            requestUri += $"&startTime={from.Value.ToUnixTimeMilliseconds()}";
+
+        if (to.HasValue)
+            requestUri += $"&endTime={to.Value.ToUnixTimeMilliseconds()}";
+
         var document = await GetJsonDocumentAsync(requestUri, cancellationToken);
         if (document is null)
             return [];
@@ -123,19 +130,19 @@ public sealed class LiveChartSnapshotService(
                     ReadDecimal(values[5])));
             }
 
-            return candles.OrderBy(candle => candle.OpenTime).ToArray();
+            return candles.OrderBy(candle => candle.OpenTime).TakeLast(180).ToArray();
         }
     }
 
-    private async Task<IReadOnlyList<LiveCandleDto>> GetCoinbaseCandlesAsync(string symbol, string interval, CancellationToken cancellationToken)
+    private async Task<IReadOnlyList<LiveCandleDto>> GetCoinbaseCandlesAsync(string symbol, string interval, DateTimeOffset? from, DateTimeOffset? to, CancellationToken cancellationToken)
     {
         var product = ToCoinbaseProduct(symbol);
         if (product is null)
             return [];
 
         var granularity = ToCoinbaseGranularity(interval);
-        var end = DateTimeOffset.UtcNow;
-        var start = end.AddSeconds(-granularity * 120);
+        var end = to ?? DateTimeOffset.UtcNow;
+        var start = from ?? end.AddSeconds(-granularity * 180);
         var requestUri = string.Create(
             CultureInfo.InvariantCulture,
             $"https://api.exchange.coinbase.com/products/{Uri.EscapeDataString(product)}/candles?granularity={granularity}&start={Uri.EscapeDataString(start.UtcDateTime.ToString("O", CultureInfo.InvariantCulture))}&end={Uri.EscapeDataString(end.UtcDateTime.ToString("O", CultureInfo.InvariantCulture))}");
@@ -163,11 +170,11 @@ public sealed class LiveChartSnapshotService(
                     ReadDecimal(values[5])));
             }
 
-            return candles.OrderBy(candle => candle.OpenTime).TakeLast(120).ToArray();
+            return candles.OrderBy(candle => candle.OpenTime).TakeLast(180).ToArray();
         }
     }
 
-    private async Task<IReadOnlyList<LiveCandleDto>> GetKrakenCandlesAsync(string symbol, string interval, CancellationToken cancellationToken)
+    private async Task<IReadOnlyList<LiveCandleDto>> GetKrakenCandlesAsync(string symbol, string interval, DateTimeOffset? from, DateTimeOffset? to, CancellationToken cancellationToken)
     {
         var pair = ToKrakenPair(symbol);
         if (pair is null)
@@ -175,6 +182,9 @@ public sealed class LiveChartSnapshotService(
 
         var krakenInterval = ToKrakenInterval(interval);
         var requestUri = $"https://api.kraken.com/0/public/OHLC?pair={Uri.EscapeDataString(pair)}&interval={krakenInterval}";
+        if (from.HasValue)
+            requestUri += $"&since={from.Value.ToUnixTimeSeconds()}";
+
         var document = await GetJsonDocumentAsync(requestUri, cancellationToken);
         if (document is null)
             return [];
@@ -215,7 +225,11 @@ public sealed class LiveChartSnapshotService(
                     ReadDecimal(values[6])));
             }
 
-            return candles.OrderBy(candle => candle.OpenTime).TakeLast(120).ToArray();
+            var filtered = candles.AsEnumerable();
+            if (to.HasValue)
+                filtered = filtered.Where(candle => candle.OpenTime <= to.Value);
+
+            return filtered.OrderBy(candle => candle.OpenTime).TakeLast(180).ToArray();
         }
     }
 
@@ -289,6 +303,28 @@ public sealed class LiveChartSnapshotService(
             "1d" or "1w" or "1M" => 1440,
             _ => 1
         };
+    }
+
+    private static CandleRange ResolveCandleRange(string interval, DateTimeOffset? from, DateTimeOffset? to)
+    {
+        if (!from.HasValue && !to.HasValue)
+            return new CandleRange(null, null);
+
+        var seconds = interval == "1s" ? 60 : ToCoinbaseGranularity(interval);
+        var end = to ?? DateTimeOffset.UtcNow;
+        var start = from ?? end.AddSeconds(-seconds * 180);
+        if (end <= start)
+            end = start.AddSeconds(seconds * 60);
+
+        var maxWindow = TimeSpan.FromSeconds(seconds * 280);
+        if (end - start > maxWindow)
+        {
+            var center = start.AddTicks((end - start).Ticks / 2);
+            start = center.Subtract(TimeSpan.FromTicks(maxWindow.Ticks / 2));
+            end = center.Add(TimeSpan.FromTicks(maxWindow.Ticks / 2));
+        }
+
+        return new CandleRange(start, end);
     }
 
     private static LiveChartAnalysisDto Analyze(string interval, IReadOnlyList<LiveCandleDto> candles, decimal capital, decimal feePercentPerSide)
@@ -520,3 +556,5 @@ public sealed class LiveChartSnapshotService(
         return Math.Round(value, decimals);
     }
 }
+
+internal sealed record CandleRange(DateTimeOffset? From, DateTimeOffset? To);

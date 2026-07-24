@@ -135,6 +135,44 @@
         </div>
     </section>
 
+    <section class="report-section">
+        <div class="section-title">
+            <h2>Aprendizaje propio</h2>
+            <span>retroalimentacion real</span>
+        </div>
+        <div class="insight-strip compact-insight">
+            <span>Autoajuste</span>
+            <strong>@Model.LearningReadout</strong>
+        </div>
+        @if (Model.LearningRows.Count == 0)
+        {
+            <div class="empty-state">
+                <strong>Todavia no hay patrones cerrados.</strong>
+                <span>Cuando las senales terminen, el sistema comparara score, tipo, activo y horizonte para endurecer o priorizar reglas.</span>
+            </div>
+        }
+        else
+        {
+            <div class="learning-grid">
+                @foreach (var row in Model.LearningRows)
+                {
+                    <article class="learning-card">
+                        <div>
+                            <strong>@row.Pattern</strong>
+                            <span class="@row.ClassName">@row.Recommendation</span>
+                        </div>
+                        <dl>
+                            <div><dt>Cierres</dt><dd>@row.TotalSignals</dd></div>
+                            <div><dt>Win rate</dt><dd class="@row.ClassName">@row.WinRate.ToString("N1")%</dd></div>
+                            <div><dt>Neto</dt><dd class="@Model.SignedClass(row.RealizedNetPnL)">@Model.Money(row.RealizedNetPnL)</dd></div>
+                            <div><dt>Score prom</dt><dd>@row.AverageScore.ToString("N1")</dd></div>
+                        </dl>
+                    </article>
+                }
+            </div>
+        }
+    </section>
+
     <section class="two-column">
         <div class="report-section">
             <div class="section-title">
@@ -221,72 +259,123 @@
         }
         else
         {
-            <div class="signal-summary-grid">
-                @foreach (var row in Model.FilteredRows.Take(60))
-                {
-                    var conversion = Model.ConversionFor(row);
-                    <article class="signal-summary-card">
-                        <header>
-                            <div>
-                                <strong>@row.Symbol</strong>
-                                <span>@Model.SignalTypeLabel(row.Side) | @Model.HorizonFor(row) | score @row.Score</span>
-                            </div>
+            <div class="master-detail signal-workbench" data-master-detail data-signal-replay>
+                <div class="master-list" aria-label="Operaciones filtradas">
+                    @for (var index = 0; index < Model.FilteredRows.Count; index++)
+                    {
+                        var row = Model.FilteredRows[index];
+                        var isActive = index == 0;
+                        <button type="button" class="master-item @(isActive ? "active" : "")" data-detail-key="@row.Id">
+                            <span class="master-kicker">@row.ObservedAt.ToLocalTime().ToString("dd MMM HH:mm") | @Model.HorizonFor(row)</span>
+                            <strong>@row.Symbol - @Model.SignalTypeLabel(row.Side)</strong>
                             <span class="status @Model.StatusClass(row.Status)">@Model.StatusLabel(row.Status)</span>
-                        </header>
+                            <small>Score @row.Score | entrar @Model.EntryWindow(row) | real @Model.RealNet(row)</small>
+                            <div class="master-item-extra">
+                                <span>Entrada @Model.Price(row.EntryPrice)</span>
+                                <span>Salida @(row.ExitPrice.HasValue ? Model.Price(row.ExitPrice.Value) : "pendiente")</span>
+                                <span class="gain">Ganar @Model.Money(row.NetProfitAtTakeProfit1)</span>
+                                <span class="loss">Perder @Model.Money(row.NetLossAtStop)</span>
+                            </div>
+                        </button>
+                    }
+                </div>
 
-                        <div class="signal-fast-grid">
-                            <div>
-                                <span>Recibi</span>
-                                <strong>@row.ObservedAt.ToLocalTime().ToString("dd MMM HH:mm")</strong>
+                <div class="detail-stack">
+                    @for (var index = 0; index < Model.FilteredRows.Count; index++)
+                    {
+                        var row = Model.FilteredRows[index];
+                        var conversion = Model.ConversionFor(row);
+                        var isActive = index == 0;
+                        <article class="detail-panel @(isActive ? "active" : "")"
+                                 data-detail-panel="@row.Id"
+                                 data-symbol="@row.Symbol"
+                                 data-interval="@Model.ChartIntervalFor(row)"
+                                 data-capital="@row.Capital.ToString(System.Globalization.CultureInfo.InvariantCulture)"
+                                 data-from="@Model.ReplayFrom(row).ToString("O")"
+                                 data-to="@Model.ReplayTo(row).ToString("O")"
+                                 data-side="@row.Side"
+                                 data-entry-price="@row.EntryPrice.ToString(System.Globalization.CultureInfo.InvariantCulture)"
+                                 data-entry-lower="@row.EntryLower.ToString(System.Globalization.CultureInfo.InvariantCulture)"
+                                 data-entry-upper="@row.EntryUpper.ToString(System.Globalization.CultureInfo.InvariantCulture)"
+                                 data-stop-loss="@row.StopLoss.ToString(System.Globalization.CultureInfo.InvariantCulture)"
+                                 data-take-profit1="@row.TakeProfit1.ToString(System.Globalization.CultureInfo.InvariantCulture)"
+                                 data-take-profit2="@row.TakeProfit2.ToString(System.Globalization.CultureInfo.InvariantCulture)"
+                                 data-exit-price="@(row.ExitPrice?.ToString(System.Globalization.CultureInfo.InvariantCulture) ?? "")"
+                                 data-observed-at="@row.ObservedAt.ToString("O")"
+                                 data-exit-time="@((row.ExitTime ?? row.ExpiresAt).ToString("O"))"
+                                 data-action="@Model.SignalTypeLabel(row.Side)"
+                                 data-status="@Model.StatusLabel(row.Status)">
+                            <div class="section-title">
+                                <h2>@row.Symbol - @Model.SignalTypeLabel(row.Side)</h2>
+                                <span>@Model.StatusLabel(row.Status) | score @row.Score</span>
                             </div>
-                            <div>
-                                <span>Operacion</span>
-                                <strong>@Model.OperationType(row)</strong>
-                                <small>@Model.OperationMeaning(row)</small>
+                            <div class="signal-replay-chart" data-signal-chart>
+                                <span>Cargando replay de la senal...</span>
                             </div>
-                            <div>
-                                <span>Entrar</span>
-                                <strong>@Model.EntryWindow(row)</strong>
-                                <small>@Model.Price(row.EntryPrice)</small>
+                            <div class="detail-grid">
+                                <article>
+                                    <span>Senal recibida</span>
+                                    <strong>@row.ObservedAt.ToLocalTime().ToString("dd MMM yyyy HH:mm")</strong>
+                                    <small>@Model.OperationMeaning(row)</small>
+                                </article>
+                                <article>
+                                    <span>Momento para entrar</span>
+                                    <strong>@Model.EntryWindow(row)</strong>
+                                    <small>@Model.Price(row.EntryPrice)</small>
+                                </article>
+                                <article>
+                                    <span>Fecha limite de salida</span>
+                                    <strong>@Model.ExitLimit(row)</strong>
+                                    <small>@(row.ExitPrice.HasValue ? Model.Price(row.ExitPrice.Value) : "pendiente")</small>
+                                </article>
+                                <article>
+                                    <span>Simulador</span>
+                                    <strong>@Model.SimulationLine(row)</strong>
+                                    <small>@conversion.EntryText</small>
+                                </article>
+                                <article>
+                                    <span>Ganar neto</span>
+                                    <strong class="gain">@Model.Money(row.NetProfitAtTakeProfit1)</strong>
+                                    <small>objetivo @Model.Price(row.TakeProfit1)</small>
+                                </article>
+                                <article>
+                                    <span>Perder maximo</span>
+                                    <strong class="loss">@Model.Money(row.NetLossAtStop)</strong>
+                                    <small>corte @Model.Price(row.StopLoss)</small>
+                                </article>
+                                <article>
+                                    <span>Resultado real</span>
+                                    <strong class="@Model.SignedClass(row.RealizedNetPnL)">@Model.RealNet(row)</strong>
+                                    <small>total @Model.RealTotal(conversion)</small>
+                                </article>
+                                <article>
+                                    <span>Comision y empate</span>
+                                    <strong>@Model.Money(conversion.EstimatedFees)</strong>
+                                    <small>@conversion.BreakEvenText</small>
+                                </article>
                             </div>
-                            <div>
-                                <span>Terminar</span>
-                                <strong>@Model.ExitLimit(row)</strong>
-                                <small>@(row.ExitPrice.HasValue ? Model.Price(row.ExitPrice.Value) : "pendiente")</small>
-                            </div>
-                        </div>
-
-                        <div class="signal-money-grid">
-                            <div>
-                                <span>Simulador</span>
-                                <strong>@Model.SimulationLine(row)</strong>
-                            </div>
-                            <div>
-                                <span>Comision</span>
-                                <strong>@Model.Money(conversion.EstimatedFees)</strong>
-                                <small>@conversion.BreakEvenMovePercent.ToString("N2")% para empatar</small>
-                            </div>
-                            <div>
-                                <span>Empate</span>
-                                <strong>@Model.Price(conversion.BreakEvenPrice)</strong>
-                                <small>precio minimo para no perder</small>
-                            </div>
-                            <div>
-                                <span>Ganar neto</span>
-                                <strong class="gain">@Model.Money(row.NetProfitAtTakeProfit1)</strong>
-                            </div>
-                            <div>
-                                <span>Perder neto</span>
-                                <strong class="loss">@Model.Money(row.NetLossAtStop)</strong>
-                            </div>
-                            <div>
-                                <span>Real</span>
-                                <strong class="@Model.SignedClass(row.RealizedNetPnL)">@Model.RealNet(row)</strong>
-                                <small>total @Model.RealTotal(conversion)</small>
-                            </div>
-                        </div>
-                    </article>
-                }
+                            <details class="compact-details">
+                                <summary>Ver razones y riesgos</summary>
+                                <div class="detail-notes">
+                                    <div>
+                                        <strong>Razones</strong>
+                                        @foreach (var note in Model.SplitNotes(row.Reasons))
+                                        {
+                                            <span>@note</span>
+                                        }
+                                    </div>
+                                    <div>
+                                        <strong>Riesgos</strong>
+                                        @foreach (var note in Model.SplitNotes(row.Risks))
+                                        {
+                                            <span>@note</span>
+                                        }
+                                    </div>
+                                </div>
+                            </details>
+                        </article>
+                    }
+                </div>
             </div>
         }
     </section>
@@ -316,3 +405,8 @@
         </div>
     </section>
 </section>
+
+@section Scripts {
+    <script src="~/lib/lightweight-charts/lightweight-charts.standalone.production.js"></script>
+    <script src="~/js/master-detail.js" asp-append-version="true"></script>
+}

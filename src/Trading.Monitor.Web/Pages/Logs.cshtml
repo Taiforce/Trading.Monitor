@@ -150,19 +150,48 @@
         }
         else
         {
-            <div class="log-event-list">
-                @foreach (var entry in Model.FilteredEntries.Take(120))
-                {
-                    <article class="log-event-row">
-                        <div>
-                            <strong>@entry.Time</strong>
-                            <span>@entry.Service</span>
-                        </div>
-                        <span class="status @Model.LevelClass(entry.Level)">@entry.LevelLabel</span>
-                        <span class="@Model.EventClass(entry.EventType)">@entry.EventType</span>
-                        <p>@entry.Message</p>
-                    </article>
-                }
+            <div class="master-detail logs-workbench" data-master-detail>
+                <div class="master-list" aria-label="Eventos de log">
+                    @for (var index = 0; index < Model.FilteredEntries.Count; index++)
+                    {
+                        var entry = Model.FilteredEntries[index];
+                        var key = $"log-{index}";
+                        <button type="button" class="master-item @(index == 0 ? "active" : "")" data-detail-key="@key">
+                            <span class="master-kicker">@entry.Time | @entry.Service</span>
+                            <strong>@entry.EventType</strong>
+                            <span class="status @Model.LevelClass(entry.Level)">@entry.LevelLabel</span>
+                            <small>@entry.Message</small>
+                            <div class="master-item-extra">
+                                <span>Nivel @entry.Level</span>
+                                <span>Hora @entry.Hour:00</span>
+                            </div>
+                        </button>
+                    }
+                </div>
+                <div class="detail-stack">
+                    @for (var index = 0; index < Model.FilteredEntries.Count; index++)
+                    {
+                        var entry = Model.FilteredEntries[index];
+                        var key = $"log-{index}";
+                        <article class="detail-panel @(index == 0 ? "active" : "")" data-detail-panel="@key">
+                            <div class="section-title">
+                                <h2>@entry.EventType</h2>
+                                <span>@entry.Time | @entry.Service</span>
+                            </div>
+                            <div class="detail-grid">
+                                <article><span>Nivel</span><strong class="@Model.EventClass(entry.EventType)">@entry.LevelLabel</strong><small>@entry.Level</small></article>
+                                <article><span>Servicio</span><strong>@entry.Service</strong><small>@(Model.Snapshot.File?.DisplayName ?? "-")</small></article>
+                                <article><span>Hora</span><strong>@entry.Time</strong><small>bucket @entry.Hour:00</small></article>
+                                <article><span>Tipo</span><strong>@entry.EventType</strong><small>interpretado</small></article>
+                            </div>
+                            <p class="detail-copy">@entry.Message</p>
+                            <details class="compact-details">
+                                <summary>Ver linea cruda</summary>
+                                <pre class="log-output compact-log-output">@entry.RawLine</pre>
+                            </details>
+                        </article>
+                    }
+                </div>
             </div>
         }
     </section>
@@ -210,3 +239,7 @@
         </div>
     </section>
 </section>
+
+@section Scripts {
+    <script src="~/js/master-detail.js" asp-append-version="true"></script>
+}

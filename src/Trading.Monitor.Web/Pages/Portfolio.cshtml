@@ -154,55 +154,47 @@
                 </svg>
             </div>
 
-            <div class="table-wrap">
-                <table class="report-table portfolio-table">
-                    <thead>
-                    <tr>
-                        <th>#</th>
-                        <th>Trader</th>
-                        <th>Trade</th>
-                        <th>Entrada</th>
-                        <th>Salida</th>
-                        <th>Antes</th>
-                        <th>Resultado</th>
-                        <th>Despues</th>
-                    </tr>
-                    </thead>
-                    <tbody>
-                    @foreach (var row in Model.TraderSimulation.Trades)
+            <div class="master-detail portfolio-workbench" data-master-detail>
+                <div class="master-list" aria-label="Trades simulados del trader">
+                    @for (var index = 0; index < Model.TraderSimulation.Trades.Count; index++)
                     {
-                        <tr class="@(row.WasApplied ? "" : "muted-row")">
-                            <td>@row.Sequence</td>
-                            <td>
-                                <strong>@row.TraderName</strong>
-                                <small>@row.Platform</small>
-                            </td>
-                            <td>
-                                <strong>@row.Symbol</strong>
-                                <small>@row.SignalType</small>
-                                <small>@row.OpenedAt.ToLocalTime().ToString("dd MMM HH:mm")</small>
-                            </td>
-                            <td>
-                                <strong>@Model.Price(row.EntryPrice)</strong>
-                                <small>@(row.WasApplied ? Model.Quantity(row) : "-")</small>
-                            </td>
-                            <td>
-                                <strong>@(row.ExitPrice.HasValue ? Model.Price(row.ExitPrice.Value) : "-")</strong>
-                                <small>@(row.ClosedAt.HasValue ? row.ClosedAt.Value.ToLocalTime().ToString("dd MMM HH:mm") : row.SkipReason)</small>
-                            </td>
-                            <td>@Model.Money(row.StartingBalance)</td>
-                            <td class="@Model.ResultClass(row.NetPnL)">
-                                <strong>@(row.WasApplied ? Model.Money(row.NetPnL) : row.SkipReason)</strong>
-                                <small>@(row.WasApplied ? $"{row.ReturnPercent:N2}%" : "")</small>
-                            </td>
-                            <td>
-                                <strong>@Model.Money(row.EndingBalance)</strong>
-                                <small>comision @Model.Money(row.Fees)</small>
-                            </td>
-                        </tr>
+                        var row = Model.TraderSimulation.Trades[index];
+                        var key = $"trader-{row.Sequence}";
+                        <button type="button" class="master-item @(index == 0 ? "active" : "") @(row.WasApplied ? "" : "muted-row")" data-detail-key="@key">
+                            <span class="master-kicker">#@row.Sequence | @row.Platform</span>
+                            <strong>@row.TraderName - @row.Symbol</strong>
+                            <small>@row.SignalType | @row.OpenedAt.ToLocalTime().ToString("dd MMM HH:mm")</small>
+                            <span class="@Model.ResultClass(row.NetPnL)">@(row.WasApplied ? Model.Money(row.NetPnL) : row.SkipReason)</span>
+                            <div class="master-item-extra">
+                                <span>Antes @Model.Money(row.StartingBalance)</span>
+                                <span>Despues @Model.Money(row.EndingBalance)</span>
+                            </div>
+                        </button>
                     }
-                    </tbody>
-                </table>
+                </div>
+                <div class="detail-stack">
+                    @for (var index = 0; index < Model.TraderSimulation.Trades.Count; index++)
+                    {
+                        var row = Model.TraderSimulation.Trades[index];
+                        var key = $"trader-{row.Sequence}";
+                        <article class="detail-panel @(index == 0 ? "active" : "")" data-detail-panel="@key">
+                            <div class="section-title">
+                                <h2>#@row.Sequence @row.Symbol</h2>
+                                <span>@row.TraderName | @row.SignalType</span>
+                            </div>
+                            <div class="detail-grid">
+                                <article><span>Entrada</span><strong>@row.OpenedAt.ToLocalTime().ToString("dd MMM HH:mm")</strong><small>@Model.Price(row.EntryPrice)</small></article>
+                                <article><span>Salida</span><strong>@(row.ClosedAt.HasValue ? row.ClosedAt.Value.ToLocalTime().ToString("dd MMM HH:mm") : "-")</strong><small>@(row.ExitPrice.HasValue ? Model.Price(row.ExitPrice.Value) : row.SkipReason)</small></article>
+                                <article><span>Saldo antes</span><strong>@Model.Money(row.StartingBalance)</strong><small>capital completo</small></article>
+                                <article><span>Cantidad</span><strong>@(row.WasApplied ? Model.Quantity(row) : "-")</strong><small>simulada</small></article>
+                                <article><span>Comision</span><strong>@Model.Money(row.Fees)</strong><small>ida y vuelta</small></article>
+                                <article><span>Resultado</span><strong class="@Model.ResultClass(row.NetPnL)">@(row.WasApplied ? Model.Money(row.NetPnL) : row.SkipReason)</strong><small>@(row.WasApplied ? $"{row.ReturnPercent:N2}%" : "")</small></article>
+                                <article><span>Saldo despues</span><strong>@Model.Money(row.EndingBalance)</strong><small>compuesto</small></article>
+                                <article><span>Estado</span><strong>@(row.WasApplied ? "Aplicada" : "Omitida")</strong><small>@row.SkipReason</small></article>
+                            </div>
+                        </article>
+                    }
+                </div>
             </div>
         }
     </section>
@@ -222,57 +214,52 @@
         }
         else
         {
-            <div class="table-wrap">
-                <table class="report-table portfolio-table">
-                    <thead>
-                    <tr>
-                        <th>#</th>
-                        <th>Senal</th>
-                        <th>Entrada</th>
-                        <th>Salida</th>
-                        <th>Antes</th>
-                        <th>Simulador</th>
-                        <th>Resultado</th>
-                        <th>Despues</th>
-                    </tr>
-                    </thead>
-                    <tbody>
-                    @foreach (var row in Model.Simulation.Trades)
+            <div class="master-detail portfolio-workbench" data-master-detail>
+                <div class="master-list" aria-label="Secuencia compuesta">
+                    @for (var index = 0; index < Model.Simulation.Trades.Count; index++)
                     {
-                        <tr class="@(row.WasApplied ? "" : "muted-row")">
-                            <td>@row.Sequence</td>
-                            <td>
-                                <strong>@row.Symbol</strong>
-                                <small>@row.Horizon | @row.OperationType</small>
-                                <small>@row.SignalTime.ToLocalTime().ToString("dd MMM HH:mm")</small>
-                            </td>
-                            <td>
-                                <strong>@row.EntryTime.ToLocalTime().ToString("HH:mm")</strong>
-                                <small>@Model.Price(row.EntryPrice)</small>
-                            </td>
-                            <td>
-                                <strong>@(row.ExitTime.HasValue ? row.ExitTime.Value.ToLocalTime().ToString("dd MMM HH:mm") : "-")</strong>
-                                <small>@(row.ExitPrice.HasValue ? Model.Price(row.ExitPrice.Value) : row.SkipReason)</small>
-                            </td>
-                            <td>@Model.Money(row.StartingBalance)</td>
-                            <td>
-                                <strong>@(row.WasApplied ? Model.Quantity(row) : "-")</strong>
-                                <small>comision @Model.Money(row.Fees)</small>
-                                <small>empate @Model.Price(Model.BreakEvenPrice(row))</small>
-                            </td>
-                            <td class="@Model.ResultClass(row.NetPnL)">
-                                <strong>@(row.WasApplied ? Model.Money(row.NetPnL) : Model.AppliedLabel(row))</strong>
-                                <small>@(row.WasApplied ? $"{row.ReturnPercent:N2}%" : "")</small>
-                            </td>
-                            <td>
-                                <strong>@Model.Money(row.EndingBalance)</strong>
-                                <small>@Model.AppliedLabel(row)</small>
-                            </td>
-                        </tr>
+                        var row = Model.Simulation.Trades[index];
+                        var key = $"portfolio-{row.Sequence}";
+                        <button type="button" class="master-item @(index == 0 ? "active" : "") @(row.WasApplied ? "" : "muted-row")" data-detail-key="@key">
+                            <span class="master-kicker">#@row.Sequence | @row.SignalTime.ToLocalTime().ToString("dd MMM HH:mm")</span>
+                            <strong>@row.Symbol - @row.OperationType</strong>
+                            <small>@row.Horizon | entrada @Model.Price(row.EntryPrice)</small>
+                            <span class="@Model.ResultClass(row.NetPnL)">@(row.WasApplied ? Model.Money(row.NetPnL) : Model.AppliedLabel(row))</span>
+                            <div class="master-item-extra">
+                                <span>Antes @Model.Money(row.StartingBalance)</span>
+                                <span>Despues @Model.Money(row.EndingBalance)</span>
+                            </div>
+                        </button>
                     }
-                    </tbody>
-                </table>
+                </div>
+                <div class="detail-stack">
+                    @for (var index = 0; index < Model.Simulation.Trades.Count; index++)
+                    {
+                        var row = Model.Simulation.Trades[index];
+                        var key = $"portfolio-{row.Sequence}";
+                        <article class="detail-panel @(index == 0 ? "active" : "")" data-detail-panel="@key">
+                            <div class="section-title">
+                                <h2>#@row.Sequence @row.Symbol</h2>
+                                <span>@row.OperationType | @row.Horizon</span>
+                            </div>
+                            <div class="detail-grid">
+                                <article><span>Senal</span><strong>@row.SignalTime.ToLocalTime().ToString("dd MMM HH:mm")</strong><small>@row.Horizon</small></article>
+                                <article><span>Entrada</span><strong>@row.EntryTime.ToLocalTime().ToString("HH:mm")</strong><small>@Model.Price(row.EntryPrice)</small></article>
+                                <article><span>Salida</span><strong>@(row.ExitTime.HasValue ? row.ExitTime.Value.ToLocalTime().ToString("dd MMM HH:mm") : "-")</strong><small>@(row.ExitPrice.HasValue ? Model.Price(row.ExitPrice.Value) : row.SkipReason)</small></article>
+                                <article><span>Saldo antes</span><strong>@Model.Money(row.StartingBalance)</strong><small>todo el saldo</small></article>
+                                <article><span>Cantidad comprada/vendida</span><strong>@(row.WasApplied ? Model.Quantity(row) : "-")</strong><small>empate @Model.Price(Model.BreakEvenPrice(row))</small></article>
+                                <article><span>Comision</span><strong>@Model.Money(row.Fees)</strong><small>costo estimado</small></article>
+                                <article><span>Resultado</span><strong class="@Model.ResultClass(row.NetPnL)">@(row.WasApplied ? Model.Money(row.NetPnL) : Model.AppliedLabel(row))</strong><small>@(row.WasApplied ? $"{row.ReturnPercent:N2}%" : "")</small></article>
+                                <article><span>Saldo despues</span><strong>@Model.Money(row.EndingBalance)</strong><small>@Model.AppliedLabel(row)</small></article>
+                            </div>
+                        </article>
+                    }
+                </div>
             </div>
         }
     </section>
 </section>
+
+@section Scripts {
+    <script src="~/js/master-detail.js" asp-append-version="true"></script>
+}
