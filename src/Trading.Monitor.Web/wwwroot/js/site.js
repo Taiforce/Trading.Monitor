@@ -113,7 +113,7 @@
                 <p class="live-calc">${escapeHtml(item.realizedFormulaText)}</p>
                 <div class="trade-links">
                     <button type="button" data-chart-symbol="${escapeHtml(item.symbol)}">Ver grafico</button>
-                    ${(item.links || []).slice(0, 4).map(link => `<a href="${escapeAttribute(link.url)}" target="_blank" rel="noopener noreferrer">${escapeHtml(link.label)}</a>`).join("")}
+                    ${(item.links || []).slice(0, 5).map(link => link.url?.startsWith("/") ? `<a href="${escapeAttribute(link.url)}">${escapeHtml(link.label)}</a>` : `<a href="${escapeAttribute(link.url)}" target="_blank" rel="noopener noreferrer">${escapeHtml(link.label)}</a>`).join("")}
                 </div>
             </article>`).join("");
 

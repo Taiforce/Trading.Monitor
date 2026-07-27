@@ -50,21 +50,25 @@
     const symbolStorageKey = "trading-monitor-chart-symbol";
     const intervalStorageKey = "trading-monitor-chart-interval";
     const lineStyleDashed = lwc.LineStyle?.Dashed ?? 2;
+    const lineStyleSolid = lwc.LineStyle?.Solid ?? 0;
     const crosshairModeNormal = lwc.CrosshairMode?.Normal ?? 0;
     const appTimeZone = resolveTimeZone(document.documentElement.dataset.appTimezone);
+    const queryParams = new URLSearchParams(window.location.search);
+    const initialOperationId = normalizeOperationId(queryParams.get("senal") || queryParams.get("signal") || queryParams.get("operation"));
+    const initialInterval = normalizeIntervalParam(queryParams.get("interval") || queryParams.get("Interval"));
 
     let chart;
     let candleSeries;
     let volumeSeries;
     let markerApi;
     let selectedSymbol = symbolFilter || localStorage.getItem(symbolStorageKey) || "BTCUSDT";
-    let selectedInterval = localStorage.getItem(intervalStorageKey) || "1m";
+    let selectedInterval = initialInterval || localStorage.getItem(intervalStorageKey) || "1m";
     let chartZoom = Number(chartZoomInput?.value || 45);
     let lastOperations = [];
     let lastSnapshot = null;
     let lastDataKey = "";
     let lastCandleData = [];
-    let selectedOperationId = null;
+    let selectedOperationId = initialOperationId || null;
     let priceLines = [];
     let operationSeriesById = new Map();
     let targetDrafts = new Map();
@@ -247,7 +251,7 @@
 
     async function refreshLiveTrades() {
         try {
-            const url = `/api/operaciones-vivas?capital=${encodeURIComponent(capital)}&estado=${encodeURIComponent(estado)}&symbol=${encodeURIComponent(symbolFilter)}&tipoSenal=${encodeURIComponent(tipoSenal)}&mode=${encodeURIComponent(liveMode)}`;
+            const url = `/api/operaciones-vivas?capital=${encodeURIComponent(capital)}&estado=${encodeURIComponent(estado)}&symbol=${encodeURIComponent(symbolFilter)}&tipoSenal=${encodeURIComponent(tipoSenal)}&mode=${encodeURIComponent(liveMode)}&senal=${encodeURIComponent(selectedOperationId || "")}`;
             const response = await fetch(url, { cache: "no-store" });
             if (!response.ok) {
                 throw new Error(`HTTP ${response.status}`);
@@ -277,7 +281,7 @@
         const requestId = ++chartRequestId;
         const requestSymbol = selectedSymbol;
         const requestInterval = selectedInterval;
-        const url = `/api/grafico-vivo?symbol=${encodeURIComponent(requestSymbol)}&interval=${encodeURIComponent(requestInterval)}&capital=${encodeURIComponent(capital)}&estado=${encodeURIComponent(estado)}&tipoSenal=${encodeURIComponent(tipoSenal)}&mode=${encodeURIComponent(liveMode)}`;
+        const url = `/api/grafico-vivo?symbol=${encodeURIComponent(requestSymbol)}&interval=${encodeURIComponent(requestInterval)}&capital=${encodeURIComponent(capital)}&estado=${encodeURIComponent(estado)}&tipoSenal=${encodeURIComponent(tipoSenal)}&mode=${encodeURIComponent(liveMode)}&senal=${encodeURIComponent(selectedOperationId || "")}`;
         const response = await fetch(url, { cache: "no-store" });
         if (!response.ok) {
             throw new Error(`HTTP ${response.status}`);
@@ -387,6 +391,7 @@
                 const operation = lastOperations.find(item => item.id === selectedOperationId);
                 if (isClosingSelectedCard) {
                     lockCurrentView();
+                    updateBrowserSignalParams();
                     await refreshChart();
                     renderList(lastOperations);
                     return;
@@ -396,6 +401,7 @@
                     selectedSymbol = operation.symbol;
                     userSelectedSymbol = true;
                     persistChartChoice();
+                    updateBrowserSignalParams();
                     lockCurrentView();
                     await refreshChart();
                     renderList(lastOperations);
@@ -519,7 +525,7 @@
                     <div class="trade-links">
                         <button type="button" data-chart-symbol="${escapeHtml(item.symbol)}" data-card-operation="${escapeAttribute(item.id)}">Ver en grafico</button>
                         <button type="button" data-close-current="${escapeAttribute(item.id)}" ${closeDisabled ? "disabled" : ""}>Cerrar al mercado actual</button>
-                        ${(item.links || []).slice(0, 4).map(link => `<a href="${escapeAttribute(link.url)}" target="_blank" rel="noopener noreferrer">${escapeHtml(link.label)}</a>`).join("")}
+                        ${(item.links || []).slice(0, 5).map(link => link.url?.startsWith("/") ? `<a href="${escapeAttribute(link.url)}">${escapeHtml(link.label)}</a>` : `<a href="${escapeAttribute(link.url)}" target="_blank" rel="noopener noreferrer">${escapeHtml(link.label)}</a>`).join("")}
                     </div>
                 </div>
             </article>`;
@@ -545,7 +551,7 @@
     function tradeLinks(item, buttonText) {
         return `<div class="trade-links">
             <button type="button" data-chart-symbol="${escapeHtml(item.symbol)}" data-card-operation="${escapeAttribute(item.id)}">${escapeHtml(buttonText)}</button>
-            ${(item.links || []).slice(0, 4).map(link => `<a href="${escapeAttribute(link.url)}" target="_blank" rel="noopener noreferrer">${escapeHtml(link.label)}</a>`).join("")}
+            ${(item.links || []).slice(0, 5).map(link => link.url?.startsWith("/") ? `<a href="${escapeAttribute(link.url)}">${escapeHtml(link.label)}</a>` : `<a href="${escapeAttribute(link.url)}" target="_blank" rel="noopener noreferrer">${escapeHtml(link.label)}</a>`).join("")}
         </div>`;
     }
 
@@ -647,8 +653,8 @@
             const targetPercent = getTargetPercent(trade);
             const targetPrice = resolveTargetExitPrice(trade, targetPercent);
             const currentPrice = Number(trade.markPrice || trade.lastPrice);
-            addPriceLine(targetPrice, colors.green, profitLineTitle(trade));
-            addPriceLine(currentPrice, colors.blue, profitLineTitle(trade));
+            addPriceLine(targetPrice, colors.green, targetLineTitle(trade, targetPercent), { lineWidth: 2, lineStyle: lineStyleSolid });
+            addPriceLine(currentPrice, colors.blue, "Actual", { lineWidth: 2 });
             return;
         }
 
@@ -657,7 +663,7 @@
         addPriceLine(Number(trade.stopLoss), colors.red, lossLineTitle(trade));
     }
 
-    function addPriceLine(price, color, title) {
+    function addPriceLine(price, color, title, options = {}) {
         if (!Number.isFinite(price) || price <= 0) {
             return;
         }
@@ -665,8 +671,8 @@
         priceLines.push(candleSeries.createPriceLine({
             price,
             color,
-            lineWidth: 1,
-            lineStyle: lineStyleDashed,
+            lineWidth: options.lineWidth ?? 1,
+            lineStyle: options.lineStyle ?? lineStyleDashed,
             axisLabelVisible: true,
             title
         }));
@@ -910,6 +916,32 @@
         }
 
         localStorage.setItem(intervalStorageKey, selectedInterval);
+        updateBrowserSignalParams();
+    }
+
+    function updateBrowserSignalParams() {
+        if (!window.history?.replaceState) {
+            return;
+        }
+
+        const url = new URL(window.location.href);
+        url.searchParams.set("Capital", capital);
+        url.searchParams.set("Estado", estado);
+        url.searchParams.set("Symbol", selectedSymbol);
+        if (tipoSenal) {
+            url.searchParams.set("TipoSenal", tipoSenal);
+        } else {
+            url.searchParams.delete("TipoSenal");
+        }
+
+        url.searchParams.set("interval", selectedInterval);
+        if (selectedOperationId) {
+            url.searchParams.set("senal", selectedOperationId);
+        } else {
+            url.searchParams.delete("senal");
+        }
+
+        window.history.replaceState(null, "", url);
     }
 
     function cloneLogicalRange(range) {
@@ -1186,6 +1218,10 @@
         return isBuyLowSellHigh(trade) ? "Vender" : "Comprar";
     }
 
+    function targetLineTitle(trade, targetPercent) {
+        return `${isBuyLowSellHigh(trade) ? "Vender" : "Comprar"} meta +${targetPercent.toFixed(2)}%`;
+    }
+
     function analysisEntryLabel(analysis) {
         return analysis?.side === "Long" ? "Comprar bajo" : analysis?.side === "Short" ? "Vender alto" : "Esperar entrada";
     }
@@ -1320,6 +1356,15 @@
         } catch {
             return null;
         }
+    }
+
+    function normalizeOperationId(value) {
+        return String(value || "").trim().replaceAll("-", "").toLowerCase();
+    }
+
+    function normalizeIntervalParam(value) {
+        const normalized = String(value || "").trim();
+        return normalized.length > 0 ? normalized : null;
     }
 
     function escapeHtml(value) {

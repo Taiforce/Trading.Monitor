@@ -12,7 +12,7 @@ public sealed class LiveChartSnapshotService(
     LiveOperationsSnapshotService operationsSnapshotService,
     IOptionsMonitor<ReportingOptions> reportingOptions)
 {
-    public async Task<LiveChartSnapshot> GetAsync(string? symbol, string? interval, decimal? capital, string? estado, string? tipoSenal, string? mode, DateTimeOffset? from, DateTimeOffset? to, CancellationToken cancellationToken)
+    public async Task<LiveChartSnapshot> GetAsync(string? symbol, string? interval, decimal? capital, string? estado, string? tipoSenal, string? mode, string? selectedSignalId, DateTimeOffset? from, DateTimeOffset? to, CancellationToken cancellationToken)
     {
         var resolvedSymbol = string.IsNullOrWhiteSpace(symbol) ? "BTCUSDT" : symbol.Trim().ToUpperInvariant();
         var resolvedInterval = NormalizeInterval(interval);
@@ -22,7 +22,7 @@ public sealed class LiveChartSnapshotService(
 
         var range = ResolveCandleRange(resolvedInterval, from, to);
         var candles = await GetCandlesAsync(resolvedSymbol, resolvedInterval, range.From, range.To, cancellationToken);
-        var operations = await operationsSnapshotService.GetAsync(resolvedCapital, estado, resolvedSymbol, tipoSenal, mode, cancellationToken);
+        var operations = await operationsSnapshotService.GetAsync(resolvedCapital, estado, resolvedSymbol, tipoSenal, mode, selectedSignalId, cancellationToken);
         var currentPrice = candles.LastOrDefault()?.Close;
         var matchingOperations = operations.Operations
             .Where(operation => string.Equals(operation.Symbol, resolvedSymbol, StringComparison.OrdinalIgnoreCase))

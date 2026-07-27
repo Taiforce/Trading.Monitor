@@ -8,7 +8,7 @@ namespace Trading.Monitor.Tests;
 public class OpportunityExitServiceTests
 {
     [Fact]
-    public void ResolveExit_ManagedProfitExit_ClosesOnlyAfterConfiguredNetProfit()
+    public void ResolveExit_ManagedProfitExit_ClosesAtConfiguredNetProfitTarget()
     {
         var service = new OpportunityExitService();
         var observedAt = DateTimeOffset.UtcNow.AddMinutes(-10);
@@ -29,7 +29,7 @@ public class OpportunityExitServiceTests
 
         Assert.NotNull(exit);
         Assert.Equal(OpportunityStatus.ManagedProfitExit, exit.Status);
-        Assert.Equal(105.5m, exit.ExitPrice);
+        Assert.InRange(exit.ExitPrice, 105.20m, 105.21m);
     }
 
     [Fact]
@@ -51,6 +51,30 @@ public class OpportunityExitServiceTests
         });
 
         Assert.Null(exit);
+    }
+
+    [Fact]
+    public void ResolveExit_ManagedProfitExit_ClosesWhenMinimumTargetIsTouched()
+    {
+        var service = new OpportunityExitService();
+        var observedAt = DateTimeOffset.UtcNow.AddMinutes(-10);
+        var opportunity = Row(observedAt);
+        var candles = new[]
+        {
+            Candle(observedAt.AddMinutes(1), 100m, 105.3m, 99m, 104m)
+        };
+
+        var exit = service.ResolveExit(opportunity, candles, new RiskOptions
+        {
+            ManagedProfitExitEnabled = true,
+            ManagedProfitExitPercentAfterCosts = 5m,
+            ManagedQuickProfitExitPercentAfterCosts = 8m,
+            ManagedExitRequiresMomentumWeakness = true
+        });
+
+        Assert.NotNull(exit);
+        Assert.Equal(OpportunityStatus.ManagedProfitExit, exit.Status);
+        Assert.InRange(exit.ExitPrice, 105.20m, 105.21m);
     }
 
     [Fact]

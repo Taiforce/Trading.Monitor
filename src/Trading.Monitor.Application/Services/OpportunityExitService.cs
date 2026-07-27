@@ -44,14 +44,28 @@ public sealed class OpportunityExitService
             if (currentNetPercent >= quickNetPercent)
             {
                 return new OpportunityExit(OpportunityStatus.ManagedProfitExit, candle.CloseTime, candle.Close,
-                    $"Vender ahora: beneficio neto estimado {currentNetPercent:N2}% despues de comisiones. Se alcanzo salida rapida.");
+                    $"{ExitVerb(opportunity.Side)} ahora: beneficio neto estimado {currentNetPercent:N2}% despues de comisiones. Se alcanzo salida rapida.");
+            }
+
+            if (TouchesManagedTarget(opportunity, candle, minimumNetPercent, riskOptions.EstimatedFeePercentPerSide))
+            {
+                var exitPrice = TradeCostCalculator.ResolveExitPriceForNetPercent(
+                    opportunity.Side,
+                    opportunity.Capital,
+                    opportunity.EstimatedQuantity,
+                    opportunity.EntryPrice,
+                    minimumNetPercent,
+                    riskOptions.EstimatedFeePercentPerSide);
+
+                return new OpportunityExit(OpportunityStatus.ManagedProfitExit, candle.CloseTime, exitPrice,
+                    $"Salida automatica: se alcanzo el objetivo neto minimo de {minimumNetPercent:N2}% despues de comisiones.");
             }
 
             if (currentNetPercent >= minimumNetPercent && canExitByMomentum)
             {
                 var reason = trailingExit
-                    ? $"Vender ahora: beneficio neto {currentNetPercent:N2}% y retroceso desde pico de {gaveBackFromPeak:N2}%."
-                    : $"Vender ahora: beneficio neto {currentNetPercent:N2}% despues de comisiones y momentum perdiendo fuerza.";
+                    ? $"{ExitVerb(opportunity.Side)} ahora: beneficio neto {currentNetPercent:N2}% y retroceso desde pico de {gaveBackFromPeak:N2}%."
+                    : $"{ExitVerb(opportunity.Side)} ahora: beneficio neto {currentNetPercent:N2}% despues de comisiones y momentum perdiendo fuerza.";
 
                 return new OpportunityExit(OpportunityStatus.ManagedProfitExit, candle.CloseTime, candle.Close, reason);
             }
@@ -128,6 +142,26 @@ public sealed class OpportunityExitService
         return side == MarketSide.Long
             ? current.Close < current.Open || current.Close < previous.Close
             : current.Close > current.Open || current.Close > previous.Close;
+    }
+
+    private static bool TouchesManagedTarget(OpportunityReportRow opportunity, MarketCandle candle, decimal targetNetPercent, decimal feePercentPerSide)
+    {
+        var exitPrice = TradeCostCalculator.ResolveExitPriceForNetPercent(
+            opportunity.Side,
+            opportunity.Capital,
+            opportunity.EstimatedQuantity,
+            opportunity.EntryPrice,
+            targetNetPercent,
+            feePercentPerSide);
+
+        return opportunity.Side == MarketSide.Long
+            ? candle.High >= exitPrice
+            : candle.Low <= exitPrice;
+    }
+
+    private static string ExitVerb(MarketSide side)
+    {
+        return side == MarketSide.Long ? "Vender" : "Comprar bajo";
     }
 
     private static decimal NetPercent(OpportunityReportRow opportunity, decimal exitPrice, decimal feePercentPerSide)

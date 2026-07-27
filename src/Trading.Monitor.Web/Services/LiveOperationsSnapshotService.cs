@@ -15,7 +15,7 @@ public sealed class LiveOperationsSnapshotService(
     private const int PreEntryLeadMinutes = 3;
     private static readonly TradeInstructionService ClassicInstructionService = new(new RiskOptions { ManagedProfitExitEnabled = false });
 
-    public async Task<LiveOperationsSnapshot> GetAsync(decimal? capital, string? estado, string? symbol, string? tipoSenal, string? mode, CancellationToken cancellationToken)
+    public async Task<LiveOperationsSnapshot> GetAsync(decimal? capital, string? estado, string? symbol, string? tipoSenal, string? mode, string? selectedSignalId, CancellationToken cancellationToken)
     {
         var resolvedCapital = capital.GetValueOrDefault();
         if (resolvedCapital <= 0m)
@@ -25,20 +25,24 @@ public sealed class LiveOperationsSnapshotService(
         var now = DateTimeOffset.UtcNow;
         var resolvedInstructionService = IsClassicMode(mode) ? ClassicInstructionService : instructionService;
 
-        var filteredRows = ApplyFilters(report.RecentSignals, estado, symbol, tipoSenal);
+        var filteredRows = ApplyFilters(report.RecentSignals, estado, symbol, tipoSenal).ToArray();
+        var selectedRow = ResolveSelectedRow(filteredRows, selectedSignalId);
         var operations = filteredRows
             .OrderByDescending(row => row.Status == OpportunityStatus.Open)
             .ThenBy(row => SignalTypeFormatter.Priority(row.Side))
             .ThenByDescending(row => resolvedInstructionService.Create(row).Highlight)
             .ThenByDescending(row => row.ObservedAt)
             .Take(18)
-            .Select(row => ToDto(row, now, resolvedInstructionService))
+            .Append(selectedRow)
+            .Where(row => row is not null)
+            .DistinctBy(row => row!.Id)
+            .Select(row => ToDto(row!, now, resolvedInstructionService, mode))
             .ToArray();
 
         return new LiveOperationsSnapshot(now, operations.Count(row => row.Status == "Abierta"), operations.Count(row => row.Highlight), operations);
     }
 
-    private LiveOperationDto ToDto(Application.Reporting.OpportunityReportRow row, DateTimeOffset now, TradeInstructionService resolvedInstructionService)
+    private LiveOperationDto ToDto(Application.Reporting.OpportunityReportRow row, DateTimeOffset now, TradeInstructionService resolvedInstructionService, string? mode)
     {
         var instruction = resolvedInstructionService.Create(row);
         var secondsRemaining = row.Status == OpportunityStatus.Open ? Math.Max(0, (int)Math.Round((row.ExpiresAt - now).TotalSeconds)) : 0;
@@ -129,7 +133,7 @@ public sealed class LiveOperationsSnapshotService(
             conversion.ResultText,
             costText,
             conversion.BreakEvenText,
-            BuildLinks(row.Symbol));
+            BuildLinks(row, mode));
     }
 
     private static bool IsClassicMode(string? mode)
@@ -150,6 +154,15 @@ public sealed class LiveOperationsSnapshotService(
             "todas" => rows,
             _ => rows.Where(row => row.Status == OpportunityStatus.Open)
         };
+    }
+
+    private static Application.Reporting.OpportunityReportRow? ResolveSelectedRow(IEnumerable<Application.Reporting.OpportunityReportRow> rows, string? selectedSignalId)
+    {
+        var normalizedId = NormalizeSignalId(selectedSignalId);
+        if (string.IsNullOrWhiteSpace(normalizedId))
+            return null;
+
+        return rows.FirstOrDefault(row => string.Equals(row.Id.ToString("N"), normalizedId, StringComparison.OrdinalIgnoreCase));
     }
 
     private static string StatusLabel(OpportunityStatus status)
@@ -237,20 +250,46 @@ public sealed class LiveOperationsSnapshotService(
         return value.ToString($"N{decimals}", CurrencyCulture);
     }
 
-    private static IReadOnlyList<TradeLinkDto> BuildLinks(string symbol)
+    private static IReadOnlyList<TradeLinkDto> BuildLinks(Application.Reporting.OpportunityReportRow row, string? mode)
     {
+        var symbol = row.Symbol;
         var asset = MapAsset(symbol);
         var quote = symbol.EndsWith("USDT", StringComparison.OrdinalIgnoreCase) ? "USDT" : "USD";
         var coinbaseProduct = $"{asset}-USD";
         var binancePair = $"{asset}_{quote}";
+        var page = IsClassicMode(mode) ? "/acciones" : "/posiciones";
+        var internalUrl = $"{page}?Capital={Uri.EscapeDataString(row.Capital.ToString(CultureInfo.InvariantCulture))}&Estado=todas&Symbol={Uri.EscapeDataString(row.Symbol)}&TipoSenal={Uri.EscapeDataString(SignalTypeFormatter.Value(row.Side))}&senal={row.Id:N}&interval={Uri.EscapeDataString(DefaultIntervalFor(row))}";
 
         return
         [
+            new TradeLinkDto("Abrir senal", internalUrl),
             new TradeLinkDto("Binance", $"https://www.binance.com/en/trade/{binancePair}?type=spot"),
             new TradeLinkDto("TradingView", $"https://www.tradingview.com/chart/?symbol=BINANCE:{asset}{quote}"),
             new TradeLinkDto("Coinbase", $"https://advanced.coinbase.com/trade/{coinbaseProduct}"),
             new TradeLinkDto("Kraken", $"https://pro.kraken.com/app/trade/{asset}-USD")
         ];
+    }
+
+    private static string DefaultIntervalFor(Application.Reporting.OpportunityReportRow row)
+    {
+        var minutes = Math.Max(1, (row.ExpiresAt - row.ObservedAt).TotalMinutes);
+
+        return minutes switch
+        {
+            <= 30 => "1m",
+            <= 240 => "5m",
+            <= 2880 => "15m",
+            <= 10080 => "1h",
+            <= 43200 => "4h",
+            _ => "1d"
+        };
+    }
+
+    private static string NormalizeSignalId(string? value)
+    {
+        return string.IsNullOrWhiteSpace(value)
+            ? ""
+            : value.Trim().Replace("-", "", StringComparison.Ordinal).ToLowerInvariant();
     }
 
     private static string MapAsset(string symbol)

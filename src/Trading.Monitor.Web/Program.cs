@@ -63,14 +63,14 @@ try
     app.UseRouting();
     app.UseAuthorization();
     app.MapStaticAssets();
-    app.MapGet("/api/operaciones-vivas", async (decimal? capital, string? estado, string? symbol, string? tipoSenal, string? mode, LiveOperationsSnapshotService snapshotService, CancellationToken cancellationToken) =>
+    app.MapGet("/api/operaciones-vivas", async (decimal? capital, string? estado, string? symbol, string? tipoSenal, string? mode, string? senal, LiveOperationsSnapshotService snapshotService, CancellationToken cancellationToken) =>
     {
-        return Results.Json(await snapshotService.GetAsync(capital, estado, symbol, tipoSenal, mode, cancellationToken));
+        return Results.Json(await snapshotService.GetAsync(capital, estado, symbol, tipoSenal, mode, senal, cancellationToken));
     });
-    app.MapGet("/api/grafico-vivo", async (string? symbol, string? interval, decimal? capital, string? estado, string? tipoSenal, string? mode, DateTimeOffset? from, DateTimeOffset? to,
+    app.MapGet("/api/grafico-vivo", async (string? symbol, string? interval, decimal? capital, string? estado, string? tipoSenal, string? mode, string? senal, DateTimeOffset? from, DateTimeOffset? to,
         LiveChartSnapshotService chartService, CancellationToken cancellationToken) =>
     {
-        return Results.Json(await chartService.GetAsync(symbol, interval, capital, estado, tipoSenal, mode, from, to, cancellationToken));
+        return Results.Json(await chartService.GetAsync(symbol, interval, capital, estado, tipoSenal, mode, senal, from, to, cancellationToken));
     });
     app.MapPost("/api/posiciones/{id:guid}/cerrar", async (Guid id, ManagedCloseRequest request, IOpportunityRepository opportunityRepository,
         Microsoft.Extensions.Options.IOptionsMonitor<ReportingOptions> reportingOptions, CancellationToken cancellationToken) =>

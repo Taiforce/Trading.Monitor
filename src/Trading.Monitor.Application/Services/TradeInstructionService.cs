@@ -188,9 +188,6 @@ public sealed class TradeInstructionService
         {
             var minimumManagedProfit = Math.Max(0.01m, _riskOptions.ManagedProfitExitPercentAfterCosts);
             var minimumManagedProfitMoney = capital * minimumManagedProfit / 100m;
-            var exitWeaknessText = _riskOptions.ManagedExitRequiresMomentumWeakness
-                ? "y el impulso empiece a perder fuerza"
-                : "aunque el impulso siga fuerte";
             var riskText = _riskOptions.ManagedHardStopExitEnabled
                 ? $"Proteccion activa: si toca perdida maxima {FormatPrice(stopLoss)}, el sistema puede cerrar."
                 : "No se cierra por stop fijo en este modo; si va en contra queda viva y necesita seguimiento.";
@@ -201,10 +198,10 @@ public sealed class TradeInstructionService
                 cssClass,
                 highConviction && isInsideLeadWindow,
                 $"{PreEntryLeadMinutes} min: {entryAction} {FormatPrice(entryLower)}-{FormatPrice(entryUpper)}. Vence entrada {expiresAt.ToLocalTime():HH:mm}.",
-                $"Salida administrada: avisar {exitAction} cuando el neto sea >= {minimumManagedProfit:N2}% despues de comisiones {exitWeaknessText}.",
+                $"Salida administrada: cerrar {exitAction} cuando el neto sea >= {minimumManagedProfit:N2}% despues de comisiones.",
                 $"{Money(capital)} -> buscar minimo {Money(minimumManagedProfitMoney)} neto antes de cerrar.",
                 riskText,
-                $"El sistema revisa la posicion viva. Si supera {minimumManagedProfit:N2}% neto, espera confirmacion de salida y manda alerta.",
+                $"El sistema revisa la posicion viva. Si toca {minimumManagedProfit:N2}% neto, la cierra en historico y manda alerta.",
                 $"{confirmingIntervals} tiempos alineados. El objetivo es vender con beneficio neto, no adivinar una hora fija.");
         }
 
