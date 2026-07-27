@@ -4,7 +4,7 @@ public sealed class TradingMonitorOptions
 {
     public bool Enabled { get; set; } = true;
 
-    public string[] Symbols { get; set; } = ["BTCUSDT", "ETHUSDT"];
+    public string[] Symbols { get; set; } = ["BTCUSDT", "ETHUSDT", "SOLUSDT", "XRPUSDT", "ADAUSDT"];
 
     public string[] Intervals { get; set; } = ["1s", "1m", "5m", "15m", "1h", "4h", "1d", "1w", "1M"];
 

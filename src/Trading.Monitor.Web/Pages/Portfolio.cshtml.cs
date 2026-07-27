@@ -78,7 +78,7 @@ public sealed class PortfolioModel : TradingPageModel
 
         _logger.LogInformation("Loading virtual portfolio for initial capital {InitialCapital}.", InitialCapital);
         var allSignals = await _opportunityRepository.GetSignalsAsync(InitialCapital, cancellationToken);
-        Symbols = allSignals.Select(row => row.Symbol).Distinct(StringComparer.OrdinalIgnoreCase).OrderBy(row => row).ToArray();
+        Symbols = BuildSymbolList(allSignals.Select(row => row.Symbol));
         FilteredSignals = ApplyFilters(allSignals).ToArray();
         Simulation = _simulator.Simulate(FilteredSignals, InitialCapital, _reportingOptions.CurrentValue.EstimatedFeePercentPerSide);
         EquityPolyline = BuildEquityPolyline(Simulation.EquityPoints);

@@ -14,6 +14,7 @@ namespace Trading.Monitor.Web.Pages;
 public abstract class TradingPageModel(IOpportunityRepository opportunityRepository, IOptionsMonitor<ReportingOptions> reportingOptions) : PageModel
 {
     private static readonly CultureInfo CurrencyCulture = CultureInfo.GetCultureInfo("en-US");
+    private static readonly string[] SupportedTradingSymbols = ["BTCUSDT", "ETHUSDT", "SOLUSDT", "XRPUSDT", "ADAUSDT"];
 
     [BindProperty(SupportsGet = true)]
     public decimal Capital { get; set; }
@@ -182,6 +183,17 @@ public abstract class TradingPageModel(IOpportunityRepository opportunityReposit
         return SignalTypeFormatter.Label(side);
     }
 
+    public string SymbolButtonLabel(string symbol)
+    {
+        if (symbol.EndsWith("USDT", StringComparison.OrdinalIgnoreCase))
+            return symbol[..^4];
+
+        if (symbol.EndsWith("USD", StringComparison.OrdinalIgnoreCase))
+            return symbol[..^3];
+
+        return symbol;
+    }
+
     public string SignalTypeMeaning(MarketSide side)
     {
         return SignalTypeFormatter.Description(side);
@@ -205,6 +217,23 @@ public abstract class TradingPageModel(IOpportunityRepository opportunityReposit
     protected static int SignalTypePriority(OpportunityReportRow row)
     {
         return SignalTypeFormatter.Priority(row.Side);
+    }
+
+    protected static IReadOnlyList<string> BuildSymbolList(IEnumerable<string> symbols)
+    {
+        var configured = SupportedTradingSymbols
+            .Concat(symbols.Where(symbol => !string.IsNullOrWhiteSpace(symbol)).Select(symbol => symbol.Trim().ToUpperInvariant()))
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .ToArray();
+
+        return configured
+            .OrderBy(symbol =>
+            {
+                var index = Array.FindIndex(SupportedTradingSymbols, configuredSymbol => string.Equals(configuredSymbol, symbol, StringComparison.OrdinalIgnoreCase));
+                return index < 0 ? int.MaxValue : index;
+            })
+            .ThenBy(symbol => symbol, StringComparer.OrdinalIgnoreCase)
+            .ToArray();
     }
 
     public string StatusMeaning(OpportunityStatus status)

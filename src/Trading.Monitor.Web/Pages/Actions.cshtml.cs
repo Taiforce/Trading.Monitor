@@ -37,7 +37,7 @@ public sealed class ActionsModel(IOpportunityRepository opportunityRepository, I
         logger.LogInformation("Loading actions page for capital {Capital}.", Capital);
         await LoadReportAsync(cancellationToken);
 
-        Symbols = Report.RecentSignals.Select(row => row.Symbol).Distinct(StringComparer.OrdinalIgnoreCase).OrderBy(row => row).ToArray();
+        Symbols = BuildSymbolList(Report.RecentSignals.Select(row => row.Symbol));
         Rows = ApplyFilters(Report.RecentSignals);
         HighlightedRows = Rows.Where(row => InstructionFor(row).Highlight).Take(6).ToArray();
     }

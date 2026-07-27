@@ -271,7 +271,12 @@ public sealed class LiveChartSnapshotService(
         {
             "BTCUSDT" or "BTCUSD" => "BTC-USD",
             "ETHUSDT" or "ETHUSD" => "ETH-USD",
-            _ => null
+            "SOLUSDT" or "SOLUSD" => "SOL-USD",
+            "XRPUSDT" or "XRPUSD" => "XRP-USD",
+            "ADAUSDT" or "ADAUSD" => "ADA-USD",
+            _ when symbol.EndsWith("USDT", StringComparison.OrdinalIgnoreCase) => $"{symbol[..^4].ToUpperInvariant()}-USD",
+            _ when symbol.EndsWith("USD", StringComparison.OrdinalIgnoreCase) => $"{symbol[..^3].ToUpperInvariant()}-USD",
+            _ => symbol.ToUpperInvariant()
         };
     }
 
@@ -281,7 +286,11 @@ public sealed class LiveChartSnapshotService(
         {
             "BTCUSDT" or "BTCUSD" => "XBTUSD",
             "ETHUSDT" or "ETHUSD" => "ETHUSD",
-            _ => null
+            "SOLUSDT" or "SOLUSD" => "SOLUSD",
+            "XRPUSDT" or "XRPUSD" => "XRPUSD",
+            "ADAUSDT" or "ADAUSD" => "ADAUSD",
+            _ when symbol.EndsWith("USDT", StringComparison.OrdinalIgnoreCase) => $"{symbol[..^4].ToUpperInvariant()}USD",
+            _ => symbol.ToUpperInvariant()
         };
     }
 

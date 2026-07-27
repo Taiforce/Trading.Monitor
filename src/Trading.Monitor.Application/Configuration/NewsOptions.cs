@@ -30,7 +30,7 @@ public sealed class NewsOptions
         "https://u.today/rss",
         "https://ambcrypto.com/feed/",
         "https://blog.kraken.com/feed",
-        "https://feeds.finance.yahoo.com/rss/2.0/headline?s=BTC-USD,ETH-USD&region=US&lang=en-US",
+        "https://feeds.finance.yahoo.com/rss/2.0/headline?s=BTC-USD,ETH-USD,SOL-USD,XRP-USD,ADA-USD&region=US&lang=en-US",
         "https://search.cnbc.com/rs/search/combinedcms/view.xml?partnerId=wrss01&id=100003114",
         "https://www.investing.com/rss/news_25.rss",
         "https://www.investing.com/rss/news_301.rss",
@@ -42,6 +42,9 @@ public sealed class NewsOptions
     public Dictionary<string, string[]> SymbolKeywords { get; set; } = new(StringComparer.OrdinalIgnoreCase)
     {
         ["BTCUSDT"] = ["BTC", "Bitcoin", "BTC-USD", "crypto", "cryptocurrency", "digital asset", "ETF", "Fed", "Federal Reserve", "inflation", "CPI", "rates", "SEC"],
-        ["ETHUSDT"] = ["ETH", "Ethereum", "ETH-USD", "crypto", "cryptocurrency", "digital asset", "ETF", "Fed", "Federal Reserve", "inflation", "CPI", "rates", "SEC"]
+        ["ETHUSDT"] = ["ETH", "Ethereum", "ETH-USD", "crypto", "cryptocurrency", "digital asset", "ETF", "Fed", "Federal Reserve", "inflation", "CPI", "rates", "SEC"],
+        ["SOLUSDT"] = ["SOL", "Solana", "SOL-USD", "crypto", "cryptocurrency", "DeFi", "ETF", "Fed", "Federal Reserve", "inflation", "CPI", "rates", "SEC"],
+        ["XRPUSDT"] = ["XRP", "Ripple", "XRP-USD", "crypto", "cryptocurrency", "payments", "regulation", "Fed", "Federal Reserve", "inflation", "CPI", "rates", "SEC"],
+        ["ADAUSDT"] = ["ADA", "Cardano", "ADA-USD", "crypto", "cryptocurrency", "DeFi", "staking", "Fed", "Federal Reserve", "inflation", "CPI", "rates", "SEC"]
     };
 }

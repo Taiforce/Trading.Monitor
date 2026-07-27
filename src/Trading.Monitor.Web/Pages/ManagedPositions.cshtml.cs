@@ -120,7 +120,7 @@ public sealed class ManagedPositionsModel : TradingPageModel
             TargetNetPercent = DefaultTargetNetPercent;
 
         await LoadReportAsync(cancellationToken);
-        Symbols = Report.RecentSignals.Select(row => row.Symbol).Distinct(StringComparer.OrdinalIgnoreCase).OrderBy(row => row).ToArray();
+        Symbols = BuildSymbolList(Report.RecentSignals.Select(row => row.Symbol));
         Rows = ApplyFilters(Report.RecentSignals);
     }
 

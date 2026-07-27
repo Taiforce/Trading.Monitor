@@ -13,16 +13,28 @@
         setupInternalFilters(container, items);
 
         items.forEach(item => {
-            item.addEventListener("click", () => activate(container, item.dataset.detailKey));
+            item.addEventListener("click", () => toggle(container, item.dataset.detailKey));
         });
 
         const active = items.find(item => item.classList.contains("active")) || items[0];
         activate(container, active.dataset.detailKey);
     });
 
+    function toggle(container, key) {
+        const active = directItems(container).find(item => item.classList.contains("active"));
+        if (active?.dataset.detailKey === key) {
+            deactivate(container);
+            return;
+        }
+
+        activate(container, key);
+    }
+
     function activate(container, key) {
         directItems(container).forEach(item => {
-            item.classList.toggle("active", item.dataset.detailKey === key);
+            const isActive = item.dataset.detailKey === key;
+            item.classList.toggle("active", isActive);
+            item.setAttribute("aria-expanded", String(isActive));
         });
 
         directPanels(container).forEach(panel => {
@@ -32,6 +44,17 @@
             if (isActive) {
                 renderSignalReplay(panel);
             }
+        });
+    }
+
+    function deactivate(container) {
+        directItems(container).forEach(item => {
+            item.classList.remove("active");
+            item.setAttribute("aria-expanded", "false");
+        });
+
+        directPanels(container).forEach(panel => {
+            panel.classList.remove("active");
         });
     }
 
@@ -199,8 +222,8 @@
 
         addLevel(candleSeries, Number(panel.dataset.entryPrice), "#f0b90b", entryLabel(panel));
         addLevel(candleSeries, Number(panel.dataset.takeProfit1), "#0ecb81", profitLabel(panel));
-        addLevel(candleSeries, Number(panel.dataset.takeProfit2), "#0ecb81", `${profitLabel(panel)} extra`);
-        addLevel(candleSeries, Number(panel.dataset.stopLoss), "#f6465d", "Salir por perdida max");
+        addLevel(candleSeries, Number(panel.dataset.takeProfit2), "#0ecb81", profitLabel(panel));
+        addLevel(candleSeries, Number(panel.dataset.stopLoss), "#f6465d", profitLabel(panel));
 
         const markers = buildMarkers(panel, candles);
         if (lwc.createSeriesMarkers) {
@@ -301,11 +324,11 @@
     }
 
     function entryLabel(panel) {
-        return panel.dataset.side === "Long" ? "Comprar entrada" : "Vender entrada";
+        return panel.dataset.side === "Long" ? "Comprar" : "Vender";
     }
 
     function profitLabel(panel) {
-        return panel.dataset.side === "Long" ? "Vender con ganancia" : "Comprar con ganancia";
+        return panel.dataset.side === "Long" ? "Vender" : "Comprar";
     }
 
     function nearestTime(target, candles) {

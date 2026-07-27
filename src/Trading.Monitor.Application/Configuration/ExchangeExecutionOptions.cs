@@ -36,5 +36,5 @@ public sealed class ExchangeExecutionOptions
 
     public decimal MaxSlippagePercent { get; set; } = 0.25m;
 
-    public string[] AllowedSymbols { get; set; } = ["BTCUSDT", "ETHUSDT"];
+    public string[] AllowedSymbols { get; set; } = ["BTCUSDT", "ETHUSDT", "SOLUSDT", "XRPUSDT", "ADAUSDT"];
 }

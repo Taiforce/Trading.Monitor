@@ -105,7 +105,7 @@ public sealed class ReportsModel : TradingPageModel
         await LoadReportAsync(cancellationToken);
 
         var allSignals = await _opportunityRepository.GetSignalsAsync(Capital, cancellationToken);
-        Symbols = allSignals.Select(row => row.Symbol).Distinct(StringComparer.OrdinalIgnoreCase).OrderBy(row => row).ToArray();
+        Symbols = BuildSymbolList(allSignals.Select(row => row.Symbol));
         FilteredRows = ApplyFilters(allSignals).ToArray();
         BuildFilteredMetrics();
         LearningRows = BuildLearningRows(FilteredRows);

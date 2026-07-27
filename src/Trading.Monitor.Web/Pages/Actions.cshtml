@@ -81,8 +81,10 @@
         <div class="chart-toolbar" aria-label="Controles del grafico">
             <div>
                 <span>Activo</span>
-                <button type="button" data-chart-symbol-button="BTCUSDT">BTC</button>
-                <button type="button" data-chart-symbol-button="ETHUSDT">ETH</button>
+                @foreach (var symbol in Model.Symbols)
+                {
+                    <button type="button" data-chart-symbol-button="@symbol">@Model.SymbolButtonLabel(symbol)</button>
+                }
             </div>
             <div>
                 <span>Tiempo</span>
@@ -203,7 +205,7 @@
                                 <small>precio de entrada</small>
                             </div>
                             <div>
-                                <span>BTC/ETH obtenido</span>
+                                <span>Activo obtenido</span>
                                 <strong>@Model.Quantity(row)</strong>
                                 <small>cantidad simulada</small>
                             </div>

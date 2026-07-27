@@ -67,6 +67,7 @@
     let selectedOperationId = null;
     let priceLines = [];
     let operationSeriesById = new Map();
+    let targetDrafts = new Map();
     let followLive = true;
     let applyingRange = false;
     let hasRenderedSnapshot = false;
@@ -75,7 +76,6 @@
     let savedLogicalRange = null;
     let resetViewOnNextRender = true;
     let chartRequestId = 0;
-    let targetRenderHandle = 0;
 
     initializeChart();
     wireControls();
@@ -308,7 +308,7 @@
         const operations = (snapshot.operations || []).filter(item => item.symbol === snapshot.symbol);
         const selectedOperation = pickSelectedOperation(operations);
         const analysisTrade = isManagedMode ? null : buildAnalysisTrade(snapshot.analysis);
-        const primaryTrade = selectedOperation || analysisTrade;
+        const primaryTrade = selectedOperation;
         const previousRange = cloneLogicalRange(savedLogicalRange || chart.timeScale().getVisibleLogicalRange());
 
         withRangeLock(() => {
@@ -339,6 +339,10 @@
     }
 
     function renderList(operations) {
+        if (isEditingTargetPercent()) {
+            return;
+        }
+
         const visibleOperations = operations.filter(item => item.symbol === selectedSymbol);
 
         if (visibleOperations.length === 0) {
@@ -377,8 +381,17 @@
                     return;
                 }
 
-                selectedOperationId = card.getAttribute("data-operation-id");
+                const clickedOperationId = card.getAttribute("data-operation-id");
+                const isClosingSelectedCard = selectedOperationId === clickedOperationId;
+                selectedOperationId = isClosingSelectedCard ? null : clickedOperationId;
                 const operation = lastOperations.find(item => item.id === selectedOperationId);
+                if (isClosingSelectedCard) {
+                    lockCurrentView();
+                    await refreshChart();
+                    renderList(lastOperations);
+                    return;
+                }
+
                 if (operation) {
                     selectedSymbol = operation.symbol;
                     userSelectedSymbol = true;
@@ -391,16 +404,32 @@
         });
 
         list.querySelectorAll("[data-target-percent]").forEach(input => {
+            input.addEventListener("focus", () => {
+                const id = input.getAttribute("data-target-percent");
+                targetDrafts.set(id, input.value);
+            });
             input.addEventListener("input", () => {
                 const id = input.getAttribute("data-target-percent");
-                setTargetPercent(id, input.value);
-                window.clearTimeout(targetRenderHandle);
-                targetRenderHandle = window.setTimeout(() => renderList(lastOperations), 700);
+                targetDrafts.set(id, input.value);
             });
-            input.addEventListener("change", () => {
+            input.addEventListener("keydown", async event => {
+                if (event.key !== "Enter") {
+                    return;
+                }
+
+                event.preventDefault();
                 const id = input.getAttribute("data-target-percent");
-                setTargetPercent(id, input.value);
-                renderList(lastOperations);
+                await refreshTargetPercent(id, input.value);
+            });
+        });
+
+        list.querySelectorAll("[data-refresh-target]").forEach(button => {
+            button.addEventListener("click", async event => {
+                event.stopPropagation();
+                const id = button.getAttribute("data-refresh-target");
+                const input = [...list.querySelectorAll("[data-target-percent]")]
+                    .find(item => item.getAttribute("data-target-percent") === id);
+                await refreshTargetPercent(id, input?.value);
             });
         });
 
@@ -451,6 +480,7 @@
     function renderManagedCard(item, index, isSelected) {
         const routeColor = operationColor(item, index);
         const targetPercent = getTargetPercent(item);
+        const targetInputValue = targetDrafts.has(item.id) ? targetDrafts.get(item.id) : targetPercent.toFixed(2);
         const currentPrice = Number(item.markPrice || item.lastPrice || item.entryPrice);
         const targetPrice = resolveTargetExitPrice(item, targetPercent);
         const targetMetrics = buildCostMetrics(item, targetPrice);
@@ -466,8 +496,9 @@
                     <div class="target-editor">
                         <label>
                             <span>Ganancia objetivo neta</span>
-                            <input data-target-percent="${escapeAttribute(item.id)}" type="number" min="-99" max="1000" step="0.01" value="${targetPercent.toFixed(2)}"/>
+                            <input data-target-percent="${escapeAttribute(item.id)}" type="number" min="-99" max="1000" step="0.01" value="${escapeAttribute(targetInputValue)}"/>
                         </label>
+                        <button type="button" data-refresh-target="${escapeAttribute(item.id)}">Refrescar</button>
                         <strong class="${difference <= 0 ? "gain" : "flat"}">${difference <= 0 ? `Supera objetivo por ${formatMoney(Math.abs(difference))}` : `Faltan ${formatMoney(difference)}`}</strong>
                     </div>
                     <dl class="signal-detail-grid">
@@ -519,39 +550,43 @@
     }
 
     function drawOperationTrails(operations, candleData) {
-        const activeIds = new Set();
-        operations.slice(0, 10).forEach((operation, index) => {
-            const path = buildOperationPath(operation, candleData);
-            if (path.length < 2) {
-                return;
-            }
+        const selectedIndex = operations.findIndex(operation => operation.id === selectedOperationId);
+        const selectedOperation = selectedIndex >= 0 ? operations[selectedIndex] : null;
 
-            activeIds.add(operation.id);
-            const isSelected = operation.id === selectedOperationId || (!selectedOperationId && index === 0);
-            const color = operationColor(operation, index);
-            let series = operationSeriesById.get(operation.id);
-            const options = {
-                color,
-                lineWidth: isSelected ? 4 : operation.status === "Abierta" ? 3 : 2,
-                lineStyle: operation.status === "Abierta" ? 0 : lineStyleDashed,
-                priceLineVisible: false,
-                lastValueVisible: false,
-                crosshairMarkerVisible: isSelected
-            };
+        if (!selectedOperation) {
+            clearOperationTrails();
+            return;
+        }
 
-            if (!series) {
-                series = addSeries("line", options);
-                operationSeriesById.set(operation.id, series);
-            } else {
-                series.applyOptions(options);
-            }
+        const path = buildOperationPath(selectedOperation, candleData);
+        if (path.length < 2) {
+            clearOperationTrails();
+            return;
+        }
 
-            series.setData(path);
-        });
+        const color = operationColor(selectedOperation, selectedIndex);
+        let series = operationSeriesById.get(selectedOperation.id);
+        const options = {
+            color,
+            lineWidth: 4,
+            lineStyle: selectedOperation.status === "Abierta" ? 0 : lineStyleDashed,
+            priceLineVisible: false,
+            lastValueVisible: false,
+            crosshairMarkerVisible: true
+        };
 
-        operationSeriesById.forEach((series, id) => {
-            if (!activeIds.has(id)) {
-                chart.removeSeries(series);
+        if (!series) {
+            series = addSeries("line", options);
+            operationSeriesById.set(selectedOperation.id, series);
+        } else {
+            series.applyOptions(options);
+        }
+
+        series.setData(path);
+
+        operationSeriesById.forEach((existingSeries, id) => {
+            if (id !== selectedOperation.id) {
+                chart.removeSeries(existingSeries);
                 operationSeriesById.delete(id);
             }
         });
@@ -559,13 +594,15 @@
 
     function drawMarkers(operations, candleData) {
         const markers = [];
-        operations.slice(0, 10).forEach((operation, index) => {
-            const isSelected = operation.id === selectedOperationId;
+        const selectedIndex = operations.findIndex(operation => operation.id === selectedOperationId);
+        const operation = selectedIndex >= 0 ? operations[selectedIndex] : null;
+
+        if (operation) {
             const entryTime = nearestTime(toUnixTime(operation.entryAt || operation.observedAt), candleData);
             const exitTime = operation.exitTime
                 ? nearestTime(toUnixTime(operation.exitTime), candleData)
                 : nearestTime(candleData.at(-1)?.time, candleData);
-            const routeColor = operationColor(operation, index);
+            const routeColor = operationColor(operation, selectedIndex);
             const resultIsLoss = operation.realizedText?.startsWith("-");
             const resultColor = operation.status === "Abierta" ? routeColor : resultIsLoss ? colors.red : colors.green;
 
@@ -575,7 +612,7 @@
                     position: operation.side === "Long" ? "belowBar" : "aboveBar",
                     color: routeColor,
                     shape: operation.side === "Long" ? "arrowUp" : "arrowDown",
-                    ...(isSelected ? { text: entryMarkerText(operation) } : {})
+                    text: entryMarkerText(operation)
                 });
             }
 
@@ -585,10 +622,10 @@
                     position: operation.side === "Long" ? "aboveBar" : "belowBar",
                     color: resultColor,
                     shape: operation.status === "Abierta" ? "circle" : "square",
-                    ...(isSelected ? { text: exitMarkerText(operation) } : {})
+                    text: exitMarkerText(operation)
                 });
             }
-        });
+        }
 
         markers.sort((a, b) => a.time - b.time);
         if (lwc.createSeriesMarkers) {
@@ -610,13 +647,13 @@
             const targetPercent = getTargetPercent(trade);
             const targetPrice = resolveTargetExitPrice(trade, targetPercent);
             const currentPrice = Number(trade.markPrice || trade.lastPrice);
-            addPriceLine(targetPrice, colors.green, `Objetivo neto ${targetPercent.toFixed(2)}%`);
-            addPriceLine(currentPrice, colors.blue, "Mercado actual");
+            addPriceLine(targetPrice, colors.green, profitLineTitle(trade));
+            addPriceLine(currentPrice, colors.blue, profitLineTitle(trade));
             return;
         }
 
         addPriceLine(Number(trade.takeProfit1), colors.green, profitLineTitle(trade));
-        addPriceLine(Number(trade.takeProfit2), colors.green, `${profitLineTitle(trade)} extra`);
+        addPriceLine(Number(trade.takeProfit2), colors.green, profitLineTitle(trade));
         addPriceLine(Number(trade.stopLoss), colors.red, lossLineTitle(trade));
     }
 
@@ -638,6 +675,11 @@
     function clearPriceLines() {
         priceLines.forEach(line => candleSeries.removePriceLine(line));
         priceLines = [];
+    }
+
+    function clearOperationTrails() {
+        operationSeriesById.forEach(series => chart.removeSeries(series));
+        operationSeriesById.clear();
     }
 
     function buildOperationPath(operation, candleData) {
@@ -978,6 +1020,14 @@
         }
     }
 
+    async function refreshTargetPercent(id, value) {
+        setTargetPercent(id, value);
+        targetDrafts.delete(id);
+        lockCurrentView();
+        await refreshChart();
+        renderList(lastOperations);
+    }
+
     function getTargetPercent(item) {
         const stored = localStorage.getItem(targetStorageKey(item?.id));
         const value = parseNumber(stored, defaultTargetPercent);
@@ -991,6 +1041,10 @@
 
         const parsed = parseNumber(value, defaultTargetPercent);
         localStorage.setItem(targetStorageKey(id), String(parsed));
+    }
+
+    function isEditingTargetPercent() {
+        return document.activeElement?.hasAttribute("data-target-percent") === true;
     }
 
     function targetStorageKey(id) {
@@ -1117,23 +1171,19 @@
     }
 
     function exitMarkerText(item) {
-        if (isManagedMode && item?.status === "Abierta") {
-            return "Actual";
-        }
-
         return isBuyLowSellHigh(item) ? "Vender" : "Comprar";
     }
 
     function entryLineTitle(trade) {
-        return isBuyLowSellHigh(trade) ? "Comprar entrada" : "Vender entrada";
+        return isBuyLowSellHigh(trade) ? "Comprar" : "Vender";
     }
 
     function profitLineTitle(trade) {
-        return isBuyLowSellHigh(trade) ? "Vender con ganancia" : "Comprar con ganancia";
+        return isBuyLowSellHigh(trade) ? "Vender" : "Comprar";
     }
 
-    function lossLineTitle() {
-        return "Salir por perdida max";
+    function lossLineTitle(trade) {
+        return isBuyLowSellHigh(trade) ? "Vender" : "Comprar";
     }
 
     function analysisEntryLabel(analysis) {

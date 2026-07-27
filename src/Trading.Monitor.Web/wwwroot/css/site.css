@@ -824,7 +824,7 @@ td small,
 
 .target-editor {
     display: grid;
-    grid-template-columns: minmax(150px, 210px) minmax(0, 1fr);
+    grid-template-columns: minmax(150px, 210px) auto minmax(0, 1fr);
     gap: 10px;
     align-items: end;
     background: var(--surface);
@@ -847,6 +847,23 @@ td small,
     color: var(--ink);
     font: inherit;
     padding: 0 10px;
+}
+
+.target-editor button {
+    min-height: 38px;
+    border: 1px solid var(--accent);
+    border-radius: 6px;
+    background: var(--accent);
+    color: #062a1f;
+    font: inherit;
+    font-size: 0.78rem;
+    font-weight: 900;
+    padding: 0 12px;
+    cursor: pointer;
+}
+
+.target-editor button:hover {
+    filter: brightness(0.96);
 }
 
 .target-editor strong {

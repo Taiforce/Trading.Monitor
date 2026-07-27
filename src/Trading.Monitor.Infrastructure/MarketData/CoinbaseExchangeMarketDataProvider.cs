@@ -51,6 +51,7 @@ public sealed class CoinbaseExchangeMarketDataProvider(HttpClient httpClient) : 
             "ETHUSDT" or "ETHUSD" => "ETH-USD",
             "SOLUSDT" or "SOLUSD" => "SOL-USD",
             "XRPUSDT" or "XRPUSD" => "XRP-USD",
+            "ADAUSDT" or "ADAUSD" => "ADA-USD",
             _ when symbol.EndsWith("USDT", StringComparison.OrdinalIgnoreCase) => $"{symbol[..^4].ToUpperInvariant()}-USD",
             _ when symbol.EndsWith("USD", StringComparison.OrdinalIgnoreCase) => $"{symbol[..^3].ToUpperInvariant()}-USD",
             _ => symbol.ToUpperInvariant()

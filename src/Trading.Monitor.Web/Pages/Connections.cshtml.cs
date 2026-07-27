@@ -28,11 +28,11 @@ public sealed class ConnectionsModel(
 
     public IReadOnlyList<ConnectionCatalogItem> Catalog { get; } =
     [
-        new("Mercado en vivo", "Binance Spot API", "En uso", "Velas 1s a 1M, precio y volumen para BTC/ETH.", "Sin llave para datos publicos.", "https://developers.binance.com/"),
+        new("Mercado en vivo", "Binance Spot API", "En uso", "Velas 1s a 1M, precio y volumen para BTC, ETH, SOL, XRP y ADA.", "Sin llave para datos publicos.", "https://developers.binance.com/"),
         new("Mercado en vivo", "Binance US", "En uso", "Respaldo cuando Binance global falla.", "Sin llave para datos publicos.", "https://docs.binance.us/"),
         new("Mercado en vivo", "Coinbase Exchange", "En uso", "Precio y velas spot como fuente alternativa.", "Sin llave para datos publicos.", "https://docs.cdp.coinbase.com/exchange/"),
         new("Mercado en vivo", "Kraken", "En uso", "OHLC spot para validar precios con otro exchange.", "Sin llave para datos publicos.", "https://docs.kraken.com/api/"),
-        new("Noticias", "RSS crypto y mercados", "En uso", "CoinDesk, Cointelegraph, Decrypt, CryptoSlate, Yahoo Finance, CNBC, MarketWatch e Investing.", "Sin llave.", "https://feeds.finance.yahoo.com/rss/2.0/headline?s=BTC-USD,ETH-USD&region=US&lang=en-US"),
+        new("Noticias", "RSS crypto y mercados", "En uso", "CoinDesk, Cointelegraph, Decrypt, CryptoSlate, Yahoo Finance, CNBC, MarketWatch e Investing.", "Sin llave.", "https://feeds.finance.yahoo.com/rss/2.0/headline?s=BTC-USD,ETH-USD,SOL-USD,XRP-USD,ADA-USD&region=US&lang=en-US"),
         new("Sentimiento", "Fear & Greed", "En uso", "Mide apetito/riesgo general del mercado cripto.", "Sin llave.", "https://alternative.me/crypto/fear-and-greed-index/"),
         new("Noticias", "CryptoPanic", "Opcional", "Noticias estructuradas por moneda.", "Requiere CRYPTOPANIC_AUTH_TOKEN.", "https://cryptopanic.com/developers/api/"),
         new("IA", "OpenAI", "En uso", "Resume noticias y reduce ruido informativo.", "Requiere OPENAI_API_KEY.", "https://platform.openai.com/docs"),

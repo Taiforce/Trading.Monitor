@@ -62,6 +62,7 @@ public sealed class KrakenMarketDataProvider(HttpClient httpClient) : IMarketDat
             "ETHUSDT" or "ETHUSD" => "ETHUSD",
             "SOLUSDT" or "SOLUSD" => "SOLUSD",
             "XRPUSDT" or "XRPUSD" => "XRPUSD",
+            "ADAUSDT" or "ADAUSD" => "ADAUSD",
             _ when symbol.EndsWith("USDT", StringComparison.OrdinalIgnoreCase) => $"{symbol[..^4].ToUpperInvariant()}USD",
             _ => symbol.ToUpperInvariant()
         };

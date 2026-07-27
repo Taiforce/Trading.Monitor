@@ -31,13 +31,13 @@ public static class SignalTypeDescriptor
     public static string Description(MarketSide side)
     {
         return side == MarketSide.Long
-            ? "Compras BTC/ETH con tu dinero y buscas venderlo mas caro."
+            ? "Compras el activo con tu dinero y buscas venderlo mas caro."
             : "Vendes primero y buscas recomprar mas barato; requiere tener moneda, margen o futuros.";
     }
 
     public static string Requirement(MarketSide side)
     {
-        return side == MarketSide.Long ? "Apta para spot si tienes dinero disponible." : "No es spot simple si no tienes BTC/ETH.";
+        return side == MarketSide.Long ? "Apta para spot si tienes dinero disponible." : "No es spot simple si no tienes el activo o margen.";
     }
 
     public static string EntryVerb(MarketSide side)

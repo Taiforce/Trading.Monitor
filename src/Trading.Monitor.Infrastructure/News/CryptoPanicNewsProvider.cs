@@ -103,6 +103,7 @@ public sealed class CryptoPanicNewsProvider(HttpClient httpClient, NewsOptions o
             "ETHUSDT" or "ETHUSD" => "ETH",
             "SOLUSDT" or "SOLUSD" => "SOL",
             "XRPUSDT" or "XRPUSD" => "XRP",
+            "ADAUSDT" or "ADAUSD" => "ADA",
             _ when symbol.EndsWith("USDT", StringComparison.OrdinalIgnoreCase) => symbol[..^4].ToUpperInvariant(),
             _ when symbol.EndsWith("USD", StringComparison.OrdinalIgnoreCase) => symbol[..^3].ToUpperInvariant(),
             _ => symbol.ToUpperInvariant()
