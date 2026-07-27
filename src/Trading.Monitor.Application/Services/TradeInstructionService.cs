@@ -1,4 +1,5 @@
 using System.Globalization;
+using Trading.Monitor.Application.Configuration;
 using Trading.Monitor.Application.Reporting;
 using Trading.Monitor.Domain;
 
@@ -8,6 +9,14 @@ public sealed class TradeInstructionService
 {
     private static readonly CultureInfo CurrencyCulture = CultureInfo.GetCultureInfo("en-US");
     private const int PreEntryLeadMinutes = 3;
+    private readonly RiskOptions _riskOptions;
+
+    public TradeInstructionService() : this(new RiskOptions()) { }
+
+    public TradeInstructionService(RiskOptions riskOptions)
+    {
+        _riskOptions = riskOptions;
+    }
 
     public TradeInstruction Create(TradingOpportunity opportunity, OpportunityProjection projection)
     {
@@ -63,6 +72,7 @@ public sealed class TradeInstructionService
     {
         var action = exit.Status switch
         {
+            OpportunityStatus.ManagedProfitExit => row.Side == MarketSide.Long ? "VENDER AHORA: ganancia neta" : "COMPRAR AHORA: ganancia neta",
             OpportunityStatus.HitTakeProfit2 => "SALIR: ganancia extra alcanzada",
             OpportunityStatus.HitTakeProfit1 => "SALIR: ganancia objetivo alcanzada",
             OpportunityStatus.HitStopLoss => "SALIR: perdida maxima tocada",
@@ -86,7 +96,7 @@ public sealed class TradeInstructionService
             exit.Reason);
     }
 
-    private static TradeInstruction CreateCore(
+    private TradeInstruction CreateCore(
         string symbol,
         MarketSide side,
         OpportunityStatus status,
@@ -114,6 +124,7 @@ public sealed class TradeInstructionService
             {
                 OpportunityStatus.HitTakeProfit2 => "CERRADA CON GANANCIA EXTRA",
                 OpportunityStatus.HitTakeProfit1 => "CERRADA CON GANANCIA",
+                OpportunityStatus.ManagedProfitExit => "CERRADA POR SALIDA ADMINISTRADA",
                 OpportunityStatus.HitStopLoss => "CERRADA CON PERDIDA",
                 OpportunityStatus.Expired => "VENCIDA",
                 _ => "CERRADA"
@@ -134,7 +145,8 @@ public sealed class TradeInstructionService
                 "Historial medido.");
         }
 
-        var expired = DateTimeOffset.UtcNow > expiresAt;
+        var managedProfitExit = _riskOptions.ManagedProfitExitEnabled;
+        var expired = !managedProfitExit && DateTimeOffset.UtcNow > expiresAt;
         if (expired)
         {
             return new TradeInstruction(
@@ -162,11 +174,39 @@ public sealed class TradeInstructionService
         var preEntryUntil = observedAt.AddMinutes(PreEntryLeadMinutes);
         var maxLifeMinutes = Math.Max(1, (int)Math.Ceiling((expiresAt - observedAt).TotalMinutes));
         var isInsideLeadWindow = DateTimeOffset.UtcNow <= preEntryUntil;
-        var actionLabel = highConviction && isInsideLeadWindow ? "ENTRAR AHORA" : highConviction ? "NO PERSEGUIR" : "VIGILAR";
-        var convictionLabel = highConviction ? "Alta" : score >= 85 ? "Media" : "Baja";
-        var cssClass = highConviction ? "signal-prime" : score >= 85 ? "signal-watch" : "signal-muted";
         var entryAction = SignalTypeDescriptor.EntryVerb(side);
         var exitAction = SignalTypeDescriptor.ExitVerb(side);
+        var actionLabel = highConviction && isInsideLeadWindow
+            ? (side == MarketSide.Long ? "COMPRAR AHORA" : "VENDER AHORA")
+            : highConviction && managedProfitExit
+                ? "POSICION VIVA"
+                : highConviction ? "NO PERSEGUIR" : "VIGILAR";
+        var convictionLabel = highConviction ? "Alta" : score >= 85 ? "Media" : "Baja";
+        var cssClass = highConviction ? "signal-prime" : score >= 85 ? "signal-watch" : "signal-muted";
+
+        if (managedProfitExit)
+        {
+            var minimumManagedProfit = Math.Max(0.01m, _riskOptions.ManagedProfitExitPercentAfterCosts);
+            var minimumManagedProfitMoney = capital * minimumManagedProfit / 100m;
+            var exitWeaknessText = _riskOptions.ManagedExitRequiresMomentumWeakness
+                ? "y el impulso empiece a perder fuerza"
+                : "aunque el impulso siga fuerte";
+            var riskText = _riskOptions.ManagedHardStopExitEnabled
+                ? $"Proteccion activa: si toca perdida maxima {FormatPrice(stopLoss)}, el sistema puede cerrar."
+                : "No se cierra por stop fijo en este modo; si va en contra queda viva y necesita seguimiento.";
+
+            return new TradeInstruction(
+                actionLabel,
+                convictionLabel,
+                cssClass,
+                highConviction && isInsideLeadWindow,
+                $"{PreEntryLeadMinutes} min: {entryAction} {FormatPrice(entryLower)}-{FormatPrice(entryUpper)}. Vence entrada {expiresAt.ToLocalTime():HH:mm}.",
+                $"Salida administrada: avisar {exitAction} cuando el neto sea >= {minimumManagedProfit:N2}% despues de comisiones {exitWeaknessText}.",
+                $"{Money(capital)} -> buscar minimo {Money(minimumManagedProfitMoney)} neto antes de cerrar.",
+                riskText,
+                $"El sistema revisa la posicion viva. Si supera {minimumManagedProfit:N2}% neto, espera confirmacion de salida y manda alerta.",
+                $"{confirmingIntervals} tiempos alineados. El objetivo es vender con beneficio neto, no adivinar una hora fija.");
+        }
 
         return new TradeInstruction(
             actionLabel,
@@ -187,6 +227,7 @@ public sealed class TradeInstructionService
         {
             OpportunityStatus.HitTakeProfit2 => "El movimiento alcanzo el objetivo extendido. La operacion deberia estar fuera.",
             OpportunityStatus.HitTakeProfit1 => "Ganancia objetivo tocada. Proteger ganancia.",
+            OpportunityStatus.ManagedProfitExit => "Salida administrada: el sistema detecto beneficio neto suficiente despues de comisiones.",
             OpportunityStatus.HitStopLoss => "Perdida maxima tocada. Salir.",
             OpportunityStatus.Expired => "Vencio sin tocar ganancia ni perdida maxima.",
             _ => "Operacion actualizada."

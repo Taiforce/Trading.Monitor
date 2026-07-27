@@ -137,6 +137,7 @@ public sealed class LiveOperationsSnapshotService(
             OpportunityStatus.Open => "Abierta",
             OpportunityStatus.HitTakeProfit1 => "Ganada",
             OpportunityStatus.HitTakeProfit2 => "Ganancia extra",
+            OpportunityStatus.ManagedProfitExit => "Ganancia administrada",
             OpportunityStatus.HitStopLoss => "Perdida",
             OpportunityStatus.Expired => "Vencida",
             OpportunityStatus.ManuallyClosed => "Cerrada",

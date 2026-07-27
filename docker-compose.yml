@@ -37,6 +37,14 @@ services:
       Reporting__DefaultCapital: ${REPORTING_DEFAULT_CAPITAL:-1000}
       Reporting__EstimatedFeePercentPerSide: ${REPORTING_FEE_PERCENT_PER_SIDE:-0.1}
       Reporting__MinimumNetProfitPercentAfterCosts: ${REPORTING_MIN_NET_PROFIT_AFTER_COSTS:-0.35}
+      Risk__EstimatedFeePercentPerSide: ${RISK_FEE_PERCENT_PER_SIDE:-0.1}
+      Risk__ManagedProfitExitEnabled: ${RISK_MANAGED_PROFIT_EXIT_ENABLED:-true}
+      Risk__ManagedProfitExitPercentAfterCosts: ${RISK_MANAGED_PROFIT_EXIT_PERCENT_AFTER_COSTS:-5}
+      Risk__ManagedQuickProfitExitPercentAfterCosts: ${RISK_MANAGED_QUICK_PROFIT_EXIT_PERCENT_AFTER_COSTS:-8}
+      Risk__ManagedTrailingGivebackPercent: ${RISK_MANAGED_TRAILING_GIVEBACK_PERCENT:-0.75}
+      Risk__ManagedExitRequiresMomentumWeakness: ${RISK_MANAGED_EXIT_REQUIRES_MOMENTUM_WEAKNESS:-true}
+      Risk__ManagedHardStopExitEnabled: ${RISK_MANAGED_HARD_STOP_EXIT_ENABLED:-false}
+      Risk__ManagedExpiryExitEnabled: ${RISK_MANAGED_EXPIRY_EXIT_ENABLED:-false}
       ExchangeExecution__Enabled: ${EXCHANGE_EXECUTION_ENABLED:-true}
       ExchangeExecution__Provider: ${EXCHANGE_EXECUTION_PROVIDER:-BinanceSpot}
       ExchangeExecution__Mode: ${EXCHANGE_EXECUTION_MODE:-Paper}
@@ -100,6 +108,13 @@ services:
       Risk__EstimatedFeePercentPerSide: ${RISK_FEE_PERCENT_PER_SIDE:-0.1}
       Risk__EstimatedSpreadPercent: ${RISK_SPREAD_PERCENT:-0.05}
       Risk__MinimumNetProfitPercentAfterCosts: ${RISK_MIN_NET_PROFIT_AFTER_COSTS:-0.35}
+      Risk__ManagedProfitExitEnabled: ${RISK_MANAGED_PROFIT_EXIT_ENABLED:-true}
+      Risk__ManagedProfitExitPercentAfterCosts: ${RISK_MANAGED_PROFIT_EXIT_PERCENT_AFTER_COSTS:-5}
+      Risk__ManagedQuickProfitExitPercentAfterCosts: ${RISK_MANAGED_QUICK_PROFIT_EXIT_PERCENT_AFTER_COSTS:-8}
+      Risk__ManagedTrailingGivebackPercent: ${RISK_MANAGED_TRAILING_GIVEBACK_PERCENT:-0.75}
+      Risk__ManagedExitRequiresMomentumWeakness: ${RISK_MANAGED_EXIT_REQUIRES_MOMENTUM_WEAKNESS:-true}
+      Risk__ManagedHardStopExitEnabled: ${RISK_MANAGED_HARD_STOP_EXIT_ENABLED:-false}
+      Risk__ManagedExpiryExitEnabled: ${RISK_MANAGED_EXPIRY_EXIT_ENABLED:-false}
       MarketSources__BinanceEnabled: ${MARKET_BINANCE_ENABLED:-true}
       MarketSources__BinanceUsEnabled: ${MARKET_BINANCE_US_ENABLED:-true}
       MarketSources__CoinbaseEnabled: ${MARKET_COINBASE_ENABLED:-true}

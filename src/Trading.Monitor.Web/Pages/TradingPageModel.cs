@@ -57,6 +57,7 @@ public abstract class TradingPageModel(IOpportunityRepository opportunityReposit
             OpportunityStatus.Open => "Abierta",
             OpportunityStatus.HitTakeProfit1 => "Ganada",
             OpportunityStatus.HitTakeProfit2 => "Ganancia extra",
+            OpportunityStatus.ManagedProfitExit => "Ganancia administrada",
             OpportunityStatus.HitStopLoss => "Perdida",
             OpportunityStatus.Expired => "Expirada",
             OpportunityStatus.ManuallyClosed => "Cerrada",
@@ -69,7 +70,7 @@ public abstract class TradingPageModel(IOpportunityRepository opportunityReposit
         return status switch
         {
             OpportunityStatus.Open => "status-open",
-            OpportunityStatus.HitTakeProfit1 or OpportunityStatus.HitTakeProfit2 => "status-win",
+            OpportunityStatus.HitTakeProfit1 or OpportunityStatus.HitTakeProfit2 or OpportunityStatus.ManagedProfitExit => "status-win",
             OpportunityStatus.HitStopLoss => "status-loss",
             _ => "status-muted"
         };
@@ -177,6 +178,7 @@ public abstract class TradingPageModel(IOpportunityRepository opportunityReposit
             OpportunityStatus.Open => "Todavia necesita seguimiento.",
             OpportunityStatus.HitTakeProfit1 => "Alcanzo la ganancia objetivo.",
             OpportunityStatus.HitTakeProfit2 => "Alcanzo una ganancia mas alta.",
+            OpportunityStatus.ManagedProfitExit => "El sistema detecto beneficio neto suficiente despues de comisiones.",
             OpportunityStatus.HitStopLoss => "La idea llego a la perdida maxima.",
             OpportunityStatus.Expired => "La ventana de oportunidad vencio.",
             OpportunityStatus.ManuallyClosed => "Fue cerrada manualmente.",

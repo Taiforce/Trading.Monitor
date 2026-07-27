@@ -21,4 +21,18 @@ public sealed class RiskOptions
     public decimal EstimatedSpreadPercent { get; set; } = 0.05m;
 
     public decimal MinimumNetProfitPercentAfterCosts { get; set; } = 0.35m;
+
+    public bool ManagedProfitExitEnabled { get; set; } = true;
+
+    public decimal ManagedProfitExitPercentAfterCosts { get; set; } = 5.00m;
+
+    public decimal ManagedQuickProfitExitPercentAfterCosts { get; set; } = 8.00m;
+
+    public decimal ManagedTrailingGivebackPercent { get; set; } = 0.75m;
+
+    public bool ManagedExitRequiresMomentumWeakness { get; set; } = true;
+
+    public bool ManagedHardStopExitEnabled { get; set; }
+
+    public bool ManagedExpiryExitEnabled { get; set; }
 }

@@ -8,6 +8,7 @@ using Trading.Monitor.Domain;
 namespace Trading.Monitor.Worker;
 
 public sealed class MarketMonitorWorker(ILogger<MarketMonitorWorker> logger, MarketScanner marketScanner, IServiceScopeFactory scopeFactory, IMarketDataProvider marketDataProvider,
+    OpportunityExitService opportunityExitService,
     IEnumerable<INotificationChannel> notificationChannels, IOptionsMonitor<TradingMonitorOptions> monitorOptions, IOptionsMonitor<RiskOptions> riskOptions, IOptionsMonitor<NewsOptions> newsOptions,
     IOptionsMonitor<NotificationOptions> notificationOptions, IOptionsMonitor<ExchangeExecutionOptions> exchangeOptions, IHostApplicationLifetime applicationLifetime) : BackgroundService
 {
@@ -142,6 +143,7 @@ public sealed class MarketMonitorWorker(ILogger<MarketMonitorWorker> logger, Mar
         var repository = scope.ServiceProvider.GetRequiredService<IOpportunityRepository>();
         var tradeExecutionService = scope.ServiceProvider.GetRequiredService<ITradeExecutionService>();
         var openOpportunities = await repository.GetOpenAsync(cancellationToken);
+        var risk = riskOptions.CurrentValue;
 
         foreach (var opportunity in openOpportunities)
         {
@@ -150,7 +152,7 @@ public sealed class MarketMonitorWorker(ILogger<MarketMonitorWorker> logger, Mar
                 var trackingInterval = ResolveExitTrackingInterval(opportunity);
                 var candles = await marketDataProvider.GetCandlesAsync(opportunity.Symbol, trackingInterval, Math.Min(1000, Math.Max(100, monitor.CandleLimit)), cancellationToken);
 
-                var exit = ResolveExit(opportunity, candles);
+                var exit = opportunityExitService.ResolveExit(opportunity, candles, risk);
 
                 if (exit is null)
                     continue;
@@ -217,49 +219,6 @@ public sealed class MarketMonitorWorker(ILogger<MarketMonitorWorker> logger, Mar
                 logger.LogError(exception, "Failed to send exit signal through {Channel}.", channel.Name);
             }
         }
-    }
-
-    private static OpportunityExit? ResolveExit(OpportunityReportRow opportunity, IReadOnlyList<MarketCandle> candles)
-    {
-        var relevantCandles = candles.Where(candle => candle.CloseTime > opportunity.ObservedAt).OrderBy(candle => candle.CloseTime).ToArray();
-
-        foreach (var candle in relevantCandles)
-        {
-            if (opportunity.Side == MarketSide.Long)
-            {
-                if (candle.Low <= opportunity.StopLoss)
-                {
-                    return new OpportunityExit(OpportunityStatus.HitStopLoss, candle.CloseTime, opportunity.StopLoss, "Perdida maxima tocada antes de la ganancia objetivo.");
-                }
-
-                if (candle.High >= opportunity.TakeProfit2)
-                    return new OpportunityExit(OpportunityStatus.HitTakeProfit2, candle.CloseTime, opportunity.TakeProfit2, "Ganancia extra alcanzada.");
-
-                if (candle.High >= opportunity.TakeProfit1)
-                    return new OpportunityExit(OpportunityStatus.HitTakeProfit1, candle.CloseTime, opportunity.TakeProfit1, "Ganancia objetivo alcanzada.");
-            }
-            else
-            {
-                if (candle.High >= opportunity.StopLoss)
-                {
-                    return new OpportunityExit(OpportunityStatus.HitStopLoss, candle.CloseTime, opportunity.StopLoss, "Perdida maxima tocada antes de la ganancia objetivo.");
-                }
-
-                if (candle.Low <= opportunity.TakeProfit2)
-                    return new OpportunityExit(OpportunityStatus.HitTakeProfit2, candle.CloseTime, opportunity.TakeProfit2, "Ganancia extra alcanzada.");
-
-                if (candle.Low <= opportunity.TakeProfit1)
-                    return new OpportunityExit(OpportunityStatus.HitTakeProfit1, candle.CloseTime, opportunity.TakeProfit1, "Ganancia objetivo alcanzada.");
-            }
-        }
-
-        if (DateTimeOffset.UtcNow > opportunity.ExpiresAt && relevantCandles.Length > 0)
-        {
-            var last = relevantCandles[^1];
-            return new OpportunityExit(OpportunityStatus.Expired, last.CloseTime, last.Close, "La oportunidad vencio antes de tocar ganancia o perdida maxima.");
-        }
-
-        return null;
     }
 
     private static string ResolveExitTrackingInterval(OpportunityReportRow opportunity)

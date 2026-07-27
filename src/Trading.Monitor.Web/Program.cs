@@ -24,9 +24,10 @@ try
     builder.Services.Configure<StorageOptions>(builder.Configuration.GetSection("Storage"));
     builder.Services.Configure<DatabaseOptions>(builder.Configuration.GetSection("Database"));
     builder.Services.Configure<ReportingOptions>(builder.Configuration.GetSection("Reporting"));
+    builder.Services.Configure<RiskOptions>(builder.Configuration.GetSection("Risk"));
     builder.Services.Configure<ExchangeExecutionOptions>(builder.Configuration.GetSection("ExchangeExecution"));
     builder.Services.AddSingleton<OpportunityProjectionService>();
-    builder.Services.AddSingleton<TradeInstructionService>();
+    builder.Services.AddSingleton(serviceProvider => new TradeInstructionService(serviceProvider.GetRequiredService<Microsoft.Extensions.Options.IOptionsMonitor<RiskOptions>>().CurrentValue));
     builder.Services.AddSingleton<VirtualPortfolioSimulator>();
     builder.Services.AddSingleton<TraderFollowSimulator>();
     builder.Services.AddSingleton<OperationalLogReader>();

@@ -46,7 +46,8 @@ try
     builder.Services.AddSingleton<TechnicalAnalysisService>();
     builder.Services.AddSingleton<TradingSignalEngine>();
     builder.Services.AddSingleton<OpportunityProjectionService>();
-    builder.Services.AddSingleton<TradeInstructionService>();
+    builder.Services.AddSingleton<OpportunityExitService>();
+    builder.Services.AddSingleton(serviceProvider => new TradeInstructionService(serviceProvider.GetRequiredService<IOptionsMonitor<RiskOptions>>().CurrentValue));
     builder.Services.AddSingleton<MarketScanner>();
 
     builder.Services.AddSingleton<IMarketDataProvider>(serviceProvider =>

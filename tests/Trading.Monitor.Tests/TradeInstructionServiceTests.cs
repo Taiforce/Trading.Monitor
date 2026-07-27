@@ -1,4 +1,5 @@
 using Trading.Monitor.Application.Services;
+using Trading.Monitor.Application.Configuration;
 using Trading.Monitor.Domain;
 
 namespace Trading.Monitor.Tests;
@@ -32,14 +33,14 @@ public class TradeInstructionServiceTests
         var instruction = service.Create(opportunity, projection);
 
         Assert.True(instruction.Highlight);
-        Assert.Equal("ENTRAR AHORA", instruction.ActionLabel);
-        Assert.Contains("ganar", instruction.ProfitReport);
+        Assert.Equal("COMPRAR AHORA", instruction.ActionLabel);
+        Assert.Contains("buscar minimo", instruction.ProfitReport);
     }
 
     [Fact]
     public void Create_DoesNotHighlightExpiredOpportunity()
     {
-        var service = new TradeInstructionService();
+        var service = new TradeInstructionService(new RiskOptions { ManagedProfitExitEnabled = false });
         var opportunity = new TradingOpportunity(
             "BTCUSDT",
             MarketSide.Long,

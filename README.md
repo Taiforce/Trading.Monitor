@@ -12,10 +12,11 @@ Por defecto ejecuta en modo `Paper`: simula entradas y salidas y las registra en
 - Lee noticias RSS, reportes macro/regulatorios configurables y clasifica sentimiento basico por palabras clave.
 - Usa OpenAI como analista de investigacion opcional para resumir contexto reciente.
 - Genera una propuesta con score, zona de entrada, ganancia objetivo, ganancia extra, perdida maxima, razones, riesgos y vigencia.
-- Convierte cada propuesta en una instruccion operativa: entrar ahora, vigilar, no entrar, salir con ganancia, salir por perdida maxima o descartar por vencimiento.
+- Convierte cada propuesta en una instruccion operativa: comprar ahora, vigilar, mantener posicion viva o vender cuando el beneficio neto administrado supere el umbral configurado.
 - Remarca solo las oportunidades de alta conviccion: score alto, varias temporalidades, riesgo controlado y poco ruido de riesgos. Ninguna senal se presenta como garantia.
 - Calcula cuanto podrias ganar o perder si pusieras el monto configurado en cada oportunidad.
-- Lanza alertas de salida cuando una oportunidad toca ganancia objetivo, ganancia extra, perdida maxima o vence.
+- En modo administrado, lanza alertas de salida cuando el PnL neto despues de comisiones supera el objetivo, por defecto 5%, y el movimiento empieza a perder fuerza o alcanza salida rapida.
+- Puede volver al modo clasico de salida por objetivo, stop y vencimiento desactivando `Risk:ManagedProfitExitEnabled`.
 - Evita mandar senales repetidas dentro de una ventana configurable.
 - Guarda historial, salidas, salud de fuentes e investigacion en SQL Server local: base `TradingMarket`.
 - Guarda auditoria de ejecucion automatica en `dbo.trade_executions`: omitida, bloqueada, simulada, validada o real enviada.
@@ -156,6 +157,12 @@ Campos importantes:
 - `MarketSources:*Enabled`: activa o desactiva Binance, Binance US, Coinbase y Kraken.
 - `MarketSources:*BaseUrl`: URLs base de cada proveedor de mercado.
 - `MarketSources:TimeoutSeconds`: limite por solicitud de mercado.
+- `Risk:ManagedProfitExitEnabled`: mantiene operaciones vivas y cierra por beneficio neto administrado.
+- `Risk:ManagedProfitExitPercentAfterCosts`: beneficio neto minimo para mandar alerta de venta; por defecto `5`.
+- `Risk:ManagedQuickProfitExitPercentAfterCosts`: salida inmediata si el beneficio neto supera este nivel; por defecto `8`.
+- `Risk:ManagedTrailingGivebackPercent`: retroceso desde el pico permitido antes de vender; por defecto `0.75`.
+- `Risk:ManagedHardStopExitEnabled`: por defecto `false`; si se activa, vuelve a cerrar por perdida maxima.
+- `Risk:ManagedExpiryExitEnabled`: por defecto `false`; si se activa, permite cierre por vencimiento.
 - `Reporting:DefaultCapital`: monto X usado para calcular cuanto pudiste ganar o perder.
 - `Reporting:EstimatedFeePercentPerSide`: comision estimada por lado.
 - `Database:ConnectionString`: conexion SQL Server usada por Entity Framework.
