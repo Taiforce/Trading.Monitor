@@ -268,7 +268,7 @@
                 position: isLong ? "belowBar" : "aboveBar",
                 color: "#f0b90b",
                 shape: isLong ? "arrowUp" : "arrowDown",
-                text: isLong ? "Comprar aqui" : "Vender aqui"
+                text: isLong ? "Comprar" : "Vender"
             });
         }
 
@@ -278,7 +278,7 @@
                 position: isLong ? "aboveBar" : "belowBar",
                 color: resultColor,
                 shape: panel.dataset.status === "Abierta" ? "circle" : "square",
-                text: isLong ? "Vender aqui" : "Comprar aqui"
+                text: isLong ? "Vender" : "Comprar"
             });
         }
 

@@ -182,7 +182,23 @@
                     {
                         var row = Model.TraderSimulation.Trades[index];
                         var key = $"trader-{row.Sequence}";
-                        <article class="detail-panel @(index == 0 ? "active" : "")" data-detail-panel="@key">
+                        <article class="detail-panel @(index == 0 ? "active" : "")"
+                                 data-detail-panel="@key"
+                                 data-symbol="@row.Symbol"
+                                 data-interval="@Model.ChartIntervalFor(row)"
+                                 data-capital="@Model.Invariant(row.StartingBalance)"
+                                 data-from="@Model.ReplayFrom(row).ToString("O")"
+                                 data-to="@Model.ReplayTo(row).ToString("O")"
+                                 data-side="@Model.SideFor(row.SignalType)"
+                                 data-entry-price="@Model.Invariant(row.EntryPrice)"
+                                 data-stop-loss=""
+                                 data-take-profit1=""
+                                 data-take-profit2=""
+                                 data-exit-price="@Model.Invariant(row.ExitPrice)"
+                                 data-observed-at="@row.OpenedAt.ToString("O")"
+                                 data-exit-time="@(row.ClosedAt?.ToString("O") ?? "")"
+                                 data-action="@row.SignalType"
+                                 data-status="@Model.ReplayStatus(row)">
                             <div class="section-title">
                                 <h2>#@row.Sequence @row.Symbol</h2>
                                 <span>@row.TraderName | @row.SignalType</span>
@@ -196,6 +212,15 @@
                                 <article><span>Resultado</span><strong class="@Model.ResultClass(row.NetPnL)">@(row.WasApplied ? Model.Money(row.NetPnL) : row.SkipReason)</strong><small>@(row.WasApplied ? $"{row.ReturnPercent:N2}%" : "")</small></article>
                                 <article><span>Saldo despues</span><strong>@Model.Money(row.EndingBalance)</strong><small>compuesto</small></article>
                                 <article><span>Estado</span><strong>@(row.WasApplied ? "Aplicada" : "Omitida")</strong><small>@row.SkipReason</small></article>
+                            </div>
+                            <div class="portfolio-trade-replay">
+                                <div class="section-title compact-title">
+                                    <h2>Replay de la operacion</h2>
+                                    <span>ruta simulada sobre velas reales</span>
+                                </div>
+                                <div class="signal-replay-chart portfolio-replay-chart" data-signal-chart>
+                                    <span>Cargando replay de la operacion...</span>
+                                </div>
                             </div>
                         </article>
                     }
@@ -247,7 +272,23 @@
                     {
                         var row = Model.Simulation.Trades[index];
                         var key = $"portfolio-{row.Sequence}";
-                        <article class="detail-panel @(index == 0 ? "active" : "")" data-detail-panel="@key">
+                        <article class="detail-panel @(index == 0 ? "active" : "")"
+                                 data-detail-panel="@key"
+                                 data-symbol="@row.Symbol"
+                                 data-interval="@Model.ChartIntervalFor(row)"
+                                 data-capital="@Model.Invariant(row.StartingBalance)"
+                                 data-from="@Model.ReplayFrom(row).ToString("O")"
+                                 data-to="@Model.ReplayTo(row).ToString("O")"
+                                 data-side="@Model.SideFor(row.OperationType)"
+                                 data-entry-price="@Model.Invariant(row.EntryPrice)"
+                                 data-stop-loss=""
+                                 data-take-profit1=""
+                                 data-take-profit2=""
+                                 data-exit-price="@Model.Invariant(row.ExitPrice)"
+                                 data-observed-at="@row.EntryTime.ToString("O")"
+                                 data-exit-time="@(row.ExitTime?.ToString("O") ?? "")"
+                                 data-action="@row.OperationType"
+                                 data-status="@Model.ReplayStatus(row)">
                             <div class="section-title">
                                 <h2>#@row.Sequence @row.Symbol</h2>
                                 <span>@row.OperationType | @row.Horizon</span>
@@ -262,6 +303,15 @@
                                 <article><span>Resultado</span><strong class="@Model.ResultClass(row.NetPnL)">@(row.WasApplied ? Model.Money(row.NetPnL) : Model.AppliedLabel(row))</strong><small>@(row.WasApplied ? $"{row.ReturnPercent:N2}%" : "")</small></article>
                                 <article><span>Saldo despues</span><strong>@Model.Money(row.EndingBalance)</strong><small>@Model.AppliedLabel(row)</small></article>
                             </div>
+                            <div class="portfolio-trade-replay">
+                                <div class="section-title compact-title">
+                                    <h2>Replay de la senal</h2>
+                                    <span>entrada, recorrido y salida simulada</span>
+                                </div>
+                                <div class="signal-replay-chart portfolio-replay-chart" data-signal-chart>
+                                    <span>Cargando replay de la senal...</span>
+                                </div>
+                            </div>
                         </article>
                     }
                 </div>
@@ -271,5 +321,6 @@
 </section>
 
 @section Scripts {
+    <script src="~/lib/lightweight-charts/lightweight-charts.standalone.production.js"></script>
     <script src="~/js/master-detail.js" asp-append-version="true"></script>
 }

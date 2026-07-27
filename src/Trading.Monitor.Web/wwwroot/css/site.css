@@ -1984,6 +1984,34 @@ td small,
     margin-bottom: 14px;
 }
 
+.portfolio-workbench {
+    grid-template-columns: minmax(300px, 0.68fr) minmax(560px, 1.32fr);
+}
+
+.portfolio-workbench > .master-list {
+    min-height: 360px;
+    max-height: min(680px, calc(100vh - 250px));
+}
+
+.portfolio-workbench .master-item {
+    gap: 5px;
+    border-radius: 6px;
+    padding: 10px 12px;
+}
+
+.portfolio-workbench .detail-panel.active {
+    align-content: start;
+}
+
+.portfolio-trade-replay {
+    display: grid;
+    gap: 8px;
+}
+
+.portfolio-replay-chart {
+    min-height: 430px;
+}
+
 .fold-panel {
     padding: 0;
 }
@@ -2378,6 +2406,14 @@ td small,
 
     .internal-filter-bar {
         grid-template-columns: 1fr;
+    }
+
+    .portfolio-workbench {
+        grid-template-columns: 1fr;
+    }
+
+    .portfolio-replay-chart {
+        min-height: 320px;
     }
 }
 

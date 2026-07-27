@@ -118,6 +118,69 @@ public sealed class PortfolioModel : TradingPageModel
             : row.EntryPrice - move;
     }
 
+    public string Invariant(decimal value)
+    {
+        return value.ToString(CultureInfo.InvariantCulture);
+    }
+
+    public string Invariant(decimal? value)
+    {
+        return value.HasValue ? Invariant(value.Value) : "";
+    }
+
+    public string ChartIntervalFor(VirtualPortfolioTradeRow row)
+    {
+        return ChartIntervalFor(row.EntryTime, row.ExitTime);
+    }
+
+    public string ChartIntervalFor(TraderFollowTradeRow row)
+    {
+        return ChartIntervalFor(row.OpenedAt, row.ClosedAt);
+    }
+
+    public DateTimeOffset ReplayFrom(VirtualPortfolioTradeRow row)
+    {
+        return ReplayFrom(row.EntryTime, row.ExitTime);
+    }
+
+    public DateTimeOffset ReplayFrom(TraderFollowTradeRow row)
+    {
+        return ReplayFrom(row.OpenedAt, row.ClosedAt);
+    }
+
+    public DateTimeOffset ReplayTo(VirtualPortfolioTradeRow row)
+    {
+        return ReplayTo(row.EntryTime, row.ExitTime);
+    }
+
+    public DateTimeOffset ReplayTo(TraderFollowTradeRow row)
+    {
+        return ReplayTo(row.OpenedAt, row.ClosedAt);
+    }
+
+    public string SideFor(string operationType)
+    {
+        return operationType.StartsWith("Compra bajo", StringComparison.OrdinalIgnoreCase)
+            ? nameof(MarketSide.Long)
+            : nameof(MarketSide.Short);
+    }
+
+    public string ReplayStatus(VirtualPortfolioTradeRow row)
+    {
+        if (!row.WasApplied)
+            return string.Equals(row.SkipReason, "Abierta", StringComparison.OrdinalIgnoreCase) ? "Abierta" : "Omitida";
+
+        return row.NetPnL < 0m ? "Perdida" : row.NetPnL > 0m ? "Ganada" : "Cerrada";
+    }
+
+    public string ReplayStatus(TraderFollowTradeRow row)
+    {
+        if (!row.WasApplied)
+            return row.SkipReason.StartsWith("Abierta", StringComparison.OrdinalIgnoreCase) ? "Abierta" : "Omitida";
+
+        return row.NetPnL < 0m ? "Perdida" : row.NetPnL > 0m ? "Ganada" : "Cerrada";
+    }
+
     public string ResultClass(decimal value)
     {
         return value > 0m ? "gain" : value < 0m ? "loss" : "flat";
@@ -204,6 +267,45 @@ public sealed class PortfolioModel : TradingPageModel
             var y = 150m - (point.Balance - min) / range * 130m;
             return $"{x.ToString("0.##", CultureInfo.InvariantCulture)},{y.ToString("0.##", CultureInfo.InvariantCulture)}";
         }));
+    }
+
+    private static string ChartIntervalFor(DateTimeOffset entryTime, DateTimeOffset? exitTime)
+    {
+        var end = exitTime ?? DateTimeOffset.UtcNow;
+        var minutes = Math.Max(1, (end - entryTime).TotalMinutes);
+
+        return minutes switch
+        {
+            <= 30 => "1m",
+            <= 240 => "5m",
+            <= 2880 => "15m",
+            <= 10080 => "1h",
+            <= 43200 => "4h",
+            _ => "1d"
+        };
+    }
+
+    private static DateTimeOffset ReplayFrom(DateTimeOffset entryTime, DateTimeOffset? exitTime)
+    {
+        return entryTime.Subtract(BufferFor(ChartIntervalFor(entryTime, exitTime)));
+    }
+
+    private static DateTimeOffset ReplayTo(DateTimeOffset entryTime, DateTimeOffset? exitTime)
+    {
+        return (exitTime ?? DateTimeOffset.UtcNow).Add(BufferFor(ChartIntervalFor(entryTime, exitTime)));
+    }
+
+    private static TimeSpan BufferFor(string interval)
+    {
+        return interval switch
+        {
+            "1m" => TimeSpan.FromMinutes(30),
+            "5m" => TimeSpan.FromHours(2),
+            "15m" => TimeSpan.FromHours(8),
+            "1h" => TimeSpan.FromDays(2),
+            "4h" => TimeSpan.FromDays(7),
+            _ => TimeSpan.FromDays(20)
+        };
     }
 
     private static string Asset(string symbol)

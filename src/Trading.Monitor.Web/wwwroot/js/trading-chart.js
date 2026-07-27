@@ -344,10 +344,6 @@
             selectedOperationId = null;
         }
 
-        if (!selectedOperationId && visibleOperations.length > 0) {
-            selectedOperationId = visibleOperations[0].id;
-        }
-
         list.innerHTML = visibleOperations.slice(0, 18).map((item, index) => {
             const isSelected = item.id === selectedOperationId;
             const routeColor = operationColor(item, index);
@@ -362,7 +358,7 @@
                         <strong>${escapeHtml(item.symbol)}</strong>
                         <small>${escapeHtml(item.signalTypeLabel || item.side)} | ${escapeHtml(item.horizon || "Mercado")} | ${escapeHtml(item.status)} | score ${item.score}/100</small>
                     </div>
-                    <em>${isSelected ? "abierta" : "ver"}</em>
+                    <em>${isSelected ? "siguiendo" : "ver"}</em>
                 </div>
                 <div class="live-card-body">
                     <dl>
@@ -472,6 +468,7 @@
     function drawMarkers(operations, candleData) {
         const markers = [];
         operations.slice(0, 10).forEach((operation, index) => {
+            const isSelected = operation.id === selectedOperationId;
             const entryTime = nearestTime(toUnixTime(operation.entryAt || operation.observedAt), candleData);
             const exitTime = operation.exitTime
                 ? nearestTime(toUnixTime(operation.exitTime), candleData)
@@ -486,7 +483,7 @@
                     position: operation.side === "Long" ? "belowBar" : "aboveBar",
                     color: routeColor,
                     shape: operation.side === "Long" ? "arrowUp" : "arrowDown",
-                    text: entryMarkerText(operation)
+                    ...(isSelected ? { text: entryMarkerText(operation) } : {})
                 });
             }
 
@@ -496,7 +493,7 @@
                     position: operation.side === "Long" ? "aboveBar" : "belowBar",
                     color: resultColor,
                     shape: operation.status === "Abierta" ? "circle" : "square",
-                    text: operation.status === "Abierta" ? currentMarkerText(operation) : exitMarkerText(operation)
+                    ...(isSelected ? { text: exitMarkerText(operation) } : {})
                 });
             }
         });
@@ -771,11 +768,9 @@
     }
 
     function pickSelectedOperation(operations) {
-        return operations.find(item => item.id === selectedOperationId)
-            || operations.find(item => item.highlight)
-            || operations.find(item => item.status === "Abierta")
-            || operations[0]
-            || null;
+        return selectedOperationId
+            ? operations.find(item => item.id === selectedOperationId) || null
+            : null;
     }
 
     function pickChartSymbol(operations) {
@@ -832,15 +827,11 @@
     }
 
     function entryMarkerText(item) {
-        return isBuyLowSellHigh(item) ? "Comprar aqui" : "Vender aqui";
-    }
-
-    function currentMarkerText(item) {
-        return isBuyLowSellHigh(item) ? "Actual: esperar vender" : "Actual: esperar comprar";
+        return isBuyLowSellHigh(item) ? "Comprar" : "Vender";
     }
 
     function exitMarkerText(item) {
-        return isBuyLowSellHigh(item) ? "Vender aqui" : "Comprar aqui";
+        return isBuyLowSellHigh(item) ? "Vender" : "Comprar";
     }
 
     function entryLineTitle(trade) {
