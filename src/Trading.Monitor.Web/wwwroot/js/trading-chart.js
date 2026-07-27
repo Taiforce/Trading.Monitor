@@ -42,6 +42,11 @@
     const estado = board.dataset.liveEstado || "abiertas";
     const symbolFilter = board.dataset.liveSymbol || "";
     const tipoSenal = board.dataset.liveTipoSenal || "";
+    const liveMode = board.dataset.liveMode || "managed";
+    const isManagedMode = liveMode === "managed";
+    const defaultTargetPercent = parseNumber(board.dataset.liveTargetNetPercent, 5);
+    const feePercent = parseNumber(board.dataset.liveFeePercent, 0.1);
+    const targetStoragePrefix = `trading-monitor-target-percent-${liveMode}`;
     const symbolStorageKey = "trading-monitor-chart-symbol";
     const intervalStorageKey = "trading-monitor-chart-interval";
     const lineStyleDashed = lwc.LineStyle?.Dashed ?? 2;
@@ -70,6 +75,7 @@
     let savedLogicalRange = null;
     let resetViewOnNextRender = true;
     let chartRequestId = 0;
+    let targetRenderHandle = 0;
 
     initializeChart();
     wireControls();
@@ -241,7 +247,7 @@
 
     async function refreshLiveTrades() {
         try {
-            const url = `/api/operaciones-vivas?capital=${encodeURIComponent(capital)}&estado=${encodeURIComponent(estado)}&symbol=${encodeURIComponent(symbolFilter)}&tipoSenal=${encodeURIComponent(tipoSenal)}`;
+            const url = `/api/operaciones-vivas?capital=${encodeURIComponent(capital)}&estado=${encodeURIComponent(estado)}&symbol=${encodeURIComponent(symbolFilter)}&tipoSenal=${encodeURIComponent(tipoSenal)}&mode=${encodeURIComponent(liveMode)}`;
             const response = await fetch(url, { cache: "no-store" });
             if (!response.ok) {
                 throw new Error(`HTTP ${response.status}`);
@@ -271,7 +277,7 @@
         const requestId = ++chartRequestId;
         const requestSymbol = selectedSymbol;
         const requestInterval = selectedInterval;
-        const url = `/api/grafico-vivo?symbol=${encodeURIComponent(requestSymbol)}&interval=${encodeURIComponent(requestInterval)}&capital=${encodeURIComponent(capital)}&estado=${encodeURIComponent(estado)}&tipoSenal=${encodeURIComponent(tipoSenal)}`;
+        const url = `/api/grafico-vivo?symbol=${encodeURIComponent(requestSymbol)}&interval=${encodeURIComponent(requestInterval)}&capital=${encodeURIComponent(capital)}&estado=${encodeURIComponent(estado)}&tipoSenal=${encodeURIComponent(tipoSenal)}&mode=${encodeURIComponent(liveMode)}`;
         const response = await fetch(url, { cache: "no-store" });
         if (!response.ok) {
             throw new Error(`HTTP ${response.status}`);
@@ -301,7 +307,7 @@
         const volumeData = snapshot.candles.map(toVolumeData).filter(hasValidTime);
         const operations = (snapshot.operations || []).filter(item => item.symbol === snapshot.symbol);
         const selectedOperation = pickSelectedOperation(operations);
-        const analysisTrade = buildAnalysisTrade(snapshot.analysis);
+        const analysisTrade = isManagedMode ? null : buildAnalysisTrade(snapshot.analysis);
         const primaryTrade = selectedOperation || analysisTrade;
         const previousRange = cloneLogicalRange(savedLogicalRange || chart.timeScale().getVisibleLogicalRange());
 
@@ -346,48 +352,7 @@
 
         list.innerHTML = visibleOperations.slice(0, 18).map((item, index) => {
             const isSelected = item.id === selectedOperationId;
-            const routeColor = operationColor(item, index);
-            const resultClass = item.realizedText.startsWith("-") ? "loss" : item.realizedText === "Abierta" ? "" : "gain";
-
-            return `
-            <article class="live-card ${escapeHtml(item.signalClass)} ${isSelected ? "selected-live-card" : ""}" data-operation-id="${escapeAttribute(item.id)}" style="--signal-color: ${escapeAttribute(routeColor)}">
-                <div class="live-card-summary">
-                    <i aria-hidden="true"></i>
-                    <div>
-                        <span>${escapeHtml(item.action)}</span>
-                        <strong>${escapeHtml(item.symbol)}</strong>
-                        <small>${escapeHtml(item.signalTypeLabel || item.side)} | ${escapeHtml(item.horizon || "Mercado")} | ${escapeHtml(item.status)} | score ${item.score}/100</small>
-                    </div>
-                    <em>${isSelected ? "siguiendo" : "ver"}</em>
-                </div>
-                <div class="live-card-body">
-                    <dl>
-                        <div><dt>Tipo</dt><dd>${escapeHtml(item.signalTypeLabel || item.side)}</dd></div>
-                        <div><dt>${escapeHtml(entryActionLabel(item))}</dt><dd>${formatTime(item.entryAt)}-${formatTime(item.entryUntil)}</dd></div>
-                        <div><dt>Precio para ${escapeHtml(entryVerb(item))}</dt><dd>${formatPrice(item.entryLower)}-${formatPrice(item.entryUpper)}</dd></div>
-                        <div><dt>${escapeHtml(exitActionLabel(item))}</dt><dd>${formatTime(item.exitBy)}</dd></div>
-                        <div><dt>Ganar</dt><dd class="gain">${escapeHtml(item.potentialTp1)}</dd></div>
-                        <div><dt>Perder max</dt><dd class="loss">${escapeHtml(item.potentialStop)}</dd></div>
-                        <div><dt>Tiempo viva</dt><dd>${escapeHtml(item.timeText)}</dd></div>
-                        <div><dt>Resultado final</dt><dd class="${resultClass}">${escapeHtml(item.realizedText)}</dd></div>
-                        <div><dt>Entrada/final</dt><dd>${escapeHtml(item.entryExitText)}</dd></div>
-                    </dl>
-                    <p class="live-calc">${escapeHtml(item.signalTypeDescription || "")}</p>
-                    <p class="live-calc">${escapeHtml(item.realizedFormulaText)}</p>
-                    <div class="conversion-box">
-                        <strong>${escapeHtml(item.finalConversionText || item.realizedText)}</strong>
-                        <span>${escapeHtml(item.entryConversionText || "")}</span>
-                        <span>${escapeHtml(item.exitConversionText || "")}</span>
-                        <span>${escapeHtml(item.costText || "")}</span>
-                        <span>${escapeHtml(item.breakEvenText || "")}</span>
-                        <small>${escapeHtml(item.conversionHeadline || "")}</small>
-                    </div>
-                    <div class="trade-links">
-                        <button type="button" data-chart-symbol="${escapeHtml(item.symbol)}" data-card-operation="${escapeAttribute(item.id)}">Ver en grafico</button>
-                        ${(item.links || []).slice(0, 4).map(link => `<a href="${escapeAttribute(link.url)}" target="_blank" rel="noopener noreferrer">${escapeHtml(link.label)}</a>`).join("")}
-                    </div>
-                </div>
-            </article>`;
+            return isManagedMode ? renderManagedCard(item, index, isSelected) : renderClassicCard(item, index, isSelected);
         }).join("");
 
         list.querySelectorAll("[data-chart-symbol]").forEach(button => {
@@ -408,7 +373,7 @@
 
         list.querySelectorAll("[data-operation-id]").forEach(card => {
             card.addEventListener("click", async event => {
-                if (event.target.closest("a")) {
+                if (event.target.closest("a, button, input")) {
                     return;
                 }
 
@@ -424,6 +389,133 @@
                 }
             });
         });
+
+        list.querySelectorAll("[data-target-percent]").forEach(input => {
+            input.addEventListener("input", () => {
+                const id = input.getAttribute("data-target-percent");
+                setTargetPercent(id, input.value);
+                window.clearTimeout(targetRenderHandle);
+                targetRenderHandle = window.setTimeout(() => renderList(lastOperations), 700);
+            });
+            input.addEventListener("change", () => {
+                const id = input.getAttribute("data-target-percent");
+                setTargetPercent(id, input.value);
+                renderList(lastOperations);
+            });
+        });
+
+        list.querySelectorAll("[data-close-current]").forEach(button => {
+            button.addEventListener("click", async event => {
+                event.stopPropagation();
+                const id = button.getAttribute("data-close-current");
+                const operation = lastOperations.find(item => item.id === id);
+                if (operation) {
+                    await closeManagedOperation(operation, button);
+                }
+            });
+        });
+    }
+
+    function renderClassicCard(item, index, isSelected) {
+        const routeColor = operationColor(item, index);
+        const targetPrice = Number(item.exitPrice || item.takeProfit1 || item.lastPrice);
+        const metrics = buildCostMetrics(item, targetPrice);
+        const currentMetrics = buildCostMetrics(item, Number(item.markPrice || item.lastPrice || targetPrice));
+        const stopMetrics = buildCostMetrics(item, Number(item.stopLoss || item.lastPrice || targetPrice));
+        const resultClass = resultClassForNet(metrics.netBenefit);
+
+        return `
+            <article class="live-card ${escapeHtml(item.signalClass)} ${resultClass} ${isSelected ? "selected-live-card" : ""}" data-operation-id="${escapeAttribute(item.id)}" style="--signal-color: ${escapeAttribute(routeColor)}">
+                ${cardSummary(item, isSelected, "Operacion por senal", `${item.signalTypeLabel || item.side} | ${item.status} | objetivo ${formatMoney(metrics.netBenefit)}`)}
+                <div class="live-card-body">
+                    <dl class="signal-detail-grid">
+                        ${detailCell("Cantidad entrada", formatMoney(metrics.investment), item.signalTypeLabel || item.side)}
+                        ${detailCell("Costo unidad", formatPrice(item.entryPrice), "precio de entrada")}
+                        ${detailCell(`${assetFor(item.symbol)} obtenido`, quantityText(item), quantityMeaning(item))}
+                        ${detailCell("Comision entrada", `${formatPercent(item.feePercentPerSide ?? feePercent)}`, formatMoney(metrics.entryFee))}
+                        ${detailCell("Mercado objetivo", formatPrice(targetPrice), targetActionText(item))}
+                        ${detailCell("Ganancia objetivo", signedMoney(metrics.netBenefit), "despues de salida y comisiones", signedClass(metrics.netBenefit))}
+                        ${detailCell("Comision salida", `${formatPercent(item.feePercentPerSide ?? feePercent)}`, formatMoney(metrics.exitFee))}
+                        ${detailCell("Total obtenido", formatMoney(metrics.totalObtained), "en mercado objetivo")}
+                    </dl>
+                    <div class="signal-extra-row">
+                        <span>Mercado actual: <strong>${formatPrice(item.markPrice || item.lastPrice)}</strong></span>
+                        <span>Ganancia actual: <strong class="${signedClass(currentMetrics.netBenefit)}">${signedMoney(currentMetrics.netBenefit)}</strong></span>
+                        <span>Perdida maxima: <strong class="loss">${signedMoney(stopMetrics.netBenefit)}</strong></span>
+                    </div>
+                    ${tradeLinks(item, "Ver en grafico")}
+                </div>
+            </article>`;
+    }
+
+    function renderManagedCard(item, index, isSelected) {
+        const routeColor = operationColor(item, index);
+        const targetPercent = getTargetPercent(item);
+        const currentPrice = Number(item.markPrice || item.lastPrice || item.entryPrice);
+        const targetPrice = resolveTargetExitPrice(item, targetPercent);
+        const targetMetrics = buildCostMetrics(item, targetPrice);
+        const currentMetrics = buildCostMetrics(item, currentPrice);
+        const difference = targetMetrics.netBenefit - currentMetrics.netBenefit;
+        const resultClass = resultClassForNet(currentMetrics.netBenefit);
+        const closeDisabled = item.status !== "Abierta" || !Number.isFinite(currentPrice) || currentPrice <= 0;
+
+        return `
+            <article class="live-card managed-live-card ${escapeHtml(item.signalClass)} ${resultClass} ${isSelected ? "selected-live-card" : ""}" data-operation-id="${escapeAttribute(item.id)}" style="--signal-color: ${escapeAttribute(routeColor)}">
+                ${cardSummary(item, isSelected, "Seguimiento por senal", `${item.signalTypeLabel || item.side} | ${item.status} | actual ${signedMoney(currentMetrics.netBenefit)}`)}
+                <div class="live-card-body">
+                    <div class="target-editor">
+                        <label>
+                            <span>Ganancia objetivo neta</span>
+                            <input data-target-percent="${escapeAttribute(item.id)}" type="number" min="-99" max="1000" step="0.01" value="${targetPercent.toFixed(2)}"/>
+                        </label>
+                        <strong class="${difference <= 0 ? "gain" : "flat"}">${difference <= 0 ? `Supera objetivo por ${formatMoney(Math.abs(difference))}` : `Faltan ${formatMoney(difference)}`}</strong>
+                    </div>
+                    <dl class="signal-detail-grid">
+                        ${detailCell("Cantidad entrada", formatMoney(currentMetrics.investment), item.signalTypeLabel || item.side)}
+                        ${detailCell("Costo unidad", formatPrice(item.entryPrice), "precio de entrada")}
+                        ${detailCell(`${assetFor(item.symbol)} obtenido`, quantityText(item), quantityMeaning(item))}
+                        ${detailCell("Comision entrada", `${formatPercent(item.feePercentPerSide ?? feePercent)}`, formatMoney(currentMetrics.entryFee))}
+                        ${detailCell("Mercado objetivo", formatPrice(targetPrice), `${targetPercent.toFixed(2)}% neto`)}
+                        ${detailCell("Ganancia objetivo", signedMoney(targetMetrics.netBenefit), "despues de salida y comisiones", signedClass(targetMetrics.netBenefit))}
+                        ${detailCell("Comision salida", `${formatPercent(item.feePercentPerSide ?? feePercent)}`, formatMoney(targetMetrics.exitFee))}
+                        ${detailCell("Total obtenido", formatMoney(currentMetrics.totalObtained), "si cierras al mercado actual")}
+                    </dl>
+                    <div class="signal-extra-row">
+                        <span>Mercado actual: <strong>${formatPrice(currentPrice)}</strong></span>
+                        <span>Ganancia actual: <strong class="${signedClass(currentMetrics.netBenefit)}">${signedMoney(currentMetrics.netBenefit)}</strong></span>
+                        <span>Diferencia: <strong class="${difference <= 0 ? "gain" : "flat"}">${difference <= 0 ? "+" : "-"}${formatMoney(Math.abs(difference))}</strong></span>
+                    </div>
+                    <div class="trade-links">
+                        <button type="button" data-chart-symbol="${escapeHtml(item.symbol)}" data-card-operation="${escapeAttribute(item.id)}">Ver en grafico</button>
+                        <button type="button" data-close-current="${escapeAttribute(item.id)}" ${closeDisabled ? "disabled" : ""}>Cerrar al mercado actual</button>
+                        ${(item.links || []).slice(0, 4).map(link => `<a href="${escapeAttribute(link.url)}" target="_blank" rel="noopener noreferrer">${escapeHtml(link.label)}</a>`).join("")}
+                    </div>
+                </div>
+            </article>`;
+    }
+
+    function cardSummary(item, isSelected, label, detail) {
+        return `
+            <div class="live-card-summary">
+                <i aria-hidden="true"></i>
+                <div>
+                    <span>${escapeHtml(label)}</span>
+                    <strong>${escapeHtml(item.symbol)}</strong>
+                    <small>${escapeHtml(detail)} | score ${item.score}/100</small>
+                </div>
+                <em>${isSelected ? "siguiendo" : "ver"}</em>
+            </div>`;
+    }
+
+    function detailCell(label, value, hint, cssClass = "") {
+        return `<div><dt>${escapeHtml(label)}</dt><dd class="${escapeAttribute(cssClass)}">${escapeHtml(value)}</dd><small>${escapeHtml(hint || "")}</small></div>`;
+    }
+
+    function tradeLinks(item, buttonText) {
+        return `<div class="trade-links">
+            <button type="button" data-chart-symbol="${escapeHtml(item.symbol)}" data-card-operation="${escapeAttribute(item.id)}">${escapeHtml(buttonText)}</button>
+            ${(item.links || []).slice(0, 4).map(link => `<a href="${escapeAttribute(link.url)}" target="_blank" rel="noopener noreferrer">${escapeHtml(link.label)}</a>`).join("")}
+        </div>`;
     }
 
     function drawOperationTrails(operations, candleData) {
@@ -513,6 +605,16 @@
     function drawPrimaryTradeLevels(trade) {
         const entry = (Number(trade.entryLower) + Number(trade.entryUpper)) / 2;
         addPriceLine(entry, colors.yellow, entryLineTitle(trade));
+
+        if (isManagedMode && trade?.id) {
+            const targetPercent = getTargetPercent(trade);
+            const targetPrice = resolveTargetExitPrice(trade, targetPercent);
+            const currentPrice = Number(trade.markPrice || trade.lastPrice);
+            addPriceLine(targetPrice, colors.green, `Objetivo neto ${targetPercent.toFixed(2)}%`);
+            addPriceLine(currentPrice, colors.blue, "Mercado actual");
+            return;
+        }
+
         addPriceLine(Number(trade.takeProfit1), colors.green, profitLineTitle(trade));
         addPriceLine(Number(trade.takeProfit2), colors.green, `${profitLineTitle(trade)} extra`);
         addPriceLine(Number(trade.stopLoss), colors.red, lossLineTitle(trade));
@@ -596,6 +698,43 @@
 
     function updateChartAnalysis(snapshot, operation, analysisTrade) {
         if (!chartAnalysis) {
+            return;
+        }
+
+        if (isManagedMode) {
+            if (!operation) {
+                chartAnalysis.innerHTML = `
+                    <div class="analysis-headline">
+                        <div>
+                            <span>${escapeHtml(snapshot.symbol)} ${escapeHtml(snapshot.interval)} | seguimiento vivo</span>
+                            <strong>Selecciona una senal</strong>
+                        </div>
+                        <small>El detalle calculara objetivo, ganancia actual, diferencia y cierre al mercado actual.</small>
+                    </div>`;
+                return;
+            }
+
+            const targetPercent = getTargetPercent(operation);
+            const currentPrice = Number(operation.markPrice || operation.lastPrice || operation.entryPrice);
+            const targetPrice = resolveTargetExitPrice(operation, targetPercent);
+            const currentMetrics = buildCostMetrics(operation, currentPrice);
+            const targetMetrics = buildCostMetrics(operation, targetPrice);
+            const difference = targetMetrics.netBenefit - currentMetrics.netBenefit;
+
+            chartAnalysis.innerHTML = `
+                <div class="analysis-headline">
+                    <div>
+                        <span>${escapeHtml(operation.symbol)} ${escapeHtml(snapshot.interval)} | ${escapeHtml(operation.signalTypeLabel || operation.side)} | ${escapeHtml(operation.status)}</span>
+                        <strong class="${signedClass(currentMetrics.netBenefit)}">${signedMoney(currentMetrics.netBenefit)} actual</strong>
+                    </div>
+                    <small>${difference <= 0 ? `El mercado ya supera el objetivo por ${formatMoney(Math.abs(difference))}.` : `Aun faltan ${formatMoney(difference)} para el objetivo configurado.`}</small>
+                </div>
+                <dl class="analysis-grid">
+                    <div><dt>Entrada</dt><dd>${formatPrice(operation.entryPrice)}</dd><small>${quantityText(operation)}</small></div>
+                    <div><dt>Mercado actual</dt><dd>${formatPrice(currentPrice)}</dd><small>${formatMoney(currentMetrics.totalObtained)} total si cierras</small></div>
+                    <div><dt>Mercado objetivo</dt><dd>${formatPrice(targetPrice)}</dd><small>${targetPercent.toFixed(2)}% neto</small></div>
+                    <div><dt>Diferencia</dt><dd class="${difference <= 0 ? "gain" : "flat"}">${difference <= 0 ? "+" : "-"}${formatMoney(Math.abs(difference))}</dd><small>esperado contra actual</small></div>
+                </dl>`;
             return;
         }
 
@@ -810,6 +949,153 @@
         return routePalette[Math.abs(hash + index) % routePalette.length];
     }
 
+    async function closeManagedOperation(operation, button) {
+        const targetPercent = getTargetPercent(operation);
+        const exitPrice = Number(operation.markPrice || operation.lastPrice || operation.entryPrice);
+        button.disabled = true;
+        button.textContent = "Cerrando...";
+
+        try {
+            const response = await fetch(`/api/posiciones/${encodeURIComponent(operation.id)}/cerrar`, {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({
+                    capital: Number(operation.capital || capital || 0),
+                    targetNetPercent: targetPercent,
+                    exitPrice
+                })
+            });
+
+            if (!response.ok) {
+                throw new Error(`HTTP ${response.status}`);
+            }
+
+            selectedOperationId = null;
+            await refreshLiveTrades();
+        } catch {
+            button.disabled = false;
+            button.textContent = "No se pudo cerrar";
+        }
+    }
+
+    function getTargetPercent(item) {
+        const stored = localStorage.getItem(targetStorageKey(item?.id));
+        const value = parseNumber(stored, defaultTargetPercent);
+        return Math.max(-99, Math.min(1000, value));
+    }
+
+    function setTargetPercent(id, value) {
+        if (!id) {
+            return;
+        }
+
+        const parsed = parseNumber(value, defaultTargetPercent);
+        localStorage.setItem(targetStorageKey(id), String(parsed));
+    }
+
+    function targetStorageKey(id) {
+        return `${targetStoragePrefix}-${id}`;
+    }
+
+    function buildCostMetrics(item, exitPrice) {
+        const investment = Number(item.capital || capital || 0);
+        const quantity = Number(item.estimatedQuantity || 0);
+        const entryPrice = Number(item.entryPrice || 0);
+        const resolvedExitPrice = Math.max(0, Number(exitPrice || 0));
+        const feeRate = Math.max(0, Number((item.feePercentPerSide ?? feePercent) || 0)) / 100;
+        const entryNotional = investment;
+        const exitNotional = quantity * resolvedExitPrice;
+        const entryFee = entryNotional * feeRate;
+        const exitFee = exitNotional * feeRate;
+        const grossBenefit = isBuyLowSellHigh(item)
+            ? (resolvedExitPrice - entryPrice) * quantity
+            : (entryPrice - resolvedExitPrice) * quantity;
+        const netBenefit = grossBenefit - entryFee - exitFee;
+        const totalObtained = investment + netBenefit;
+        const netPercent = investment <= 0 ? 0 : netBenefit / investment * 100;
+
+        return {
+            investment,
+            quantity,
+            entryPrice,
+            exitPrice: resolvedExitPrice,
+            entryFee,
+            exitFee,
+            grossBenefit,
+            netBenefit,
+            totalObtained,
+            netPercent
+        };
+    }
+
+    function resolveTargetExitPrice(item, targetPercent) {
+        const investment = Number(item.capital || capital || 0);
+        const quantity = Number(item.estimatedQuantity || 0);
+        const entryPrice = Number(item.entryPrice || 0);
+        const feeRate = Math.max(0, Number((item.feePercentPerSide ?? feePercent) || 0)) / 100;
+        if (investment <= 0 || quantity <= 0 || entryPrice <= 0) {
+            return entryPrice;
+        }
+
+        const targetNet = investment * Number(targetPercent || 0) / 100;
+        const entryFee = investment * feeRate;
+        const exitNotional = isBuyLowSellHigh(item)
+            ? (investment + entryFee + targetNet) / Math.max(0.00000001, 1 - feeRate)
+            : (investment - entryFee - targetNet) / (1 + feeRate);
+
+        return Math.max(0.00000001, exitNotional / quantity);
+    }
+
+    function resultClassForNet(value) {
+        if (value > 0.01) {
+            return "result-green";
+        }
+
+        if (value < -0.01) {
+            return "result-red";
+        }
+
+        return "result-yellow";
+    }
+
+    function signedClass(value) {
+        return value > 0.01 ? "gain" : value < -0.01 ? "loss" : "flat";
+    }
+
+    function signedMoney(value) {
+        const sign = value > 0 ? "+" : value < 0 ? "-" : "";
+        return `${sign}${formatMoney(Math.abs(value))}`;
+    }
+
+    function formatPercent(value) {
+        return `${Number(value || 0).toFixed(2)}%`;
+    }
+
+    function quantityText(item) {
+        return `${Number(item.estimatedQuantity || 0).toLocaleString("en-US", { minimumFractionDigits: 8, maximumFractionDigits: 8 })} ${assetFor(item.symbol)}`;
+    }
+
+    function quantityMeaning(item) {
+        return isBuyLowSellHigh(item) ? "moneda comprada" : "moneda vendida simulada";
+    }
+
+    function targetActionText(item) {
+        return isBuyLowSellHigh(item) ? "vender ahi" : "comprar de regreso ahi";
+    }
+
+    function assetFor(symbol) {
+        const value = String(symbol || "").toUpperCase();
+        if (value.endsWith("USDT")) {
+            return value.slice(0, -4);
+        }
+
+        if (value.endsWith("USD")) {
+            return value.slice(0, -3);
+        }
+
+        return value || "MONEDA";
+    }
+
     function isBuyLowSellHigh(item) {
         return item?.side === "Long" || item?.signalType === "compra-bajo-vende-alto";
     }
@@ -831,6 +1117,10 @@
     }
 
     function exitMarkerText(item) {
+        if (isManagedMode && item?.status === "Abierta") {
+            return "Actual";
+        }
+
         return isBuyLowSellHigh(item) ? "Vender" : "Comprar";
     }
 
@@ -926,6 +1216,11 @@
 
     function formatMoney(value) {
         return Number(value || 0).toLocaleString("en-US", { style: "currency", currency: "USD", minimumFractionDigits: 2, maximumFractionDigits: 2 });
+    }
+
+    function parseNumber(value, fallback) {
+        const parsed = Number(value);
+        return Number.isFinite(parsed) ? parsed : fallback;
     }
 
     function formatTime(value) {

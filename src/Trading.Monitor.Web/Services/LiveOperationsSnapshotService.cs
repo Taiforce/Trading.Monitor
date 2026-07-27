@@ -13,8 +13,9 @@ public sealed class LiveOperationsSnapshotService(
 {
     private static readonly CultureInfo CurrencyCulture = CultureInfo.GetCultureInfo("en-US");
     private const int PreEntryLeadMinutes = 3;
+    private static readonly TradeInstructionService ClassicInstructionService = new(new RiskOptions { ManagedProfitExitEnabled = false });
 
-    public async Task<LiveOperationsSnapshot> GetAsync(decimal? capital, string? estado, string? symbol, string? tipoSenal, CancellationToken cancellationToken)
+    public async Task<LiveOperationsSnapshot> GetAsync(decimal? capital, string? estado, string? symbol, string? tipoSenal, string? mode, CancellationToken cancellationToken)
     {
         var resolvedCapital = capital.GetValueOrDefault();
         if (resolvedCapital <= 0m)
@@ -22,23 +23,24 @@ public sealed class LiveOperationsSnapshotService(
 
         var report = await opportunityRepository.GetDashboardReportAsync(resolvedCapital, cancellationToken);
         var now = DateTimeOffset.UtcNow;
+        var resolvedInstructionService = IsClassicMode(mode) ? ClassicInstructionService : instructionService;
 
         var filteredRows = ApplyFilters(report.RecentSignals, estado, symbol, tipoSenal);
         var operations = filteredRows
             .OrderByDescending(row => row.Status == OpportunityStatus.Open)
             .ThenBy(row => SignalTypeFormatter.Priority(row.Side))
-            .ThenByDescending(row => instructionService.Create(row).Highlight)
+            .ThenByDescending(row => resolvedInstructionService.Create(row).Highlight)
             .ThenByDescending(row => row.ObservedAt)
             .Take(18)
-            .Select(row => ToDto(row, now))
+            .Select(row => ToDto(row, now, resolvedInstructionService))
             .ToArray();
 
         return new LiveOperationsSnapshot(now, operations.Count(row => row.Status == "Abierta"), operations.Count(row => row.Highlight), operations);
     }
 
-    private LiveOperationDto ToDto(Application.Reporting.OpportunityReportRow row, DateTimeOffset now)
+    private LiveOperationDto ToDto(Application.Reporting.OpportunityReportRow row, DateTimeOffset now, TradeInstructionService resolvedInstructionService)
     {
-        var instruction = instructionService.Create(row);
+        var instruction = resolvedInstructionService.Create(row);
         var secondsRemaining = row.Status == OpportunityStatus.Open ? Math.Max(0, (int)Math.Round((row.ExpiresAt - now).TotalSeconds)) : 0;
         var preEntryUntil = row.ObservedAt.AddMinutes(PreEntryLeadMinutes);
         var preEntrySecondsRemaining = row.Status == OpportunityStatus.Open ? Math.Max(0, (int)Math.Round((preEntryUntil - now).TotalSeconds)) : 0;
@@ -101,7 +103,13 @@ public sealed class LiveOperationsSnapshotService(
             row.Capital,
             row.EstimatedQuantity,
             breakdown.TotalFees,
-            null,
+            markPrice,
+            reportingOptions.CurrentValue.EstimatedFeePercentPerSide,
+            breakdown.EntryFee,
+            breakdown.ExitFee,
+            breakdown.NetBenefit,
+            breakdown.NetPercent,
+            breakdown.TotalObtained,
             instruction.EntryTiming,
             instruction.ExitTiming,
             instruction.ProfitReport,
@@ -122,6 +130,11 @@ public sealed class LiveOperationsSnapshotService(
             costText,
             conversion.BreakEvenText,
             BuildLinks(row.Symbol));
+    }
+
+    private static bool IsClassicMode(string? mode)
+    {
+        return string.Equals(mode, "classic", StringComparison.OrdinalIgnoreCase);
     }
 
     private static IEnumerable<Application.Reporting.OpportunityReportRow> ApplyFilters(IEnumerable<Application.Reporting.OpportunityReportRow> rows, string? estado, string? symbol, string? tipoSenal)

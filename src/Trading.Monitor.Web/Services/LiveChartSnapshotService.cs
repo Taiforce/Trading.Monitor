@@ -12,7 +12,7 @@ public sealed class LiveChartSnapshotService(
     LiveOperationsSnapshotService operationsSnapshotService,
     IOptionsMonitor<ReportingOptions> reportingOptions)
 {
-    public async Task<LiveChartSnapshot> GetAsync(string? symbol, string? interval, decimal? capital, string? estado, string? tipoSenal, DateTimeOffset? from, DateTimeOffset? to, CancellationToken cancellationToken)
+    public async Task<LiveChartSnapshot> GetAsync(string? symbol, string? interval, decimal? capital, string? estado, string? tipoSenal, string? mode, DateTimeOffset? from, DateTimeOffset? to, CancellationToken cancellationToken)
     {
         var resolvedSymbol = string.IsNullOrWhiteSpace(symbol) ? "BTCUSDT" : symbol.Trim().ToUpperInvariant();
         var resolvedInterval = NormalizeInterval(interval);
@@ -22,7 +22,7 @@ public sealed class LiveChartSnapshotService(
 
         var range = ResolveCandleRange(resolvedInterval, from, to);
         var candles = await GetCandlesAsync(resolvedSymbol, resolvedInterval, range.From, range.To, cancellationToken);
-        var operations = await operationsSnapshotService.GetAsync(resolvedCapital, estado, resolvedSymbol, tipoSenal, cancellationToken);
+        var operations = await operationsSnapshotService.GetAsync(resolvedCapital, estado, resolvedSymbol, tipoSenal, mode, cancellationToken);
         var currentPrice = candles.LastOrDefault()?.Close;
         var matchingOperations = operations.Operations
             .Where(operation => string.Equals(operation.Symbol, resolvedSymbol, StringComparison.OrdinalIgnoreCase))
@@ -60,6 +60,11 @@ public sealed class LiveChartSnapshotService(
             LastPrice = currentPrice ?? operation.LastPrice,
             MarkPrice = markPrice,
             EstimatedFees = breakdown.TotalFees,
+            EntryFee = breakdown.EntryFee,
+            ExitFee = breakdown.ExitFee,
+            CurrentNetBenefit = breakdown.NetBenefit,
+            CurrentNetPercent = breakdown.NetPercent,
+            CurrentTotalObtained = breakdown.TotalObtained,
             ConversionHeadline = conversion.DetailText,
             EntryConversionText = conversion.EntryText,
             ExitConversionText = conversion.ExitText,

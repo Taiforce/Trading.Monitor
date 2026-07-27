@@ -797,6 +797,10 @@ td small,
     margin: 0;
 }
 
+.live-card .signal-detail-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
 .live-card dt {
     color: var(--muted);
     font-size: 0.72rem;
@@ -816,6 +820,63 @@ td small,
     font-size: 0.78rem;
     font-weight: 700;
     line-height: 1.35;
+}
+
+.target-editor {
+    display: grid;
+    grid-template-columns: minmax(150px, 210px) minmax(0, 1fr);
+    gap: 10px;
+    align-items: end;
+    background: var(--surface);
+    border: 1px solid var(--line);
+    border-radius: 6px;
+    padding: 10px;
+}
+
+.target-editor label {
+    display: grid;
+    gap: 5px;
+    margin: 0;
+}
+
+.target-editor input {
+    min-height: 38px;
+    border: 1px solid var(--line);
+    border-radius: 6px;
+    background: var(--surface-2);
+    color: var(--ink);
+    font: inherit;
+    padding: 0 10px;
+}
+
+.target-editor strong {
+    align-self: center;
+    font-size: 0.92rem;
+}
+
+.signal-extra-row {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 8px;
+}
+
+.signal-extra-row span {
+    min-height: 36px;
+    display: grid;
+    align-content: center;
+    background: var(--surface);
+    border: 1px solid var(--line);
+    border-radius: 6px;
+    padding: 8px 10px;
+    color: var(--muted);
+    font-size: 0.78rem;
+    font-weight: 800;
+    text-transform: none;
+}
+
+.signal-extra-row strong {
+    display: inline;
+    font-size: 0.86rem;
 }
 
 .conversion-box {
@@ -2118,6 +2179,30 @@ td small,
     padding: 14px;
 }
 
+.live-card.result-green {
+    border-left-color: var(--good);
+}
+
+.live-card.result-yellow {
+    border-left-color: var(--warn);
+}
+
+.live-card.result-red {
+    border-left-color: var(--bad);
+}
+
+.live-card.result-green .live-card-summary i {
+    background: var(--good);
+}
+
+.live-card.result-yellow .live-card-summary i {
+    background: var(--warn);
+}
+
+.live-card.result-red .live-card-summary i {
+    background: var(--bad);
+}
+
 .managed-position-card header {
     display: flex;
     align-items: start;
@@ -2601,7 +2686,9 @@ td small,
     .source-row,
     .exchange-status-grid,
     .cost-grid,
-    .managed-close-form {
+    .managed-close-form,
+    .target-editor,
+    .signal-extra-row {
         grid-template-columns: 1fr;
     }
 

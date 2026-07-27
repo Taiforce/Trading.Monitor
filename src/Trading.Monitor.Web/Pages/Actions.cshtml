@@ -7,8 +7,8 @@
 <section class="dashboard">
     <div class="page-head">
         <div>
-            <p class="eyebrow">Entradas y salidas fijas</p>
-            <h1>Senales clasicas</h1>
+            <p class="eyebrow">Entrada y salida fija</p>
+            <h1>Operaciones por senal</h1>
         </div>
         <form method="get" class="filter-bar actions-filter" id="actionsFilterForm">
             <label>
@@ -69,9 +69,63 @@
     </section>
 
     <div class="insight-strip trade-type-guide">
-        <span>Vista clasica</span>
-        <strong>Aqui ves el plan tradicional: entrar, salida objetivo, salida extra y perdida maxima. Para posiciones vivas con salida administrada usa <a asp-page="/ManagedPositions">Posiciones vivas</a>.</strong>
+        <span>Operacion fija</span>
+        <strong>Cada senal trae entrada, mercado objetivo y salida. Para entrar y dejar que el sistema busque la salida despues, usa <a asp-page="/ManagedPositions">Seguimiento por senal</a>.</strong>
     </div>
+
+    <section class="report-section live-board" data-live-mode="classic" data-live-capital="@Model.Report.Capital" data-live-estado="@Model.Estado" data-live-symbol="@Model.Symbol" data-live-tipo-senal="@Model.TipoSenal" data-live-fee-percent="@Model.EstimatedFeePercentPerSide">
+        <div class="section-title">
+            <h2>Grafico y seguimiento</h2>
+            <span id="liveUpdated">actualizando...</span>
+        </div>
+        <div class="chart-toolbar" aria-label="Controles del grafico">
+            <div>
+                <span>Activo</span>
+                <button type="button" data-chart-symbol-button="BTCUSDT">BTC</button>
+                <button type="button" data-chart-symbol-button="ETHUSDT">ETH</button>
+            </div>
+            <div>
+                <span>Tiempo</span>
+                <button type="button" data-chart-interval="1s">1s</button>
+                <button type="button" data-chart-interval="1m" class="active">1m</button>
+                <button type="button" data-chart-interval="15m">15m</button>
+                <button type="button" data-chart-interval="1h">1h</button>
+                <button type="button" data-chart-interval="1d">1d</button>
+                <button type="button" data-chart-interval="1w">1w</button>
+                <button type="button" data-chart-interval="1M">1M</button>
+            </div>
+            <div class="chart-zoom-control">
+                <span>Zoom</span>
+                <button type="button" data-chart-zoom-out>-</button>
+                <input id="chartZoom" type="range" min="0" max="100" value="45" aria-label="Zoom del grafico"/>
+                <button type="button" data-chart-zoom-in>+</button>
+                <strong id="chartZoomLabel">medio</strong>
+            </div>
+            <div>
+                <button type="button" data-chart-live>Vivo</button>
+            </div>
+        </div>
+        <div id="chartAnalysis" class="chart-analysis">
+            <strong>Calculando lectura...</strong>
+            <span>El tablero se actualiza solo.</span>
+        </div>
+        <div class="live-layout">
+            <div class="trade-terminal">
+                <div class="terminal-strip" id="terminalStrip">
+                    <strong>BTCUSDT</strong>
+                    <span>cargando mercado...</span>
+                </div>
+                <div id="advancedTradesChart" class="tradingview-chart" aria-label="Grafico de operaciones por senal"></div>
+                <div id="chartHoverInfo" class="chart-hover-card" hidden></div>
+            </div>
+            <div id="liveTradeCards" class="live-trade-list">
+                <div class="empty-state">
+                    <strong>Cargando operaciones...</strong>
+                    <span>El tablero se refresca solo.</span>
+                </div>
+            </div>
+        </div>
+    </section>
 
     @if (Model.HighlightedRows.Count > 0)
     {
@@ -116,13 +170,11 @@
         }
         else
         {
-            <div class="trade-card-grid">
+            <div class="trade-card-grid compact-signal-grid">
                 @foreach (var row in Model.Rows.Take(12))
                 {
                     var instruction = Model.InstructionFor(row);
                     var breakdown = Model.CostBreakdown(row);
-                    var targetMove = Math.Abs(Model.PriceMovePercent(row.EntryPrice, row.TakeProfit1));
-                    var stopMove = Math.Abs(Model.PriceMovePercent(row.EntryPrice, row.StopLoss));
                     <article class="trade-card @instruction.CssClass @Model.NetResultClass(breakdown)">
                         <div class="trade-card-head">
                             <div>
@@ -139,60 +191,41 @@
                             </div>
                         </div>
 
-                        <div class="instruction-panel">
+                        <div class="money-scenario signal-detail-fields">
                             <div>
-                                <small>Entrar</small>
-                                <strong>@instruction.EntryTiming</strong>
-                            </div>
-                            <div>
-                                <small>Salir</small>
-                                <strong>@instruction.ExitTiming</strong>
-                            </div>
-                            <div>
-                                <small>Tiempo vivo</small>
-                                <strong>@Model.TimeLeft(row)</strong>
-                            </div>
-                            <div>
-                                <small>Pre-alerta</small>
-                                <strong>@Model.PreEntryLeft(row)</strong>
-                            </div>
-                        </div>
-
-                        <div class="money-scenario">
-                            <div>
-                                <span>Resultado neto</span>
-                                <strong>@Model.Money(breakdown.NetBenefit)</strong>
-                                <small>@Model.NetResultLabel(breakdown)</small>
-                            </div>
-                            <div>
-                                <span>Inversion</span>
+                                <span>Cantidad entrada</span>
                                 <strong>@Model.Money(breakdown.Investment)</strong>
-                                <small>@Model.Quantity(row)</small>
+                                <small>@Model.SignalTypeLabel(row.Side)</small>
+                            </div>
+                            <div>
+                                <span>Costo unidad</span>
+                                <strong>@Model.Price(row.EntryPrice)</strong>
+                                <small>precio de entrada</small>
+                            </div>
+                            <div>
+                                <span>BTC/ETH obtenido</span>
+                                <strong>@Model.Quantity(row)</strong>
+                                <small>cantidad simulada</small>
                             </div>
                             <div>
                                 <span>Comision entrada</span>
-                                <strong>@Model.Money(breakdown.EntryFee)</strong>
-                                <small>sobre @Model.Money(breakdown.EntryNotional)</small>
+                                <strong>@Model.EstimatedFeePercentPerSide.ToString("N2")%</strong>
+                                <small>@Model.Money(breakdown.EntryFee)</small>
                             </div>
                             <div>
-                                <span>Comision salida</span>
-                                <strong>@Model.Money(breakdown.ExitFee)</strong>
-                                <small>sobre @Model.Money(breakdown.ExitNotional)</small>
+                                <span>Mercado objetivo</span>
+                                <strong>@Model.Price(row.TakeProfit1)</strong>
+                                <small>@(row.Side == Trading.Monitor.Domain.MarketSide.Long ? "vender ahi" : "comprar de regreso ahi")</small>
                             </div>
                             <div>
                                 <span>Ganancia objetivo</span>
-                                <strong class="gain">@Model.Money(row.NetProfitAtTakeProfit1)</strong>
-                                <small>@targetMove.ToString("N2")%</small>
+                                <strong class="@Model.SignedClass(breakdown.NetBenefit)">@Model.Money(breakdown.NetBenefit)</strong>
+                                <small>@Model.NetResultLabel(breakdown)</small>
                             </div>
                             <div>
-                                <span>Ganancia extra</span>
-                                <strong class="gain">@Model.Money(row.NetProfitAtTakeProfit2)</strong>
-                                <small>@Model.PercentOfCapital(row.NetProfitAtTakeProfit2).ToString("N2")%</small>
-                            </div>
-                            <div>
-                                <span>Perdida maxima</span>
-                                <strong class="loss">@Model.Money(row.NetLossAtStop)</strong>
-                                <small>@stopMove.ToString("N2")%</small>
+                                <span>Comision salida</span>
+                                <strong>@Model.EstimatedFeePercentPerSide.ToString("N2")%</strong>
+                                <small>@Model.Money(breakdown.ExitFee)</small>
                             </div>
                             <div>
                                 <span>Total obtenido</span>
@@ -201,24 +234,10 @@
                             </div>
                         </div>
 
-                        <div class="execution-readout">
-                            <strong class="@Model.SignedClass(row.RealizedNetPnL)">@Model.RealizedHeadline(row)</strong>
-                            <p>@Model.ExecutionFormula(row)</p>
-                        </div>
-
-                        <details class="compact-details">
-                            <summary>Motivo</summary>
-                            <p>@Model.ShortReason(row)</p>
-                            @if (Model.SplitNotes(row.Risks).Count > 0)
-                            {
-                                <p class="loss">@Model.SplitNotes(row.Risks).First()</p>
-                            }
-                        </details>
-
                         <div class="trade-footer">
-                            <span>@Model.StatusMeaning(row.Status)</span>
+                            <span>Mercado actual @Model.Price(row.LastPrice)</span>
+                            <span>Perdida maxima @Model.Money(row.NetLossAtStop)</span>
                             <span>Riesgo/beneficio 1:@row.RiskReward.ToString("N2")</span>
-                            <span>Max @Model.MaxLife(row)</span>
                         </div>
                     </article>
                 }
@@ -226,93 +245,9 @@
         }
     </section>
 
-    <section class="report-section">
-        <div class="section-title">
-            <h2>Vista tabular</h2>
-            <span>detalle exacto</span>
-        </div>
-
-        @if (Model.Rows.Count > 0)
-        {
-            <div class="table-wrap">
-                <table class="report-table">
-                    <thead>
-                    <tr>
-                        <th>Fecha</th>
-                        <th>Activo</th>
-                        <th>Accion</th>
-                        <th>Tipo de senal</th>
-                        <th>Estado</th>
-                        <th>Entrada</th>
-                        <th>Salida</th>
-                        <th>Ganar / ganar mas</th>
-                        <th>Perdida maxima</th>
-                        <th>Ganancia objetivo</th>
-                        <th>Perdida posible</th>
-                        <th>Costo / empate</th>
-                        <th>Calculo</th>
-                        <th>Realizado</th>
-                        <th>Score</th>
-                    </tr>
-                    </thead>
-                    <tbody>
-                    @foreach (var row in Model.Rows)
-                    {
-                        var instruction = Model.InstructionFor(row);
-                        <tr>
-                            <td>
-                                <strong>@row.ObservedAt.ToLocalTime().ToString("dd MMM HH:mm")</strong>
-                                <small>exp @row.ExpiresAt.ToLocalTime().ToString("HH:mm")</small>
-                            </td>
-                            <td>@row.Symbol</td>
-                            <td>
-                                <strong>@instruction.ActionLabel</strong>
-                                <small>@instruction.ConvictionLabel</small>
-                            </td>
-                            <td>
-                                <strong>@Model.SignalTypeLabel(row.Side)</strong>
-                                <small>@Model.SignalTypeRequirement(row.Side)</small>
-                            </td>
-                            <td>
-                                <span class="status @Model.StatusClass(row.Status)">@Model.StatusLabel(row.Status)</span>
-                            </td>
-                            <td>
-                                <strong>@Model.Price(row.EntryLower) - @Model.Price(row.EntryUpper)</strong>
-                                <small>base @Model.Price(row.EntryPrice)</small>
-                            </td>
-                            <td>
-                                @if (row.ExitPrice.HasValue)
-                                {
-                                    <strong>@Model.Price(row.ExitPrice.Value)</strong>
-                                    <small>@row.ExitTime?.ToLocalTime().ToString("dd MMM HH:mm")</small>
-                                }
-                                else
-                                {
-                                    <span class="muted">Pendiente</span>
-                                }
-                            </td>
-                            <td>
-                                <strong>@Model.Price(row.TakeProfit1)</strong>
-                                <small>@Model.Price(row.TakeProfit2)</small>
-                            </td>
-                            <td>@Model.Price(row.StopLoss)</td>
-                            <td class="gain">@Model.Money(row.NetProfitAtTakeProfit1)</td>
-                            <td class="loss">@Model.Money(row.NetLossAtStop)</td>
-                            <td>
-                                <strong>@Model.Money(row.EstimatedFees)</strong>
-                                <small>@Model.Price(Model.BreakEvenPrice(row))</small>
-                            </td>
-                            <td>
-                                <strong>@Model.Quantity(row)</strong>
-                                <small>@Model.EntryExit(row)</small>
-                            </td>
-                            <td class="@Model.SignedClass(row.RealizedNetPnL)">@Model.Money(row.RealizedNetPnL)</td>
-                            <td>@row.Score</td>
-                        </tr>
-                    }
-                    </tbody>
-                </table>
-            </div>
-        }
-    </section>
 </section>
+
+@section Scripts {
+    <script src="~/lib/lightweight-charts/lightweight-charts.standalone.production.js"></script>
+    <script src="~/js/trading-chart.js" asp-append-version="true"></script>
+}

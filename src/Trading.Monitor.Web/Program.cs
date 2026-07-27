@@ -1,5 +1,6 @@
 using Serilog;
 using Serilog.Events;
+using Trading.Monitor.Application.Abstractions;
 using Trading.Monitor.Application.Configuration;
 using Trading.Monitor.Application.Services;
 using Trading.Monitor.Infrastructure;
@@ -62,14 +63,45 @@ try
     app.UseRouting();
     app.UseAuthorization();
     app.MapStaticAssets();
-    app.MapGet("/api/operaciones-vivas", async (decimal? capital, string? estado, string? symbol, string? tipoSenal, LiveOperationsSnapshotService snapshotService, CancellationToken cancellationToken) =>
+    app.MapGet("/api/operaciones-vivas", async (decimal? capital, string? estado, string? symbol, string? tipoSenal, string? mode, LiveOperationsSnapshotService snapshotService, CancellationToken cancellationToken) =>
     {
-        return Results.Json(await snapshotService.GetAsync(capital, estado, symbol, tipoSenal, cancellationToken));
+        return Results.Json(await snapshotService.GetAsync(capital, estado, symbol, tipoSenal, mode, cancellationToken));
     });
-    app.MapGet("/api/grafico-vivo", async (string? symbol, string? interval, decimal? capital, string? estado, string? tipoSenal, DateTimeOffset? from, DateTimeOffset? to,
+    app.MapGet("/api/grafico-vivo", async (string? symbol, string? interval, decimal? capital, string? estado, string? tipoSenal, string? mode, DateTimeOffset? from, DateTimeOffset? to,
         LiveChartSnapshotService chartService, CancellationToken cancellationToken) =>
     {
-        return Results.Json(await chartService.GetAsync(symbol, interval, capital, estado, tipoSenal, from, to, cancellationToken));
+        return Results.Json(await chartService.GetAsync(symbol, interval, capital, estado, tipoSenal, mode, from, to, cancellationToken));
+    });
+    app.MapPost("/api/posiciones/{id:guid}/cerrar", async (Guid id, ManagedCloseRequest request, IOpportunityRepository opportunityRepository,
+        Microsoft.Extensions.Options.IOptionsMonitor<ReportingOptions> reportingOptions, CancellationToken cancellationToken) =>
+    {
+        var capital = request.Capital <= 0m ? reportingOptions.CurrentValue.DefaultCapital : request.Capital;
+        var rows = await opportunityRepository.GetSignalsAsync(capital, cancellationToken);
+        var row = rows.FirstOrDefault(item => item.Id == id);
+
+        if (row is null)
+            return Results.NotFound(new { message = "Senal no encontrada." });
+
+        if (row.Status != Trading.Monitor.Domain.OpportunityStatus.Open)
+            return Results.BadRequest(new { message = "La senal ya esta cerrada." });
+
+        var exitPrice = request.ExitPrice > 0m
+            ? request.ExitPrice
+            : TradeCostCalculator.ResolveExitPriceForNetPercent(row.Side, row.Capital, row.EstimatedQuantity, row.EntryPrice, request.TargetNetPercent, reportingOptions.CurrentValue.EstimatedFeePercentPerSide);
+        var breakdown = TradeCostCalculator.Build(row.Side, row.Capital, row.EstimatedQuantity, row.EntryPrice, exitPrice, reportingOptions.CurrentValue.EstimatedFeePercentPerSide);
+        var reason = $"Cierre manual web al mercado actual. Objetivo neto configurado {request.TargetNetPercent:N2}%. Resultado neto {breakdown.NetPercent:N2}% despues de comisiones.";
+        var exit = new Trading.Monitor.Domain.OpportunityExit(Trading.Monitor.Domain.OpportunityStatus.ManuallyClosed, DateTimeOffset.UtcNow, exitPrice, reason);
+
+        await opportunityRepository.UpdateExitAsync(row.Id, exit, breakdown.GrossBenefit, breakdown.NetBenefit, cancellationToken);
+
+        return Results.Json(new
+        {
+            status = "cerrada",
+            exitPrice,
+            breakdown.NetBenefit,
+            breakdown.NetPercent,
+            breakdown.TotalObtained
+        });
     });
     app.MapGet("/api/exchange/status", async (ExchangeConnectionStatusService statusService, CancellationToken cancellationToken) =>
     {
@@ -86,3 +118,5 @@ finally
 {
     await Log.CloseAndFlushAsync();
 }
+
+internal sealed record ManagedCloseRequest(decimal Capital, decimal TargetNetPercent, decimal ExitPrice);

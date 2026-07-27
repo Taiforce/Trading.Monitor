@@ -7,8 +7,8 @@
 <section class="dashboard">
     <div class="page-head">
         <div>
-            <p class="eyebrow">Entrada ahora, salida administrada</p>
-            <h1>Posiciones vivas</h1>
+            <p class="eyebrow">Entrada viva, salida por analisis</p>
+            <h1>Seguimiento por senal</h1>
         </div>
         <form method="get" class="filter-bar managed-filter">
             <label>
@@ -73,13 +73,13 @@
     </section>
 
     <div class="insight-strip trade-type-guide">
-        <span>Vista viva</span>
-        <strong>Entras con la senal fuerte y el sistema espera una salida neta. Si no quieres dejar una posicion colgada, cambia el porcentaje y marca el cierre manual.</strong>
+        <span>Sin salida fija</span>
+        <strong>La senal indica entrada. Despues el sistema monitorea el mercado y tu puedes ajustar el porcentaje neto por senal para decidir si cierras al precio actual.</strong>
     </div>
 
-    <section class="report-section live-board" data-live-capital="@Model.Report.Capital" data-live-estado="@Model.Estado" data-live-symbol="@Model.Symbol" data-live-tipo-senal="@Model.TipoSenal">
+    <section class="report-section live-board" data-live-mode="managed" data-live-capital="@Model.Report.Capital" data-live-estado="@Model.Estado" data-live-symbol="@Model.Symbol" data-live-tipo-senal="@Model.TipoSenal" data-live-target-net-percent="@Model.TargetNetPercent" data-live-fee-percent="@Model.EstimatedFeePercentPerSide">
         <div class="section-title">
-            <h2>Grafico en vivo</h2>
+            <h2>Seguimiento en vivo</h2>
             <span id="liveUpdated">actualizando...</span>
         </div>
         <div class="chart-toolbar" aria-label="Controles del grafico">
@@ -119,96 +119,16 @@
                     <strong>BTCUSDT</strong>
                     <span>cargando mercado...</span>
                 </div>
-                <div id="advancedTradesChart" class="tradingview-chart" aria-label="Grafico de posiciones vivas"></div>
+                <div id="advancedTradesChart" class="tradingview-chart" aria-label="Grafico de seguimiento por senal"></div>
                 <div id="chartHoverInfo" class="chart-hover-card" hidden></div>
             </div>
             <div id="liveTradeCards" class="live-trade-list">
                 <div class="empty-state">
-                    <strong>Cargando posiciones...</strong>
+                    <strong>Cargando seguimientos...</strong>
                     <span>El tablero se refresca solo.</span>
                 </div>
             </div>
         </div>
-    </section>
-
-    <section class="report-section">
-        <div class="section-title">
-            <h2>Control manual de posiciones</h2>
-            <span>@Model.Rows.Count registros</span>
-        </div>
-
-        @if (Model.Rows.Count == 0)
-        {
-            <div class="empty-state">
-                <strong>Sin posiciones para este filtro.</strong>
-                <span>Cuando exista una senal viva aparecera aqui.</span>
-            </div>
-        }
-        else
-        {
-            <div class="managed-position-list">
-                @foreach (var row in Model.Rows.Take(40))
-                {
-                    var targetPrice = Model.TargetExitPrice(row);
-                    var breakdown = Model.TargetBreakdown(row);
-                    <article class="managed-position-card @Model.NetResultClass(breakdown)">
-                        <header>
-                            <div>
-                                <strong>@row.Symbol</strong>
-                                <span class="signal-type-badge @Model.SignalTypeClass(row.Side)">@Model.SignalTypeLabel(row.Side)</span>
-                                <small>@Model.ManagedStatusText(row)</small>
-                            </div>
-                            <span class="status @Model.StatusClass(row.Status)">@Model.StatusLabel(row.Status)</span>
-                        </header>
-
-                        <div class="cost-grid">
-                            <article>
-                                <span>Inversion</span>
-                                <strong>@Model.Money(breakdown.Investment)</strong>
-                                <small>@Model.Quantity(row)</small>
-                            </article>
-                            <article>
-                                <span>Comision entrada</span>
-                                <strong>@Model.Money(breakdown.EntryFee)</strong>
-                                <small>@Model.EntryAction(row) a @Model.Price(row.EntryPrice)</small>
-                            </article>
-                            <article>
-                                <span>Comision salida</span>
-                                <strong>@Model.Money(breakdown.ExitFee)</strong>
-                                <small>@Model.TargetAction(row) a @Model.Price(targetPrice)</small>
-                            </article>
-                            <article>
-                                <span>Beneficio</span>
-                                <strong class="@Model.SignedClass(breakdown.NetBenefit)">@Model.Money(breakdown.NetBenefit)</strong>
-                                <small>@Model.NetResultLabel(breakdown)</small>
-                            </article>
-                            <article>
-                                <span>Total obtenido</span>
-                                <strong>@Model.Money(breakdown.TotalObtained)</strong>
-                                <small>@breakdown.NetPercent.ToString("N2")% neto</small>
-                            </article>
-                        </div>
-
-                        @if (row.Status == Trading.Monitor.Domain.OpportunityStatus.Open)
-                        {
-                            <form method="post" asp-page-handler="Close" class="managed-close-form">
-                                <input type="hidden" name="CloseId" value="@row.Id"/>
-                                <input type="hidden" name="Capital" value="@Model.Capital"/>
-                                <input type="hidden" name="Estado" value="@Model.Estado"/>
-                                <input type="hidden" name="Symbol" value="@Model.Symbol"/>
-                                <input type="hidden" name="TipoSenal" value="@Model.TipoSenal"/>
-                                <input type="hidden" name="TargetNetPercent" value="@Model.TargetNetPercent"/>
-                                <label>
-                                    <span>Cerrar con neto %</span>
-                                    <input name="CloseNetPercent" type="number" min="-99" max="1000" step="0.01" value="@Model.TargetNetPercent.ToString(System.Globalization.CultureInfo.InvariantCulture)"/>
-                                </label>
-                                <button type="submit">Marcar cerrada</button>
-                            </form>
-                        }
-                    </article>
-                }
-            </div>
-        }
     </section>
 </section>
 

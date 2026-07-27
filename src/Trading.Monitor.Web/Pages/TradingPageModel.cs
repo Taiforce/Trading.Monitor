@@ -20,6 +20,8 @@ public abstract class TradingPageModel(IOpportunityRepository opportunityReposit
 
     public DashboardReport Report { get; protected set; } = EmptyReport(1000m);
 
+    public decimal EstimatedFeePercentPerSide => reportingOptions.CurrentValue.EstimatedFeePercentPerSide;
+
     protected async Task LoadReportAsync(CancellationToken cancellationToken)
     {
         if (Capital <= 0m)
