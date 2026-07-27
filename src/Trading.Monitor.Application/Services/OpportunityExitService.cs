@@ -31,11 +31,11 @@ public sealed class OpportunityExitService
                 return new OpportunityExit(OpportunityStatus.HitStopLoss, candle.CloseTime, opportunity.StopLoss, "Salida de proteccion activada por perdida maxima configurada.");
 
             var favorablePrice = opportunity.Side == MarketSide.Long ? candle.High : candle.Low;
-            var favorableNetPercent = NetPercent(opportunity, favorablePrice);
+            var favorableNetPercent = NetPercent(opportunity, favorablePrice, riskOptions.EstimatedFeePercentPerSide);
             if (favorableNetPercent > peakNetPercent)
                 peakNetPercent = favorableNetPercent;
 
-            var currentNetPercent = NetPercent(opportunity, candle.Close);
+            var currentNetPercent = NetPercent(opportunity, candle.Close, riskOptions.EstimatedFeePercentPerSide);
             var gaveBackFromPeak = peakNetPercent - currentNetPercent;
             var momentumWeakness = HasMomentumWeakness(opportunity.Side, candle, previous);
             var trailingExit = trailingGivebackPercent > 0m && gaveBackFromPeak >= trailingGivebackPercent;
@@ -62,7 +62,7 @@ public sealed class OpportunityExitService
         if (riskOptions.ManagedExpiryExitEnabled && DateTimeOffset.UtcNow > opportunity.ExpiresAt)
         {
             var last = relevantCandles[^1];
-            var netPercent = NetPercent(opportunity, last.Close);
+            var netPercent = NetPercent(opportunity, last.Close, riskOptions.EstimatedFeePercentPerSide);
             var status = netPercent > 0m ? OpportunityStatus.ManagedProfitExit : OpportunityStatus.Expired;
             var reason = netPercent > 0m
                 ? $"Salida administrada por vencimiento con beneficio neto {netPercent:N2}%."
@@ -130,13 +130,11 @@ public sealed class OpportunityExitService
             : current.Close > current.Open || current.Close > previous.Close;
     }
 
-    private static decimal NetPercent(OpportunityReportRow opportunity, decimal exitPrice)
+    private static decimal NetPercent(OpportunityReportRow opportunity, decimal exitPrice, decimal feePercentPerSide)
     {
         if (opportunity.Capital <= 0m)
             return 0m;
 
-        var gross = OpportunityProjectionService.CalculateGrossPnL(opportunity.Side, opportunity.EntryPrice, exitPrice, opportunity.EstimatedQuantity);
-        var net = gross - opportunity.EstimatedFees;
-        return net / opportunity.Capital * 100m;
+        return TradeCostCalculator.Build(opportunity.Side, opportunity.Capital, opportunity.EstimatedQuantity, opportunity.EntryPrice, exitPrice, feePercentPerSide).NetPercent;
     }
 }

@@ -17,13 +17,12 @@ public sealed class OpportunityProjectionService
 
         var entryPrice = ResolveEntryPrice(opportunity);
         var quantity = entryPrice <= 0m ? 0m : capital / entryPrice;
-        var roundTripFees = capital * (feePercentPerSide / 100m) * 2m;
-        var tp1Gross = CalculateGrossPnL(opportunity.Side, entryPrice, opportunity.TakeProfit1, quantity);
-        var tp2Gross = CalculateGrossPnL(opportunity.Side, entryPrice, opportunity.TakeProfit2, quantity);
-        var stopGross = CalculateGrossPnL(opportunity.Side, entryPrice, opportunity.StopLoss, quantity);
+        var tp1 = TradeCostCalculator.Build(opportunity.Side, capital, quantity, entryPrice, opportunity.TakeProfit1, feePercentPerSide);
+        var tp2 = TradeCostCalculator.Build(opportunity.Side, capital, quantity, entryPrice, opportunity.TakeProfit2, feePercentPerSide);
+        var stop = TradeCostCalculator.Build(opportunity.Side, capital, quantity, entryPrice, opportunity.StopLoss, feePercentPerSide);
 
-        return new OpportunityProjection(Math.Round(capital, 2), RoundPrice(entryPrice), Math.Round(quantity, 8), Math.Round(roundTripFees, 2), Math.Round(tp1Gross, 2), Math.Round(tp1Gross - roundTripFees, 2),
-            Math.Round(tp2Gross, 2), Math.Round(tp2Gross - roundTripFees, 2), Math.Round(stopGross, 2), Math.Round(stopGross - roundTripFees, 2));
+        return new OpportunityProjection(Math.Round(capital, 2), RoundPrice(entryPrice), Math.Round(quantity, 8), tp1.TotalFees, tp1.GrossBenefit, tp1.NetBenefit, tp2.GrossBenefit, tp2.NetBenefit,
+            stop.GrossBenefit, stop.NetBenefit);
     }
 
     private static decimal ResolveEntryPrice(TradingOpportunity opportunity)

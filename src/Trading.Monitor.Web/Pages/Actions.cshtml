@@ -7,8 +7,8 @@
 <section class="dashboard">
     <div class="page-head">
         <div>
-            <p class="eyebrow">Entradas y salidas</p>
-            <h1>Acciones de trading</h1>
+            <p class="eyebrow">Entradas y salidas fijas</p>
+            <h1>Senales clasicas</h1>
         </div>
         <form method="get" class="filter-bar actions-filter" id="actionsFilterForm">
             <label>
@@ -69,63 +69,9 @@
     </section>
 
     <div class="insight-strip trade-type-guide">
-        <span>Tipos de senal</span>
-        <strong>Compra bajo - vende alto: compras con dinero y vendes mas caro. Vende alto - compra bajo: vendes primero y recompras mas barato; requiere tener moneda, margen o futuros.</strong>
+        <span>Vista clasica</span>
+        <strong>Aqui ves el plan tradicional: entrar, salida objetivo, salida extra y perdida maxima. Para posiciones vivas con salida administrada usa <a asp-page="/ManagedPositions">Posiciones vivas</a>.</strong>
     </div>
-
-    <section class="report-section live-board" data-live-capital="@Model.Report.Capital" data-live-estado="@Model.Estado" data-live-symbol="@Model.Symbol" data-live-tipo-senal="@Model.TipoSenal">
-        <div class="section-title">
-            <h2>Operaciones en vivo</h2>
-            <span id="liveUpdated">actualizando...</span>
-        </div>
-        <div class="chart-toolbar" aria-label="Controles del grafico">
-            <div>
-                <span>Activo</span>
-                <button type="button" data-chart-symbol-button="BTCUSDT">BTC</button>
-                <button type="button" data-chart-symbol-button="ETHUSDT">ETH</button>
-            </div>
-            <div>
-                <span>Tiempo</span>
-                <button type="button" data-chart-interval="1s">1s</button>
-                <button type="button" data-chart-interval="1m" class="active">1m</button>
-                <button type="button" data-chart-interval="15m">15m</button>
-                <button type="button" data-chart-interval="1h">1h</button>
-                <button type="button" data-chart-interval="1d">1d</button>
-                <button type="button" data-chart-interval="1w">1w</button>
-                <button type="button" data-chart-interval="1M">1M</button>
-            </div>
-            <div class="chart-zoom-control">
-                <span>Zoom</span>
-                <button type="button" data-chart-zoom-out>-</button>
-                <input id="chartZoom" type="range" min="0" max="100" value="45" aria-label="Zoom del grafico"/>
-                <button type="button" data-chart-zoom-in>+</button>
-                <strong id="chartZoomLabel">medio</strong>
-            </div>
-            <div>
-                <button type="button" data-chart-live>Vivo</button>
-            </div>
-        </div>
-        <div id="chartAnalysis" class="chart-analysis">
-            <strong>Calculando lectura...</strong>
-            <span>El tablero se actualiza solo.</span>
-        </div>
-        <div class="live-layout">
-            <div class="trade-terminal">
-                <div class="terminal-strip" id="terminalStrip">
-                    <strong>BTCUSDT</strong>
-                    <span>cargando mercado...</span>
-                </div>
-                <div id="advancedTradesChart" class="tradingview-chart" aria-label="Grafico de operaciones vivas"></div>
-                <div id="chartHoverInfo" class="chart-hover-card" hidden></div>
-            </div>
-            <div id="liveTradeCards" class="live-trade-list">
-                <div class="empty-state">
-                    <strong>Cargando operaciones...</strong>
-                    <span>El tablero se refresca solo.</span>
-                </div>
-            </div>
-        </div>
-    </section>
 
     @if (Model.HighlightedRows.Count > 0)
     {
@@ -174,9 +120,10 @@
                 @foreach (var row in Model.Rows.Take(12))
                 {
                     var instruction = Model.InstructionFor(row);
+                    var breakdown = Model.CostBreakdown(row);
                     var targetMove = Math.Abs(Model.PriceMovePercent(row.EntryPrice, row.TakeProfit1));
                     var stopMove = Math.Abs(Model.PriceMovePercent(row.EntryPrice, row.StopLoss));
-                    <article class="trade-card @instruction.CssClass">
+                    <article class="trade-card @instruction.CssClass @Model.NetResultClass(breakdown)">
                         <div class="trade-card-head">
                             <div>
                                 <strong>@row.Symbol</strong>
@@ -213,6 +160,26 @@
 
                         <div class="money-scenario">
                             <div>
+                                <span>Resultado neto</span>
+                                <strong>@Model.Money(breakdown.NetBenefit)</strong>
+                                <small>@Model.NetResultLabel(breakdown)</small>
+                            </div>
+                            <div>
+                                <span>Inversion</span>
+                                <strong>@Model.Money(breakdown.Investment)</strong>
+                                <small>@Model.Quantity(row)</small>
+                            </div>
+                            <div>
+                                <span>Comision entrada</span>
+                                <strong>@Model.Money(breakdown.EntryFee)</strong>
+                                <small>sobre @Model.Money(breakdown.EntryNotional)</small>
+                            </div>
+                            <div>
+                                <span>Comision salida</span>
+                                <strong>@Model.Money(breakdown.ExitFee)</strong>
+                                <small>sobre @Model.Money(breakdown.ExitNotional)</small>
+                            </div>
+                            <div>
                                 <span>Ganancia objetivo</span>
                                 <strong class="gain">@Model.Money(row.NetProfitAtTakeProfit1)</strong>
                                 <small>@targetMove.ToString("N2")%</small>
@@ -228,9 +195,9 @@
                                 <small>@stopMove.ToString("N2")%</small>
                             </div>
                             <div>
-                                <span>Costo / empate</span>
-                                <strong>@Model.Money(row.EstimatedFees)</strong>
-                                <small>@Model.Price(Model.BreakEvenPrice(row))</small>
+                                <span>Total obtenido</span>
+                                <strong class="@Model.SignedClass(breakdown.NetBenefit)">@Model.Money(breakdown.TotalObtained)</strong>
+                                <small>neto despues de comisiones</small>
                             </div>
                         </div>
 
@@ -349,8 +316,3 @@
         }
     </section>
 </section>
-
-@section Scripts {
-    <script src="~/lib/lightweight-charts/lightweight-charts.standalone.production.js"></script>
-    <script src="~/js/trading-chart.js" asp-append-version="true"></script>
-}

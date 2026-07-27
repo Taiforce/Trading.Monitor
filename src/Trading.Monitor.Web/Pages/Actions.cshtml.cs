@@ -10,11 +10,12 @@ using Trading.Monitor.Web.Services;
 
 namespace Trading.Monitor.Web.Pages;
 
-public sealed class ActionsModel(IOpportunityRepository opportunityRepository, IOptionsMonitor<ReportingOptions> reportingOptions, TradeInstructionService tradeInstructionService, ILogger<ActionsModel> logger)
+public sealed class ActionsModel(IOpportunityRepository opportunityRepository, IOptionsMonitor<ReportingOptions> reportingOptions, ILogger<ActionsModel> logger)
     : TradingPageModel(opportunityRepository, reportingOptions)
 {
     private static readonly CultureInfo NumberCulture = CultureInfo.GetCultureInfo("en-US");
     private const int PreEntryLeadMinutes = 3;
+    private static readonly TradeInstructionService ClassicInstructionService = new(new RiskOptions { ManagedProfitExitEnabled = false });
 
     public IReadOnlyList<OpportunityReportRow> Rows { get; private set; } = [];
 
@@ -43,7 +44,7 @@ public sealed class ActionsModel(IOpportunityRepository opportunityRepository, I
 
     public TradeInstruction InstructionFor(OpportunityReportRow row)
     {
-        return tradeInstructionService.Create(row);
+        return ClassicInstructionService.Create(row);
     }
 
     public string TimeLeft(OpportunityReportRow row)

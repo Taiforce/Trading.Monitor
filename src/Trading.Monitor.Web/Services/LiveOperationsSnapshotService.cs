@@ -46,6 +46,14 @@ public sealed class LiveOperationsSnapshotService(
         var timeText = row.Status == OpportunityStatus.Open
             ? $"{FormatDuration(secondsRemaining)} viva | entrada {FormatDuration(preEntrySecondsRemaining)}"
             : row.ExitTime.HasValue ? $"Cerro {row.ExitTime.Value.ToLocalTime():HH:mm}" : "Cerrada";
+        var markPrice = row.ExitPrice ?? row.LastPrice;
+        var breakdown = TradeCostCalculator.Build(
+            row.Side,
+            row.Capital,
+            row.EstimatedQuantity,
+            row.EntryPrice,
+            markPrice,
+            reportingOptions.CurrentValue.EstimatedFeePercentPerSide);
         var conversion = TradeConversionCalculator.Build(
             row.Symbol,
             row.Side,
@@ -55,7 +63,8 @@ public sealed class LiveOperationsSnapshotService(
             row.ExitPrice,
             row.Status == OpportunityStatus.Open ? null : row.ExitPrice,
             row.RealizedNetPnL,
-            row.EstimatedFees);
+            breakdown.TotalFees);
+        var costText = $"Comisiones: entrada {Money(breakdown.EntryFee)} | salida {Money(breakdown.ExitFee)} | total {Money(breakdown.TotalFees)}";
 
         return new LiveOperationDto(
             row.Id.ToString("N"),
@@ -91,7 +100,7 @@ public sealed class LiveOperationsSnapshotService(
             row.ExitPrice,
             row.Capital,
             row.EstimatedQuantity,
-            row.EstimatedFees,
+            breakdown.TotalFees,
             null,
             instruction.EntryTiming,
             instruction.ExitTiming,
@@ -110,7 +119,7 @@ public sealed class LiveOperationsSnapshotService(
             conversion.EntryText,
             conversion.ExitText,
             conversion.ResultText,
-            conversion.CostText,
+            costText,
             conversion.BreakEvenText,
             BuildLinks(row.Symbol));
     }

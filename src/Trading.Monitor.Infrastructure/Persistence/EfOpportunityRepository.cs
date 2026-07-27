@@ -223,9 +223,15 @@ public sealed class EfOpportunityRepository : IOpportunityRepository
         if (!entity.ExitPrice.HasValue)
             return null;
 
-        var gross = OpportunityProjectionService.CalculateGrossPnL(entity.Side, projection.EntryPrice, entity.ExitPrice.Value, projection.EstimatedQuantity);
+        var breakdown = TradeCostCalculator.Build(
+            entity.Side,
+            projection.Capital,
+            projection.EstimatedQuantity,
+            projection.EntryPrice,
+            entity.ExitPrice.Value,
+            _reportingOptions.CurrentValue.EstimatedFeePercentPerSide);
 
-        return Math.Round(gross - projection.EstimatedFees, 2);
+        return breakdown.NetBenefit;
     }
 
     private static bool IsSameSignalFamily(DateTimeOffset observedAt, DateTimeOffset expiresAt, TradingOpportunity opportunity)

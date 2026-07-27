@@ -5,6 +5,7 @@ using Microsoft.Extensions.Options;
 using Trading.Monitor.Application.Abstractions;
 using Trading.Monitor.Application.Configuration;
 using Trading.Monitor.Application.Reporting;
+using Trading.Monitor.Application.Services;
 using Trading.Monitor.Domain;
 using Trading.Monitor.Web.Services;
 
@@ -119,6 +120,39 @@ public abstract class TradingPageModel(IOpportunityRepository opportunityReposit
             return 0m;
 
         return Math.Round((to - from) / from * 100m, 2);
+    }
+
+    public TradeCostBreakdown CostBreakdown(OpportunityReportRow row, decimal? exitPrice = null)
+    {
+        return TradeCostCalculator.Build(
+            row.Side,
+            row.Capital,
+            row.EstimatedQuantity,
+            row.EntryPrice,
+            exitPrice ?? row.ExitPrice ?? row.TakeProfit1,
+            reportingOptions.CurrentValue.EstimatedFeePercentPerSide);
+    }
+
+    public string NetResultClass(TradeCostBreakdown breakdown)
+    {
+        if (breakdown.NetBenefit > 0.01m)
+            return "result-green";
+
+        if (breakdown.NetBenefit < -0.01m)
+            return "result-red";
+
+        return "result-yellow";
+    }
+
+    public string NetResultLabel(TradeCostBreakdown breakdown)
+    {
+        if (breakdown.NetBenefit > 0.01m)
+            return "Ganancia despues de comisiones";
+
+        if (breakdown.NetBenefit < -0.01m)
+            return "Sin ganancias despues de comisiones";
+
+        return "Ganancia nula despues de comisiones";
     }
 
     public string ScoreLabel(int score)

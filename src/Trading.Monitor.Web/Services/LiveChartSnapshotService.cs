@@ -26,7 +26,7 @@ public sealed class LiveChartSnapshotService(
         var currentPrice = candles.LastOrDefault()?.Close;
         var matchingOperations = operations.Operations
             .Where(operation => string.Equals(operation.Symbol, resolvedSymbol, StringComparison.OrdinalIgnoreCase))
-            .Select(operation => RefreshConversion(operation, currentPrice))
+            .Select(operation => RefreshConversion(operation, currentPrice, reportingOptions.CurrentValue.EstimatedFeePercentPerSide))
             .Take(8)
             .ToArray();
 
@@ -39,10 +39,11 @@ public sealed class LiveChartSnapshotService(
             matchingOperations);
     }
 
-    private static LiveOperationDto RefreshConversion(LiveOperationDto operation, decimal? currentPrice)
+    private static LiveOperationDto RefreshConversion(LiveOperationDto operation, decimal? currentPrice, decimal feePercentPerSide)
     {
         var side = string.Equals(operation.Side, nameof(MarketSide.Long), StringComparison.OrdinalIgnoreCase) ? MarketSide.Long : MarketSide.Short;
         var markPrice = operation.ExitPrice ?? currentPrice ?? operation.LastPrice;
+        var breakdown = TradeCostCalculator.Build(side, operation.Capital, operation.EstimatedQuantity, operation.EntryPrice, markPrice, feePercentPerSide);
         var conversion = TradeConversionCalculator.Build(
             operation.Symbol,
             side,
@@ -52,17 +53,18 @@ public sealed class LiveChartSnapshotService(
             operation.ExitPrice,
             markPrice,
             operation.ExitPrice.HasValue ? ParseMoney(operation.RealizedText) : null,
-            operation.EstimatedFees);
+            breakdown.TotalFees);
 
         return operation with
         {
             LastPrice = currentPrice ?? operation.LastPrice,
             MarkPrice = markPrice,
+            EstimatedFees = breakdown.TotalFees,
             ConversionHeadline = conversion.DetailText,
             EntryConversionText = conversion.EntryText,
             ExitConversionText = conversion.ExitText,
             FinalConversionText = conversion.ResultText,
-            CostText = conversion.CostText,
+            CostText = $"Comisiones: entrada {TradeConversionCalculator.Money(breakdown.EntryFee)} | salida {TradeConversionCalculator.Money(breakdown.ExitFee)} | total {TradeConversionCalculator.Money(breakdown.TotalFees)}",
             BreakEvenText = conversion.BreakEvenText
         };
     }
@@ -387,7 +389,6 @@ public sealed class LiveChartSnapshotService(
         var takeProfit1 = 0m;
         var takeProfit2 = 0m;
         var estimatedQuantity = entryPrice <= 0m ? 0m : Math.Round(capital / entryPrice, 8);
-        var estimatedFees = capital * (feePercentPerSide / 100m) * 2m;
         var potentialTp1 = 0m;
         var potentialTp2 = 0m;
         var potentialStop = 0m;
@@ -410,9 +411,12 @@ public sealed class LiveChartSnapshotService(
                 takeProfit2 = RoundPrice(entryPrice - risk * 3m);
             }
 
-            potentialTp1 = NetPnL(side.Value, entryPrice, takeProfit1, estimatedQuantity, estimatedFees);
-            potentialTp2 = NetPnL(side.Value, entryPrice, takeProfit2, estimatedQuantity, estimatedFees);
-            potentialStop = NetPnL(side.Value, entryPrice, stopLoss, estimatedQuantity, estimatedFees);
+            var tp1Breakdown = TradeCostCalculator.Build(side.Value, capital, estimatedQuantity, entryPrice, takeProfit1, feePercentPerSide);
+            var tp2Breakdown = TradeCostCalculator.Build(side.Value, capital, estimatedQuantity, entryPrice, takeProfit2, feePercentPerSide);
+            var stopBreakdown = TradeCostCalculator.Build(side.Value, capital, estimatedQuantity, entryPrice, stopLoss, feePercentPerSide);
+            potentialTp1 = tp1Breakdown.NetBenefit;
+            potentialTp2 = tp2Breakdown.NetBenefit;
+            potentialStop = stopBreakdown.NetBenefit;
 
             if (potentialTp1 <= 0m)
             {
@@ -548,12 +552,6 @@ public sealed class LiveChartSnapshotService(
             "1M" => "hasta 90 dias",
             _ => "segun confirmacion"
         };
-    }
-
-    private static decimal NetPnL(MarketSide side, decimal entryPrice, decimal exitPrice, decimal quantity, decimal estimatedFees)
-    {
-        var gross = OpportunityProjectionService.CalculateGrossPnL(side, entryPrice, exitPrice, quantity);
-        return gross - estimatedFees;
     }
 
     private static decimal RoundPrice(decimal value)

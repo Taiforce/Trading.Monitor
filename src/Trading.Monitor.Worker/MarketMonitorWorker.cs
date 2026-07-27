@@ -157,9 +157,9 @@ public sealed class MarketMonitorWorker(ILogger<MarketMonitorWorker> logger, Mar
                 if (exit is null)
                     continue;
 
-                var gross = OpportunityProjectionService.CalculateGrossPnL(opportunity.Side, opportunity.EntryPrice, exit.ExitPrice, opportunity.EstimatedQuantity);
-
-                var net = gross - opportunity.EstimatedFees;
+                var breakdown = TradeCostCalculator.Build(opportunity.Side, opportunity.Capital, opportunity.EstimatedQuantity, opportunity.EntryPrice, exit.ExitPrice, risk.EstimatedFeePercentPerSide);
+                var gross = breakdown.GrossBenefit;
+                var net = breakdown.NetBenefit;
                 await repository.UpdateExitAsync(opportunity.Id, exit, gross, net, cancellationToken);
                 await tradeExecutionService.TryExitAsync(opportunity, exit, net, cancellationToken);
 

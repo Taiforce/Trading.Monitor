@@ -17,8 +17,8 @@ public class OpportunityProjectionServiceTests
 
         Assert.Equal(100m, projection.EntryPrice);
         Assert.Equal(10m, projection.EstimatedQuantity);
-        Assert.Equal(2m, projection.EstimatedFees);
-        Assert.Equal(98m, projection.NetProfitAtTakeProfit1);
-        Assert.Equal(-52m, projection.NetLossAtStop);
+        Assert.Equal(2.10m, projection.EstimatedFees);
+        Assert.Equal(97.90m, projection.NetProfitAtTakeProfit1);
+        Assert.Equal(-51.95m, projection.NetLossAtStop);
     }
 }

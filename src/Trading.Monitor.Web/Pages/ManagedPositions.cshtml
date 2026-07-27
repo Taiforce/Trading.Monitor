@@ -1,0 +1,218 @@
+@page "/posiciones"
+@model ManagedPositionsModel
+@{
+    ViewData["Title"] = "Posiciones vivas";
+}
+
+<section class="dashboard">
+    <div class="page-head">
+        <div>
+            <p class="eyebrow">Entrada ahora, salida administrada</p>
+            <h1>Posiciones vivas</h1>
+        </div>
+        <form method="get" class="filter-bar managed-filter">
+            <label>
+                <span>Monto</span>
+                <input asp-for="Capital" type="number" min="0.01" step="0.01"/>
+            </label>
+            <label>
+                <span>Ganancia neta %</span>
+                <input asp-for="TargetNetPercent" type="number" min="-99" max="1000" step="0.01"/>
+            </label>
+            <label>
+                <span>Estado</span>
+                <select asp-for="Estado">
+                    <option value="abiertas">Abiertas</option>
+                    <option value="cerradas">Cerradas</option>
+                    <option value="todas">Todas</option>
+                </select>
+            </label>
+            <label>
+                <span>Tipo</span>
+                <select asp-for="TipoSenal">
+                    <option value="">Todas</option>
+                    <option value="@Model.BuyLowSellHighValue">Compra bajo - vende alto</option>
+                    <option value="@Model.SellHighBuyLowValue">Vende alto - compra bajo</option>
+                </select>
+            </label>
+            <label>
+                <span>Activo</span>
+                <select asp-for="Symbol">
+                    <option value="">Todos</option>
+                    @foreach (var symbol in Model.Symbols)
+                    {
+                        <option value="@symbol">@symbol</option>
+                    }
+                </select>
+            </label>
+            <button type="submit">Aplicar</button>
+        </form>
+    </div>
+
+    <section class="metrics-grid metrics-grid-four" aria-label="Resumen de posiciones vivas">
+        <article class="metric">
+            <span>Vivas</span>
+            <strong>@Model.Rows.Count(row => row.Status == Trading.Monitor.Domain.OpportunityStatus.Open)</strong>
+            <small>monitoreadas hasta salida</small>
+        </article>
+        <article class="metric">
+            <span>Objetivo neto</span>
+            <strong class="gain">@Model.TargetNetPercent.ToString("N2")%</strong>
+            <small>despues de comisiones</small>
+        </article>
+        <article class="metric">
+            <span>Cerradas</span>
+            <strong>@Model.Rows.Count(row => row.Status != Trading.Monitor.Domain.OpportunityStatus.Open)</strong>
+            <small>con resultado medido</small>
+        </article>
+        <article class="metric">
+            <span>Capital por senal</span>
+            <strong>@Model.Money(Model.Report.Capital)</strong>
+            <small>simulacion actual</small>
+        </article>
+    </section>
+
+    <div class="insight-strip trade-type-guide">
+        <span>Vista viva</span>
+        <strong>Entras con la senal fuerte y el sistema espera una salida neta. Si no quieres dejar una posicion colgada, cambia el porcentaje y marca el cierre manual.</strong>
+    </div>
+
+    <section class="report-section live-board" data-live-capital="@Model.Report.Capital" data-live-estado="@Model.Estado" data-live-symbol="@Model.Symbol" data-live-tipo-senal="@Model.TipoSenal">
+        <div class="section-title">
+            <h2>Grafico en vivo</h2>
+            <span id="liveUpdated">actualizando...</span>
+        </div>
+        <div class="chart-toolbar" aria-label="Controles del grafico">
+            <div>
+                <span>Activo</span>
+                <button type="button" data-chart-symbol-button="BTCUSDT">BTC</button>
+                <button type="button" data-chart-symbol-button="ETHUSDT">ETH</button>
+            </div>
+            <div>
+                <span>Tiempo</span>
+                <button type="button" data-chart-interval="1s">1s</button>
+                <button type="button" data-chart-interval="1m" class="active">1m</button>
+                <button type="button" data-chart-interval="15m">15m</button>
+                <button type="button" data-chart-interval="1h">1h</button>
+                <button type="button" data-chart-interval="1d">1d</button>
+                <button type="button" data-chart-interval="1w">1w</button>
+                <button type="button" data-chart-interval="1M">1M</button>
+            </div>
+            <div class="chart-zoom-control">
+                <span>Zoom</span>
+                <button type="button" data-chart-zoom-out>-</button>
+                <input id="chartZoom" type="range" min="0" max="100" value="45" aria-label="Zoom del grafico"/>
+                <button type="button" data-chart-zoom-in>+</button>
+                <strong id="chartZoomLabel">medio</strong>
+            </div>
+            <div>
+                <button type="button" data-chart-live>Vivo</button>
+            </div>
+        </div>
+        <div id="chartAnalysis" class="chart-analysis">
+            <strong>Calculando lectura...</strong>
+            <span>El tablero se actualiza solo.</span>
+        </div>
+        <div class="live-layout">
+            <div class="trade-terminal">
+                <div class="terminal-strip" id="terminalStrip">
+                    <strong>BTCUSDT</strong>
+                    <span>cargando mercado...</span>
+                </div>
+                <div id="advancedTradesChart" class="tradingview-chart" aria-label="Grafico de posiciones vivas"></div>
+                <div id="chartHoverInfo" class="chart-hover-card" hidden></div>
+            </div>
+            <div id="liveTradeCards" class="live-trade-list">
+                <div class="empty-state">
+                    <strong>Cargando posiciones...</strong>
+                    <span>El tablero se refresca solo.</span>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <section class="report-section">
+        <div class="section-title">
+            <h2>Control manual de posiciones</h2>
+            <span>@Model.Rows.Count registros</span>
+        </div>
+
+        @if (Model.Rows.Count == 0)
+        {
+            <div class="empty-state">
+                <strong>Sin posiciones para este filtro.</strong>
+                <span>Cuando exista una senal viva aparecera aqui.</span>
+            </div>
+        }
+        else
+        {
+            <div class="managed-position-list">
+                @foreach (var row in Model.Rows.Take(40))
+                {
+                    var targetPrice = Model.TargetExitPrice(row);
+                    var breakdown = Model.TargetBreakdown(row);
+                    <article class="managed-position-card @Model.NetResultClass(breakdown)">
+                        <header>
+                            <div>
+                                <strong>@row.Symbol</strong>
+                                <span class="signal-type-badge @Model.SignalTypeClass(row.Side)">@Model.SignalTypeLabel(row.Side)</span>
+                                <small>@Model.ManagedStatusText(row)</small>
+                            </div>
+                            <span class="status @Model.StatusClass(row.Status)">@Model.StatusLabel(row.Status)</span>
+                        </header>
+
+                        <div class="cost-grid">
+                            <article>
+                                <span>Inversion</span>
+                                <strong>@Model.Money(breakdown.Investment)</strong>
+                                <small>@Model.Quantity(row)</small>
+                            </article>
+                            <article>
+                                <span>Comision entrada</span>
+                                <strong>@Model.Money(breakdown.EntryFee)</strong>
+                                <small>@Model.EntryAction(row) a @Model.Price(row.EntryPrice)</small>
+                            </article>
+                            <article>
+                                <span>Comision salida</span>
+                                <strong>@Model.Money(breakdown.ExitFee)</strong>
+                                <small>@Model.TargetAction(row) a @Model.Price(targetPrice)</small>
+                            </article>
+                            <article>
+                                <span>Beneficio</span>
+                                <strong class="@Model.SignedClass(breakdown.NetBenefit)">@Model.Money(breakdown.NetBenefit)</strong>
+                                <small>@Model.NetResultLabel(breakdown)</small>
+                            </article>
+                            <article>
+                                <span>Total obtenido</span>
+                                <strong>@Model.Money(breakdown.TotalObtained)</strong>
+                                <small>@breakdown.NetPercent.ToString("N2")% neto</small>
+                            </article>
+                        </div>
+
+                        @if (row.Status == Trading.Monitor.Domain.OpportunityStatus.Open)
+                        {
+                            <form method="post" asp-page-handler="Close" class="managed-close-form">
+                                <input type="hidden" name="CloseId" value="@row.Id"/>
+                                <input type="hidden" name="Capital" value="@Model.Capital"/>
+                                <input type="hidden" name="Estado" value="@Model.Estado"/>
+                                <input type="hidden" name="Symbol" value="@Model.Symbol"/>
+                                <input type="hidden" name="TipoSenal" value="@Model.TipoSenal"/>
+                                <input type="hidden" name="TargetNetPercent" value="@Model.TargetNetPercent"/>
+                                <label>
+                                    <span>Cerrar con neto %</span>
+                                    <input name="CloseNetPercent" type="number" min="-99" max="1000" step="0.01" value="@Model.TargetNetPercent.ToString(System.Globalization.CultureInfo.InvariantCulture)"/>
+                                </label>
+                                <button type="submit">Marcar cerrada</button>
+                            </form>
+                        }
+                    </article>
+                }
+            </div>
+        }
+    </section>
+</section>
+
+@section Scripts {
+    <script src="~/lib/lightweight-charts/lightweight-charts.standalone.production.js"></script>
+    <script src="~/js/trading-chart.js" asp-append-version="true"></script>
+}
