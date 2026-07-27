@@ -2107,6 +2107,83 @@ td small,
     color: var(--muted);
 }
 
+.execution-audit-list {
+    max-height: min(520px, calc(100vh - 260px));
+    display: grid;
+    align-content: start;
+    gap: 8px;
+    overflow-y: auto;
+    padding-right: 6px;
+    scrollbar-color: color-mix(in srgb, var(--accent) 70%, var(--line)) transparent;
+    scrollbar-width: thin;
+}
+
+.execution-audit-list::-webkit-scrollbar {
+    width: 8px;
+}
+
+.execution-audit-list::-webkit-scrollbar-thumb {
+    background: color-mix(in srgb, var(--accent) 70%, var(--line));
+    border-radius: 999px;
+}
+
+.execution-audit-row {
+    background: var(--surface-2);
+    border: 1px solid var(--line);
+    border-radius: 6px;
+    overflow: hidden;
+}
+
+.execution-audit-row > summary {
+    min-height: 54px;
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    gap: 12px;
+    align-items: center;
+    cursor: pointer;
+    list-style: none;
+    padding: 10px 12px;
+}
+
+.execution-audit-row > summary::-webkit-details-marker {
+    display: none;
+}
+
+.execution-audit-row strong,
+.execution-audit-row span,
+.execution-audit-row small {
+    display: block;
+}
+
+.execution-audit-row span,
+.execution-audit-row small {
+    color: var(--muted);
+    font-size: 0.78rem;
+    font-weight: 800;
+}
+
+.execution-audit-detail {
+    display: grid;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: 8px;
+    border-top: 1px solid var(--line);
+    padding: 12px;
+}
+
+.execution-audit-detail article {
+    background: var(--surface);
+    border: 1px solid var(--line);
+    border-radius: 6px;
+    padding: 10px;
+}
+
+.execution-audit-detail p,
+.execution-audit-detail small {
+    grid-column: 1 / -1;
+    margin: 0;
+    overflow-wrap: anywhere;
+}
+
 .source-row {
     display: grid;
     grid-template-columns: minmax(160px, 1fr) auto minmax(92px, auto) minmax(72px, auto);
@@ -2384,6 +2461,7 @@ td small,
     .signal-fast-grid,
     .signal-money-grid,
     .detail-grid,
+    .execution-audit-detail,
     .detail-notes,
     .trader-detail-head,
     .symbol-row,

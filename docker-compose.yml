@@ -37,7 +37,7 @@ services:
       Reporting__DefaultCapital: ${REPORTING_DEFAULT_CAPITAL:-1000}
       Reporting__EstimatedFeePercentPerSide: ${REPORTING_FEE_PERCENT_PER_SIDE:-0.1}
       Reporting__MinimumNetProfitPercentAfterCosts: ${REPORTING_MIN_NET_PROFIT_AFTER_COSTS:-0.35}
-      ExchangeExecution__Enabled: ${EXCHANGE_EXECUTION_ENABLED:-false}
+      ExchangeExecution__Enabled: ${EXCHANGE_EXECUTION_ENABLED:-true}
       ExchangeExecution__Provider: ${EXCHANGE_EXECUTION_PROVIDER:-BinanceSpot}
       ExchangeExecution__Mode: ${EXCHANGE_EXECUTION_MODE:-Paper}
       ExchangeExecution__BaseUrl: ${EXCHANGE_EXECUTION_BASE_URL:-https://api.binance.com}
@@ -47,6 +47,15 @@ services:
       ExchangeExecution__UseTestOrderEndpoint: ${EXCHANGE_USE_TEST_ORDER_ENDPOINT:-true}
       ExchangeExecution__MaxCapitalPerTrade: ${EXCHANGE_MAX_CAPITAL_PER_TRADE:-100}
       ExchangeExecution__DailyLossLimit: ${EXCHANGE_DAILY_LOSS_LIMIT:-50}
+      ExchangeExecution__MinimumScoreToExecute: ${EXCHANGE_MIN_SCORE_TO_EXECUTE:-95}
+      ExchangeExecution__MinimumExpectedNetProfitPercentAfterCosts: ${EXCHANGE_MIN_EXPECTED_NET_PROFIT_AFTER_COSTS:-0.6}
+      ExchangeExecution__EnableEntryOrders: ${EXCHANGE_ENABLE_ENTRY_ORDERS:-true}
+      ExchangeExecution__EnableExitOrders: ${EXCHANGE_ENABLE_EXIT_ORDERS:-true}
+      ExchangeExecution__AllowShortSelling: ${EXCHANGE_ALLOW_SHORT_SELLING:-false}
+      ExchangeExecution__ReceiveWindowMilliseconds: ${EXCHANGE_RECV_WINDOW_MS:-5000}
+      ExchangeExecution__MaxSlippagePercent: ${EXCHANGE_MAX_SLIPPAGE_PERCENT:-0.25}
+      ExchangeExecution__AllowedSymbols__0: ${EXCHANGE_ALLOWED_SYMBOL_0:-BTCUSDT}
+      ExchangeExecution__AllowedSymbols__1: ${EXCHANGE_ALLOWED_SYMBOL_1:-ETHUSDT}
       BINANCE_API_KEY: ${BINANCE_API_KEY:-}
       BINANCE_API_SECRET: ${BINANCE_API_SECRET:-}
     volumes:
@@ -111,10 +120,14 @@ services:
       OpenAi__Model: ${OPENAI_MODEL:-gpt-4.1-mini}
       OpenAi__TimeoutSeconds: ${OPENAI_TIMEOUT_SECONDS:-20}
       OpenAi__MaxNewsItems: ${OPENAI_MAX_NEWS_ITEMS:-12}
+      OpenAi__MinimumNewsItemsToAnalyze: ${OPENAI_MIN_NEWS_ITEMS_TO_ANALYZE:-3}
+      OpenAi__MinimumMinutesBetweenCalls: ${OPENAI_MIN_MINUTES_BETWEEN_CALLS:-15}
+      OpenAi__MaxPromptCharacters: ${OPENAI_MAX_PROMPT_CHARACTERS:-6000}
+      OpenAi__OnlyAnalyzeWhenNewsChanged: ${OPENAI_ONLY_ANALYZE_WHEN_NEWS_CHANGED:-true}
       Reporting__DefaultCapital: ${REPORTING_DEFAULT_CAPITAL:-1000}
       Reporting__EstimatedFeePercentPerSide: ${REPORTING_FEE_PERCENT_PER_SIDE:-0.1}
       Reporting__MinimumNetProfitPercentAfterCosts: ${REPORTING_MIN_NET_PROFIT_AFTER_COSTS:-0.35}
-      ExchangeExecution__Enabled: ${EXCHANGE_EXECUTION_ENABLED:-false}
+      ExchangeExecution__Enabled: ${EXCHANGE_EXECUTION_ENABLED:-true}
       ExchangeExecution__Provider: ${EXCHANGE_EXECUTION_PROVIDER:-BinanceSpot}
       ExchangeExecution__Mode: ${EXCHANGE_EXECUTION_MODE:-Paper}
       ExchangeExecution__BaseUrl: ${EXCHANGE_EXECUTION_BASE_URL:-https://api.binance.com}
@@ -124,6 +137,15 @@ services:
       ExchangeExecution__UseTestOrderEndpoint: ${EXCHANGE_USE_TEST_ORDER_ENDPOINT:-true}
       ExchangeExecution__MaxCapitalPerTrade: ${EXCHANGE_MAX_CAPITAL_PER_TRADE:-100}
       ExchangeExecution__DailyLossLimit: ${EXCHANGE_DAILY_LOSS_LIMIT:-50}
+      ExchangeExecution__MinimumScoreToExecute: ${EXCHANGE_MIN_SCORE_TO_EXECUTE:-95}
+      ExchangeExecution__MinimumExpectedNetProfitPercentAfterCosts: ${EXCHANGE_MIN_EXPECTED_NET_PROFIT_AFTER_COSTS:-0.6}
+      ExchangeExecution__EnableEntryOrders: ${EXCHANGE_ENABLE_ENTRY_ORDERS:-true}
+      ExchangeExecution__EnableExitOrders: ${EXCHANGE_ENABLE_EXIT_ORDERS:-true}
+      ExchangeExecution__AllowShortSelling: ${EXCHANGE_ALLOW_SHORT_SELLING:-false}
+      ExchangeExecution__ReceiveWindowMilliseconds: ${EXCHANGE_RECV_WINDOW_MS:-5000}
+      ExchangeExecution__MaxSlippagePercent: ${EXCHANGE_MAX_SLIPPAGE_PERCENT:-0.25}
+      ExchangeExecution__AllowedSymbols__0: ${EXCHANGE_ALLOWED_SYMBOL_0:-BTCUSDT}
+      ExchangeExecution__AllowedSymbols__1: ${EXCHANGE_ALLOWED_SYMBOL_1:-ETHUSDT}
       BINANCE_API_KEY: ${BINANCE_API_KEY:-}
       BINANCE_API_SECRET: ${BINANCE_API_SECRET:-}
       Notifications__ConsoleEnabled: ${NOTIFICATIONS_CONSOLE_ENABLED:-true}

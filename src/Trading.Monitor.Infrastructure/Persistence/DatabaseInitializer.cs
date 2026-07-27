@@ -32,6 +32,7 @@ public static class DatabaseInitializer
         {
             await dbContext.Database.ExecuteSqlRawAsync("EXEC sp_getapplock @Resource = N'TradingMonitorTraderResearchSeed', @LockMode = N'Exclusive', @LockOwner = N'Session', @LockTimeout = 15000;", cancellationToken);
             await EnsureTraderResearchSchemaAsync(dbContext, cancellationToken);
+            await EnsureTradeExecutionSchemaAsync(dbContext, cancellationToken);
 
             try
             {
@@ -47,6 +48,51 @@ public static class DatabaseInitializer
         {
             await dbContext.Database.ExecuteSqlRawAsync("EXEC sp_releaseapplock @Resource = N'TradingMonitorTraderResearchSeed', @LockOwner = N'Session';", cancellationToken);
             await dbContext.Database.CloseConnectionAsync();
+        }
+    }
+
+    private static async Task EnsureTradeExecutionSchemaAsync(TradingMonitorDbContext dbContext, CancellationToken cancellationToken)
+    {
+        try
+        {
+            await dbContext.Database.ExecuteSqlRawAsync(
+                """
+                IF OBJECT_ID(N'dbo.trade_executions', N'U') IS NULL
+                BEGIN
+                    CREATE TABLE dbo.trade_executions
+                    (
+                        Id uniqueidentifier NOT NULL CONSTRAINT PK_trade_executions PRIMARY KEY,
+                        OpportunityId uniqueidentifier NOT NULL,
+                        Symbol nvarchar(32) NOT NULL,
+                        Side nvarchar(16) NOT NULL,
+                        Action nvarchar(24) NOT NULL,
+                        Mode nvarchar(16) NOT NULL,
+                        Status nvarchar(16) NOT NULL,
+                        RequestedCapital decimal(18,2) NOT NULL,
+                        RequestedQuantity decimal(18,8) NULL,
+                        ExecutedQuantity decimal(18,8) NULL,
+                        ExecutedQuote decimal(18,2) NULL,
+                        Price decimal(18,8) NULL,
+                        ClientOrderId nvarchar(64) NOT NULL,
+                        ExchangeOrderId nvarchar(128) NOT NULL,
+                        Reason nvarchar(512) NOT NULL,
+                        Message nvarchar(2048) NOT NULL,
+                        RequestJson nvarchar(max) NOT NULL,
+                        ResponseJson nvarchar(max) NOT NULL,
+                        CreatedAt datetimeoffset NOT NULL,
+                        CONSTRAINT FK_trade_executions_trading_opportunities_OpportunityId FOREIGN KEY (OpportunityId) REFERENCES dbo.trading_opportunities(Id) ON DELETE CASCADE
+                    );
+
+                    CREATE INDEX IX_trade_executions_OpportunityId_CreatedAt ON dbo.trade_executions(OpportunityId, CreatedAt);
+                    CREATE INDEX IX_trade_executions_CreatedAt ON dbo.trade_executions(CreatedAt);
+                    CREATE INDEX IX_trade_executions_Status ON dbo.trade_executions(Status);
+                END;
+                """,
+                cancellationToken);
+        }
+        catch (SqlException exception) when (exception.Number is 2714 or 1913)
+        {
+            await Task.Delay(TimeSpan.FromSeconds(1), cancellationToken);
         }
     }
 

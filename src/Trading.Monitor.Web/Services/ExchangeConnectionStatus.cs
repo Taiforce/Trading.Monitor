@@ -9,5 +9,10 @@ public sealed record ExchangeConnectionStatus(
     bool LiveTradingAllowed,
     decimal MaxCapitalPerTrade,
     decimal DailyLossLimit,
+    int MinimumScoreToExecute,
+    decimal MinimumExpectedNetProfitPercentAfterCosts,
+    decimal MaxSlippagePercent,
+    bool AllowShortSelling,
+    IReadOnlyList<string> AllowedSymbols,
     string Safety,
     string Message);

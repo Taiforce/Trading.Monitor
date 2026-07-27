@@ -1,4 +1,5 @@
 using System.Net.Http.Headers;
+using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
 using Trading.Monitor.Application.Abstractions;
@@ -13,6 +14,10 @@ public sealed class OpenAiResearchAnalyzer(
     ISourceTelemetryRecorder telemetryRecorder) : IResearchAnalyzer
 {
     private static readonly JsonSerializerOptions JsonOptions = new(JsonSerializerDefaults.Web);
+    private readonly object _cacheLock = new();
+    private string _lastInputHash = "";
+    private DateTimeOffset _lastAnalysisAt = DateTimeOffset.MinValue;
+    private IReadOnlyList<NewsItem> _lastResult = [];
 
     public string Name => "OpenAI research analyst";
 
@@ -24,6 +29,40 @@ public sealed class OpenAiResearchAnalyzer(
         }
 
         var startedAt = DateTimeOffset.UtcNow;
+        var selectedResearch = SelectResearch(symbols, researchItems);
+        var minimumNewsItems = Math.Clamp(options.MinimumNewsItemsToAnalyze, 0, 50);
+
+        if (selectedResearch.Count < minimumNewsItems)
+        {
+            await telemetryRecorder.RecordAsync(new DataSourceHealthEvent(
+                Name,
+                DataSourceKind.AiAnalysis,
+                DataSourceStatus.Healthy,
+                options.BaseUrl,
+                $"OpenAI skipped: only {selectedResearch.Count} material news items; minimum is {minimumNewsItems}.",
+                startedAt,
+                DateTimeOffset.UtcNow,
+                selectedResearch.Count), cancellationToken);
+
+            return [];
+        }
+
+        var inputHash = ComputeInputHash(symbols, selectedResearch);
+        if (TryUseCachedResult(inputHash, out var cachedResult, out var cacheReason))
+        {
+            await telemetryRecorder.RecordAsync(new DataSourceHealthEvent(
+                Name,
+                DataSourceKind.AiAnalysis,
+                DataSourceStatus.Healthy,
+                options.BaseUrl,
+                cacheReason,
+                startedAt,
+                DateTimeOffset.UtcNow,
+                cachedResult.Count), cancellationToken);
+
+            return cachedResult;
+        }
+
         var apiKey = Environment.GetEnvironmentVariable(options.ApiKeyEnvironmentVariable);
 
         if (string.IsNullOrWhiteSpace(apiKey))
@@ -43,7 +82,7 @@ public sealed class OpenAiResearchAnalyzer(
 
         try
         {
-            var prompt = BuildPrompt(symbols, researchItems);
+            var prompt = BuildPrompt(symbols, selectedResearch);
             var payload = new
             {
                 model = options.Model,
@@ -82,10 +121,12 @@ public sealed class OpenAiResearchAnalyzer(
             var item = new NewsItem(
                 "ChatGPT / OpenAI",
                 Trim(analysis.Trim(), 2000),
-                $"openai://responses/{DateTimeOffset.UtcNow:yyyyMMddHHmmss}",
+                $"openai://responses/{inputHash}",
                 DateTimeOffset.UtcNow,
                 Classify(analysis),
                 symbols.Select(symbol => symbol.ToUpperInvariant()).ToArray());
+
+            UpdateCache(inputHash, [item]);
 
             await telemetryRecorder.RecordAsync(new DataSourceHealthEvent(
                 Name,
@@ -118,7 +159,7 @@ public sealed class OpenAiResearchAnalyzer(
     private string BuildPrompt(IReadOnlyCollection<string> symbols, IReadOnlyList<NewsItem> researchItems)
     {
         var builder = new StringBuilder();
-        builder.AppendLine("Eres un analista cuantitativo de trading. Analiza el contexto reciente y devuelve un resumen breve en espanol.");
+        builder.AppendLine("Eres un analista cuantitativo de trading. Analiza el contexto reciente y devuelve un resumen breve en espanol, util para filtrar entradas reales.");
         builder.AppendLine("No prometas ganancias. Senala sesgo probable, catalizadores, riesgos y si la informacion favorece LONG, SHORT o esperar.");
         builder.AppendLine("Activos monitoreados:");
         builder.AppendLine(string.Join(", ", symbols));
@@ -143,8 +184,86 @@ public sealed class OpenAiResearchAnalyzer(
         }
 
         builder.AppendLine();
-        builder.AppendLine("Formato de salida: maximo 8 bullets, cada bullet accionable y corto.");
-        return builder.ToString();
+        builder.AppendLine("Formato de salida: maximo 6 bullets, cada bullet accionable y corto. Evita repetir titulares.");
+        return Trim(builder.ToString(), Math.Clamp(options.MaxPromptCharacters, 1000, 20000));
+    }
+
+    private IReadOnlyList<NewsItem> SelectResearch(IReadOnlyCollection<string> symbols, IReadOnlyList<NewsItem> researchItems)
+    {
+        var watchedSymbols = symbols
+            .Where(symbol => !string.IsNullOrWhiteSpace(symbol))
+            .Select(symbol => symbol.Trim().ToUpperInvariant())
+            .ToHashSet(StringComparer.OrdinalIgnoreCase);
+
+        var maxItems = Math.Clamp(options.MaxNewsItems, 1, 50);
+
+        return researchItems
+            .Where(item => item.PublishedAt >= DateTimeOffset.UtcNow.AddHours(-24))
+            .Where(item => item.Symbols.Count == 0 || item.Symbols.Any(symbol => watchedSymbols.Contains(symbol)))
+            .GroupBy(item => string.IsNullOrWhiteSpace(item.Url) ? item.Title.Trim().ToUpperInvariant() : item.Url.Trim().ToUpperInvariant())
+            .Select(group => group.OrderByDescending(item => item.PublishedAt).First())
+            .OrderByDescending(item => item.PublishedAt)
+            .Take(maxItems)
+            .ToArray();
+    }
+
+    private bool TryUseCachedResult(string inputHash, out IReadOnlyList<NewsItem> result, out string reason)
+    {
+        lock (_cacheLock)
+        {
+            var now = DateTimeOffset.UtcNow;
+            var minimumGap = TimeSpan.FromMinutes(Math.Clamp(options.MinimumMinutesBetweenCalls, 0, 180));
+            var sameInput = options.OnlyAnalyzeWhenNewsChanged && string.Equals(_lastInputHash, inputHash, StringComparison.Ordinal);
+
+            if (sameInput && _lastResult.Count > 0)
+            {
+                result = _lastResult;
+                reason = "OpenAI cache reused: research input did not change.";
+                return true;
+            }
+
+            if (minimumGap > TimeSpan.Zero && now - _lastAnalysisAt < minimumGap)
+            {
+                result = _lastResult;
+                reason = $"OpenAI cache reused: waiting {minimumGap.TotalMinutes:N0} minutes between calls.";
+                return true;
+            }
+        }
+
+        result = [];
+        reason = "";
+        return false;
+    }
+
+    private void UpdateCache(string inputHash, IReadOnlyList<NewsItem> result)
+    {
+        lock (_cacheLock)
+        {
+            _lastInputHash = inputHash;
+            _lastAnalysisAt = DateTimeOffset.UtcNow;
+            _lastResult = result;
+        }
+    }
+
+    private static string ComputeInputHash(IReadOnlyCollection<string> symbols, IReadOnlyList<NewsItem> researchItems)
+    {
+        var input = new StringBuilder();
+        input.AppendLine(string.Join(",", symbols.Select(symbol => symbol.Trim().ToUpperInvariant()).Order(StringComparer.Ordinal)));
+
+        foreach (var item in researchItems)
+        {
+            input.Append(item.PublishedAt.UtcDateTime.ToString("O"));
+            input.Append('|');
+            input.Append(item.Source);
+            input.Append('|');
+            input.Append(item.Sentiment);
+            input.Append('|');
+            input.Append(item.Url);
+            input.Append('|');
+            input.AppendLine(item.Title);
+        }
+
+        return Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(input.ToString()))).ToLowerInvariant()[..16];
     }
 
     private static string ExtractOutputText(string responseBody)

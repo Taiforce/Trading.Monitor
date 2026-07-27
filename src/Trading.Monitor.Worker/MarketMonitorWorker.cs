@@ -9,11 +9,12 @@ namespace Trading.Monitor.Worker;
 
 public sealed class MarketMonitorWorker(ILogger<MarketMonitorWorker> logger, MarketScanner marketScanner, IServiceScopeFactory scopeFactory, IMarketDataProvider marketDataProvider,
     IEnumerable<INotificationChannel> notificationChannels, IOptionsMonitor<TradingMonitorOptions> monitorOptions, IOptionsMonitor<RiskOptions> riskOptions, IOptionsMonitor<NewsOptions> newsOptions,
-    IOptionsMonitor<NotificationOptions> notificationOptions, IHostApplicationLifetime applicationLifetime) : BackgroundService
+    IOptionsMonitor<NotificationOptions> notificationOptions, IOptionsMonitor<ExchangeExecutionOptions> exchangeOptions, IHostApplicationLifetime applicationLifetime) : BackgroundService
 {
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
-        logger.LogInformation("Trading monitor started. This service only produces proposals; it never places real orders.");
+        var exchange = exchangeOptions.CurrentValue;
+        logger.LogInformation("Trading monitor started. Exchange execution enabled: {Enabled}. Mode: {Mode}. Live allowed: {LiveAllowed}.", exchange.Enabled, exchange.Mode, exchange.AllowLiveOrders);
 
         while (!stoppingToken.IsCancellationRequested)
         {
@@ -100,6 +101,14 @@ public sealed class MarketMonitorWorker(ILogger<MarketMonitorWorker> logger, Mar
         }
 
         await repository.SaveAsync(opportunity, cancellationToken);
+        var executionCapital = Math.Max(0m, exchangeOptions.CurrentValue.MaxCapitalPerTrade);
+        var savedOpportunity = await repository.GetByAlertKeyAsync(opportunity.AlertKey, executionCapital, cancellationToken);
+
+        if (savedOpportunity is not null)
+        {
+            var tradeExecutionService = scope.ServiceProvider.GetRequiredService<ITradeExecutionService>();
+            await tradeExecutionService.TryEnterAsync(savedOpportunity, cancellationToken);
+        }
 
         logger.LogInformation("New signal {Symbol} {SignalType} score {Score}. Entry {EntryLower}-{EntryUpper}, perdida maxima {StopLoss}, ganancia objetivo {TakeProfit1}.", opportunity.Symbol,
             SignalTypeDescriptor.Label(opportunity.Side), opportunity.Score, opportunity.EntryLower, opportunity.EntryUpper, opportunity.StopLoss, opportunity.TakeProfit1);
@@ -131,6 +140,7 @@ public sealed class MarketMonitorWorker(ILogger<MarketMonitorWorker> logger, Mar
     {
         using var scope = scopeFactory.CreateScope();
         var repository = scope.ServiceProvider.GetRequiredService<IOpportunityRepository>();
+        var tradeExecutionService = scope.ServiceProvider.GetRequiredService<ITradeExecutionService>();
         var openOpportunities = await repository.GetOpenAsync(cancellationToken);
 
         foreach (var opportunity in openOpportunities)
@@ -149,6 +159,7 @@ public sealed class MarketMonitorWorker(ILogger<MarketMonitorWorker> logger, Mar
 
                 var net = gross - opportunity.EstimatedFees;
                 await repository.UpdateExitAsync(opportunity.Id, exit, gross, net, cancellationToken);
+                await tradeExecutionService.TryExitAsync(opportunity, exit, net, cancellationToken);
 
                 logger.LogInformation("Opportunity {Symbol} {SignalType} closed as {Status} at {ExitPrice}. Net PnL for {Capital}: {NetPnL}", opportunity.Symbol,
                     SignalTypeDescriptor.Label(opportunity.Side), exit.Status, exit.ExitPrice, opportunity.Capital, Math.Round(net, 2));

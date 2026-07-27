@@ -10,12 +10,15 @@ namespace Trading.Monitor.Web.Pages;
 
 public sealed class ConnectionsModel(
     IOpportunityRepository opportunityRepository,
+    ITradeExecutionRepository tradeExecutionRepository,
     IOptionsMonitor<ReportingOptions> reportingOptions,
     ExchangeConnectionStatusService exchangeConnectionStatusService,
     ILogger<ConnectionsModel> logger)
     : TradingPageModel(opportunityRepository, reportingOptions)
 {
     public ExchangeConnectionStatus? ExchangeStatus { get; private set; }
+
+    public IReadOnlyList<TradeExecutionAudit> RecentExecutions { get; private set; } = [];
 
     public IReadOnlyList<IGrouping<DataSourceKind, SourceHealthReportRow>> SourcesByKind { get; private set; } = [];
 
@@ -62,6 +65,7 @@ public sealed class ConnectionsModel(
         logger.LogInformation("Loading connections page.");
         await LoadReportAsync(cancellationToken);
         ExchangeStatus = await exchangeConnectionStatusService.GetAsync(cancellationToken);
+        RecentExecutions = await tradeExecutionRepository.GetRecentAsync(40, cancellationToken);
 
         AvailableKinds = Report.SourceHealth.Select(row => row.Kind).Distinct().OrderBy(row => row).ToArray();
         FilteredSources = ApplyFilters(Report.SourceHealth);
@@ -99,6 +103,40 @@ public sealed class ConnectionsModel(
             "En uso" => "status-win",
             "Opcional" => "status-muted",
             _ => "status-open"
+        };
+    }
+
+    public string ExecutionStatusClass(TradeExecutionStatus status)
+    {
+        return status switch
+        {
+            TradeExecutionStatus.Simulated or TradeExecutionStatus.Filled => "status-win",
+            TradeExecutionStatus.Submitted => "status-open",
+            TradeExecutionStatus.Blocked or TradeExecutionStatus.Failed => "status-loss",
+            _ => "status-muted"
+        };
+    }
+
+    public string ExecutionActionLabel(TradeExecutionAction action)
+    {
+        return action switch
+        {
+            TradeExecutionAction.BuyToOpen => "Comprar",
+            TradeExecutionAction.SellToClose => "Vender",
+            TradeExecutionAction.SellToOpen => "Vender primero",
+            TradeExecutionAction.BuyToClose => "Comprar de regreso",
+            _ => action.ToString()
+        };
+    }
+
+    public string ExecutionModeLabel(TradeExecutionMode mode)
+    {
+        return mode switch
+        {
+            TradeExecutionMode.Paper => "Simulado",
+            TradeExecutionMode.Test => "Test Binance",
+            TradeExecutionMode.Live => "Real",
+            _ => mode.ToString()
         };
     }
 }

@@ -7,6 +7,7 @@ using Trading.Monitor.Application.Configuration;
 using Trading.Monitor.Application.Services;
 using Trading.Monitor.Infrastructure;
 using Trading.Monitor.Infrastructure.Ai;
+using Trading.Monitor.Infrastructure.Exchange;
 using Trading.Monitor.Infrastructure.MarketData;
 using Trading.Monitor.Infrastructure.News;
 using Trading.Monitor.Infrastructure.Notifications;
@@ -40,6 +41,7 @@ try
     builder.Services.Configure<StorageOptions>(builder.Configuration.GetSection("Storage"));
     builder.Services.Configure<NotificationOptions>(builder.Configuration.GetSection("Notifications"));
     builder.Services.Configure<ReportingOptions>(builder.Configuration.GetSection("Reporting"));
+    builder.Services.Configure<ExchangeExecutionOptions>(builder.Configuration.GetSection("ExchangeExecution"));
 
     builder.Services.AddSingleton<TechnicalAnalysisService>();
     builder.Services.AddSingleton<TradingSignalEngine>();
@@ -102,6 +104,14 @@ try
     });
 
     builder.Services.AddTradingMonitorDatabase(builder.Configuration, builder.Environment.ContentRootPath);
+    builder.Services.AddHttpClient<IExchangeExecutionClient, BinanceSpotExecutionClient>((serviceProvider, client) =>
+    {
+        var options = serviceProvider.GetRequiredService<IOptionsMonitor<ExchangeExecutionOptions>>().CurrentValue;
+        client.BaseAddress = new Uri(options.BaseUrl);
+        client.Timeout = TimeSpan.FromSeconds(15);
+        client.DefaultRequestHeaders.UserAgent.ParseAdd("Trading.Monitor/1.0");
+    });
+    builder.Services.AddScoped<ITradeExecutionService, SafeTradeExecutionService>();
     builder.Services.AddSingleton<INotificationChannel, ConsoleNotificationChannel>();
 
     builder.Services.AddSingleton<INotificationChannel>(serviceProvider =>

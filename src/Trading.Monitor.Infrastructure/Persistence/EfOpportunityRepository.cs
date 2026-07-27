@@ -102,6 +102,24 @@ public sealed class EfOpportunityRepository : IOpportunityRepository
         return entities.Select(entity => ToReportRow(entity, _reportingOptions.CurrentValue.DefaultCapital)).ToArray();
     }
 
+    public async Task<OpportunityReportRow?> GetByAlertKeyAsync(string alertKey, decimal capital, CancellationToken cancellationToken)
+    {
+        if (string.IsNullOrWhiteSpace(alertKey))
+            return null;
+
+        capital = capital <= 0m ? _reportingOptions.CurrentValue.DefaultCapital : capital;
+        var entity = await _dbContext.Opportunities.AsNoTracking().FirstOrDefaultAsync(item => item.AlertKey == alertKey, cancellationToken);
+
+        return entity is null ? null : ToReportRow(entity, capital);
+    }
+
+    public async Task<decimal> GetRealizedNetSinceAsync(DateTimeOffset since, CancellationToken cancellationToken)
+    {
+        return await _dbContext.Opportunities.AsNoTracking()
+            .Where(entity => entity.ExitTime >= since && entity.RealizedNetPnL.HasValue)
+            .SumAsync(entity => entity.RealizedNetPnL!.Value, cancellationToken);
+    }
+
     public async Task UpdateExitAsync(Guid id, OpportunityExit exit, decimal realizedGrossPnL, decimal realizedNetPnL, CancellationToken cancellationToken)
     {
         var entity = await _dbContext.Opportunities.FirstOrDefaultAsync(item => item.Id == id, cancellationToken);

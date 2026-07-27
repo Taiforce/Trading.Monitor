@@ -20,6 +20,8 @@ public sealed class TradingMonitorDbContext : DbContext
 
     public DbSet<TraderTradeEntity> TraderTrades => Set<TraderTradeEntity>();
 
+    public DbSet<TradeExecutionEntity> TradeExecutions => Set<TradeExecutionEntity>();
+
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
         var opportunity = modelBuilder.Entity<TradingOpportunityEntity>();
@@ -129,6 +131,33 @@ public sealed class TradingMonitorDbContext : DbContext
         traderTrade.HasOne(entity => entity.TraderProfile)
             .WithMany()
             .HasForeignKey(entity => entity.TraderProfileId)
+            .OnDelete(DeleteBehavior.Cascade);
+
+        var tradeExecution = modelBuilder.Entity<TradeExecutionEntity>();
+        tradeExecution.ToTable("trade_executions");
+        tradeExecution.HasKey(entity => entity.Id);
+        tradeExecution.HasIndex(entity => new { entity.OpportunityId, entity.CreatedAt });
+        tradeExecution.HasIndex(entity => entity.CreatedAt);
+        tradeExecution.HasIndex(entity => entity.Status);
+        tradeExecution.Property(entity => entity.Symbol).HasMaxLength(32);
+        tradeExecution.Property(entity => entity.Side).HasConversion<string>().HasMaxLength(16);
+        tradeExecution.Property(entity => entity.Action).HasConversion<string>().HasMaxLength(24);
+        tradeExecution.Property(entity => entity.Mode).HasConversion<string>().HasMaxLength(16);
+        tradeExecution.Property(entity => entity.Status).HasConversion<string>().HasMaxLength(16);
+        tradeExecution.Property(entity => entity.RequestedCapital).HasColumnType("decimal(18,2)");
+        tradeExecution.Property(entity => entity.RequestedQuantity).HasColumnType("decimal(18,8)");
+        tradeExecution.Property(entity => entity.ExecutedQuantity).HasColumnType("decimal(18,8)");
+        tradeExecution.Property(entity => entity.ExecutedQuote).HasColumnType("decimal(18,2)");
+        tradeExecution.Property(entity => entity.Price).HasColumnType("decimal(18,8)");
+        tradeExecution.Property(entity => entity.ClientOrderId).HasMaxLength(64);
+        tradeExecution.Property(entity => entity.ExchangeOrderId).HasMaxLength(128);
+        tradeExecution.Property(entity => entity.Reason).HasMaxLength(512);
+        tradeExecution.Property(entity => entity.Message).HasMaxLength(2048);
+        tradeExecution.Property(entity => entity.RequestJson).HasColumnType("nvarchar(max)");
+        tradeExecution.Property(entity => entity.ResponseJson).HasColumnType("nvarchar(max)");
+        tradeExecution.HasOne(entity => entity.Opportunity)
+            .WithMany()
+            .HasForeignKey(entity => entity.OpportunityId)
             .OnDelete(DeleteBehavior.Cascade);
     }
 }

@@ -210,6 +210,36 @@ BEGIN
     CREATE INDEX IX_trader_trades_TraderProfileId_OpenedAt ON dbo.trader_trades(TraderProfileId, OpenedAt);
     CREATE UNIQUE INDEX IX_trader_trades_TraderProfileId_ExternalTradeId ON dbo.trader_trades(TraderProfileId, ExternalTradeId);
 END;
+
+IF OBJECT_ID(N'dbo.trade_executions', N'U') IS NULL
+BEGIN
+    CREATE TABLE dbo.trade_executions
+    (
+        Id uniqueidentifier NOT NULL CONSTRAINT PK_trade_executions PRIMARY KEY,
+        OpportunityId uniqueidentifier NOT NULL,
+        Symbol nvarchar(32) NOT NULL,
+        Side nvarchar(16) NOT NULL,
+        Action nvarchar(24) NOT NULL,
+        Mode nvarchar(16) NOT NULL,
+        Status nvarchar(16) NOT NULL,
+        RequestedCapital decimal(18,2) NOT NULL,
+        RequestedQuantity decimal(18,8) NULL,
+        ExecutedQuantity decimal(18,8) NULL,
+        ExecutedQuote decimal(18,2) NULL,
+        Price decimal(18,8) NULL,
+        ClientOrderId nvarchar(64) NOT NULL,
+        ExchangeOrderId nvarchar(128) NOT NULL,
+        Reason nvarchar(512) NOT NULL,
+        Message nvarchar(2048) NOT NULL,
+        RequestJson nvarchar(max) NOT NULL,
+        ResponseJson nvarchar(max) NOT NULL,
+        CreatedAt datetimeoffset NOT NULL,
+        CONSTRAINT FK_trade_executions_trading_opportunities_OpportunityId FOREIGN KEY (OpportunityId) REFERENCES dbo.trading_opportunities(Id) ON DELETE CASCADE
+    );
+    CREATE INDEX IX_trade_executions_OpportunityId_CreatedAt ON dbo.trade_executions(OpportunityId, CreatedAt);
+    CREATE INDEX IX_trade_executions_CreatedAt ON dbo.trade_executions(CreatedAt);
+    CREATE INDEX IX_trade_executions_Status ON dbo.trade_executions(Status);
+END;
 "@
 Invoke-TargetSql -Database $TargetDatabase -Query $tablesSql
 
@@ -218,6 +248,7 @@ $tables = @(
     "ingestion_events",
     "research_items",
     "trading_opportunities",
+    "trade_executions",
     "trader_sources",
     "trader_profiles",
     "trader_trades"
@@ -227,6 +258,7 @@ $clearSql = @"
 DELETE FROM dbo.trader_trades;
 DELETE FROM dbo.trader_profiles;
 DELETE FROM dbo.trader_sources;
+DELETE FROM dbo.trade_executions;
 DELETE FROM dbo.trading_opportunities;
 DELETE FROM dbo.research_items;
 DELETE FROM dbo.ingestion_events;
@@ -250,6 +282,7 @@ SELECT 'trading_opportunities' AS table_name, COUNT(*) AS rows_count FROM dbo.tr
 UNION ALL SELECT 'data_sources', COUNT(*) FROM dbo.data_sources
 UNION ALL SELECT 'ingestion_events', COUNT(*) FROM dbo.ingestion_events
 UNION ALL SELECT 'research_items', COUNT(*) FROM dbo.research_items
+UNION ALL SELECT 'trade_executions', COUNT(*) FROM dbo.trade_executions
 UNION ALL SELECT 'trader_sources', COUNT(*) FROM dbo.trader_sources
 UNION ALL SELECT 'trader_profiles', COUNT(*) FROM dbo.trader_profiles
 UNION ALL SELECT 'trader_trades', COUNT(*) FROM dbo.trader_trades;

@@ -1,8 +1,8 @@
 # Trading Monitor
 
-Servicio .NET 9 para monitorear mercado cripto, hacer analisis tecnico multi-temporal, revisar noticias/reportes configurables, pedir un resumen opcional a OpenAI y emitir propuestas de entrada/salida por consola, correo o Telegram.
+Servicio .NET 9 para monitorear mercado cripto, hacer analisis tecnico multi-temporal, revisar noticias/reportes configurables, pedir un resumen opcional a OpenAI, emitir propuestas de entrada/salida y auditar ejecuciones automaticas seguras.
 
-Este proyecto no ejecuta ordenes reales. Solo genera propuestas para que una persona las revise antes de operar.
+Por defecto ejecuta en modo `Paper`: simula entradas y salidas y las registra en SQL Server sin mover dinero real. El modo `Live` existe, pero queda bloqueado hasta configurar llaves de exchange sin retiro, limites y confirmaciones explicitas.
 
 ## Que hace
 
@@ -18,6 +18,7 @@ Este proyecto no ejecuta ordenes reales. Solo genera propuestas para que una per
 - Lanza alertas de salida cuando una oportunidad toca ganancia objetivo, ganancia extra, perdida maxima o vence.
 - Evita mandar senales repetidas dentro de una ventana configurable.
 - Guarda historial, salidas, salud de fuentes e investigacion en SQL Server local: base `TradingMarket`.
+- Guarda auditoria de ejecucion automatica en `dbo.trade_executions`: omitida, bloqueada, simulada, validada o real enviada.
 - Registra errores y eventos con Serilog en `logs/`.
 - Incluye dashboard web con reportes de trader, fuentes monitoreadas, noticias capturadas, PnL realizado y PnL hipotetico por monto.
 
@@ -164,11 +165,19 @@ Campos importantes:
 - `News:CryptoPanicAuthTokenEnvironmentVariable`: nombre de la variable que contiene el token de CryptoPanic.
 - `OpenAi:Enabled`: activa o desactiva el resumen de investigacion con OpenAI.
 - `OpenAi:Model`: modelo usado para el resumen de investigacion.
+- `OpenAi:MinimumNewsItemsToAnalyze`: evita llamar IA si hay pocas noticias utiles.
+- `OpenAi:MinimumMinutesBetweenCalls`: separacion minima entre llamadas para reducir tokens.
+- `OpenAi:OnlyAnalyzeWhenNewsChanged`: reutiliza cache cuando el paquete de noticias no cambio.
 - `Notifications:Email`: SMTP para correo.
 - `Notifications:Telegram`: bot token y chat id.
-- `ExchangeExecution:Mode`: `Paper` por defecto. `Live` solo debe usarse con llaves sin retiro, limites y `AllowLiveOrders=true`.
+- `ExchangeExecution:Enabled`: `true` por defecto para simular/auditar en `Paper`.
+- `ExchangeExecution:Mode`: `Paper` por defecto. `Test` valida contra Binance sin ejecutar. `Live` solo debe usarse con llaves sin retiro, limites y `AllowLiveOrders=true`.
 - `ExchangeExecution:MaxCapitalPerTrade`: limite por operacion para la fase live.
 - `ExchangeExecution:DailyLossLimit`: limite diario de perdida.
+- `ExchangeExecution:MinimumScoreToExecute`: score minimo para convertir una senal en intento automatico.
+- `ExchangeExecution:MinimumExpectedNetProfitPercentAfterCosts`: ganancia minima despues de comisiones para permitir una entrada.
+- `ExchangeExecution:AllowedSymbols`: lista blanca de pares que puede intentar ejecutar.
+- `ExchangeExecution:AllowShortSelling`: por defecto `false`; prioriza compra bajo - vende alto.
 
 Tambien puedes usar variables de entorno:
 

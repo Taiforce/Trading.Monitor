@@ -111,11 +111,92 @@
                         <span>Ordenes reales</span>
                         <strong class="@(Model.ExchangeStatus.LiveTradingAllowed ? "loss" : "gain")">@(Model.ExchangeStatus.LiveTradingAllowed ? "Habilitadas" : "Bloqueadas")</strong>
                     </article>
+                    <article>
+                        <span>Score minimo auto</span>
+                        <strong>@Model.ExchangeStatus.MinimumScoreToExecute/100</strong>
+                    </article>
+                    <article>
+                        <span>Ganancia neta minima</span>
+                        <strong>@Model.ExchangeStatus.MinimumExpectedNetProfitPercentAfterCosts.ToString("N2")%</strong>
+                    </article>
+                    <article>
+                        <span>Capital maximo</span>
+                        <strong>@Model.ExchangeStatus.MaxCapitalPerTrade.ToString("C2")</strong>
+                    </article>
+                    <article>
+                        <span>Perdida 24h maxima</span>
+                        <strong>@Model.ExchangeStatus.DailyLossLimit.ToString("C2")</strong>
+                    </article>
+                    <article>
+                        <span>Venta en corto</span>
+                        <strong class="@(Model.ExchangeStatus.AllowShortSelling ? "status-open" : "status-muted")">@(Model.ExchangeStatus.AllowShortSelling ? "Permitida" : "Bloqueada")</strong>
+                    </article>
+                    <article>
+                        <span>Simbolos</span>
+                        <strong>@string.Join(", ", Model.ExchangeStatus.AllowedSymbols)</strong>
+                    </article>
                 </div>
                 <p class="exchange-status-note">@Model.ExchangeStatus.Message @Model.ExchangeStatus.Safety</p>
             </div>
         </details>
     }
+
+    <details class="report-section fold-panel" open>
+        <summary>
+            <h2>Ejecucion automatica</h2>
+            <span>@Model.RecentExecutions.Count intentos recientes</span>
+        </summary>
+
+        <div class="fold-body">
+            @if (Model.RecentExecutions.Count == 0)
+            {
+                <div class="empty-state">
+                    <strong>Aun no hay intentos registrados.</strong>
+                    <span>Cuando llegue una senal nueva, aqui veras si fue simulada, validada, bloqueada o enviada.</span>
+                </div>
+            }
+            else
+            {
+                <div class="execution-audit-list" role="list">
+                    @foreach (var execution in Model.RecentExecutions)
+                    {
+                        <details class="execution-audit-row" role="listitem">
+                            <summary>
+                                <div>
+                                    <strong>@execution.Symbol - @Model.ExecutionActionLabel(execution.Action)</strong>
+                                    <span>@execution.CreatedAt.ToLocalTime().ToString("dd MMM HH:mm:ss") | @Model.ExecutionModeLabel(execution.Mode)</span>
+                                </div>
+                                <span class="status @Model.ExecutionStatusClass(execution.Status)">@execution.Status</span>
+                            </summary>
+                            <div class="execution-audit-detail">
+                                <article>
+                                    <span>Capital</span>
+                                    <strong>@execution.RequestedCapital.ToString("C2")</strong>
+                                </article>
+                                <article>
+                                    <span>Cantidad</span>
+                                    <strong>@(execution.ExecutedQuantity?.ToString("N8") ?? execution.RequestedQuantity?.ToString("N8") ?? "-")</strong>
+                                </article>
+                                <article>
+                                    <span>Precio</span>
+                                    <strong>@(execution.Price?.ToString("N2") ?? "-")</strong>
+                                </article>
+                                <article>
+                                    <span>Total recibido</span>
+                                    <strong>@(execution.ExecutedQuote?.ToString("C2") ?? "-")</strong>
+                                </article>
+                                <p><strong>@execution.Reason</strong> - @execution.Message</p>
+                                @if (!string.IsNullOrWhiteSpace(execution.ExchangeOrderId))
+                                {
+                                    <small>Orden exchange: @execution.ExchangeOrderId</small>
+                                }
+                            </div>
+                        </details>
+                    }
+                </div>
+            }
+        </div>
+    </details>
 
     @if (Model.FilteredSources.Count == 0)
     {

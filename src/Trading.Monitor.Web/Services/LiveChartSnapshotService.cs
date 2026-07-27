@@ -413,6 +413,12 @@ public sealed class LiveChartSnapshotService(
             potentialTp1 = NetPnL(side.Value, entryPrice, takeProfit1, estimatedQuantity, estimatedFees);
             potentialTp2 = NetPnL(side.Value, entryPrice, takeProfit2, estimatedQuantity, estimatedFees);
             potentialStop = NetPnL(side.Value, entryPrice, stopLoss, estimatedQuantity, estimatedFees);
+
+            if (potentialTp1 <= 0m)
+            {
+                action = "Esperar: no cubre comisiones";
+                side = null;
+            }
         }
 
         var changeText = changePercent.ToString("+0.00;-0.00;0.00", CultureInfo.InvariantCulture);
