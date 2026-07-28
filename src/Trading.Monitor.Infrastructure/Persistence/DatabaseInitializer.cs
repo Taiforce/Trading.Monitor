@@ -34,6 +34,7 @@ public static class DatabaseInitializer
             await EnsureOpportunityManagedSchemaAsync(dbContext, cancellationToken);
             await EnsureTraderResearchSchemaAsync(dbContext, cancellationToken);
             await EnsureTradeExecutionSchemaAsync(dbContext, cancellationToken);
+            await EnsureWalletSchemaAsync(dbContext, cancellationToken);
 
             try
             {
@@ -88,6 +89,77 @@ public static class DatabaseInitializer
                     CREATE INDEX IX_trade_executions_CreatedAt ON dbo.trade_executions(CreatedAt);
                     CREATE INDEX IX_trade_executions_Status ON dbo.trade_executions(Status);
                 END;
+                """,
+                cancellationToken);
+        }
+        catch (SqlException exception) when (exception.Number is 2714 or 1913)
+        {
+            await Task.Delay(TimeSpan.FromSeconds(1), cancellationToken);
+        }
+    }
+
+    private static async Task EnsureWalletSchemaAsync(TradingMonitorDbContext dbContext, CancellationToken cancellationToken)
+    {
+        try
+        {
+            await dbContext.Database.ExecuteSqlRawAsync(
+                """
+                IF OBJECT_ID(N'dbo.wallet_settings', N'U') IS NULL
+                BEGIN
+                    CREATE TABLE dbo.wallet_settings
+                    (
+                        Id uniqueidentifier NOT NULL CONSTRAINT PK_wallet_settings PRIMARY KEY,
+                        CashCapital decimal(18,2) NOT NULL,
+                        AutoTradingEnabled bit NOT NULL,
+                        CreatedAt datetimeoffset NOT NULL,
+                        UpdatedAt datetimeoffset NOT NULL
+                    );
+                END;
+
+                IF OBJECT_ID(N'dbo.wallet_assets', N'U') IS NULL
+                BEGIN
+                    CREATE TABLE dbo.wallet_assets
+                    (
+                        Id uniqueidentifier NOT NULL CONSTRAINT PK_wallet_assets PRIMARY KEY,
+                        Symbol nvarchar(32) NOT NULL,
+                        Asset nvarchar(16) NOT NULL,
+                        CoinQuantity decimal(18,8) NOT NULL,
+                        AllowSellHighBuyLow bit NOT NULL,
+                        AutoTradingEnabled bit NOT NULL,
+                        CreatedAt datetimeoffset NOT NULL,
+                        UpdatedAt datetimeoffset NOT NULL
+                    );
+
+                    CREATE UNIQUE INDEX IX_wallet_assets_Symbol ON dbo.wallet_assets(Symbol);
+                END;
+
+                DECLARE @walletNow datetimeoffset = SYSDATETIMEOFFSET();
+
+                IF NOT EXISTS (SELECT 1 FROM dbo.wallet_settings)
+                BEGIN
+                    INSERT INTO dbo.wallet_settings (Id, CashCapital, AutoTradingEnabled, CreatedAt, UpdatedAt)
+                    VALUES ('0fa2b2e6-35ec-4cc9-96b8-b8051eb4c2c5', 0, 0, @walletNow, @walletNow);
+                END;
+
+                IF NOT EXISTS (SELECT 1 FROM dbo.wallet_assets WHERE Symbol = N'BTCUSDT')
+                    INSERT INTO dbo.wallet_assets (Id, Symbol, Asset, CoinQuantity, AllowSellHighBuyLow, AutoTradingEnabled, CreatedAt, UpdatedAt)
+                    VALUES ('c14a07c8-2e29-4dd9-8bd7-5591f0fc27b8', N'BTCUSDT', N'BTC', 0, 1, 0, @walletNow, @walletNow);
+
+                IF NOT EXISTS (SELECT 1 FROM dbo.wallet_assets WHERE Symbol = N'ETHUSDT')
+                    INSERT INTO dbo.wallet_assets (Id, Symbol, Asset, CoinQuantity, AllowSellHighBuyLow, AutoTradingEnabled, CreatedAt, UpdatedAt)
+                    VALUES ('4b34c054-5ebf-48ca-893d-b9b8e670ca45', N'ETHUSDT', N'ETH', 0, 1, 0, @walletNow, @walletNow);
+
+                IF NOT EXISTS (SELECT 1 FROM dbo.wallet_assets WHERE Symbol = N'SOLUSDT')
+                    INSERT INTO dbo.wallet_assets (Id, Symbol, Asset, CoinQuantity, AllowSellHighBuyLow, AutoTradingEnabled, CreatedAt, UpdatedAt)
+                    VALUES ('3b2b3908-54e1-4117-b41d-44f54edc9e95', N'SOLUSDT', N'SOL', 0, 1, 0, @walletNow, @walletNow);
+
+                IF NOT EXISTS (SELECT 1 FROM dbo.wallet_assets WHERE Symbol = N'XRPUSDT')
+                    INSERT INTO dbo.wallet_assets (Id, Symbol, Asset, CoinQuantity, AllowSellHighBuyLow, AutoTradingEnabled, CreatedAt, UpdatedAt)
+                    VALUES ('482d03f0-9525-45d0-a3db-46698f8a6c48', N'XRPUSDT', N'XRP', 0, 1, 0, @walletNow, @walletNow);
+
+                IF NOT EXISTS (SELECT 1 FROM dbo.wallet_assets WHERE Symbol = N'ADAUSDT')
+                    INSERT INTO dbo.wallet_assets (Id, Symbol, Asset, CoinQuantity, AllowSellHighBuyLow, AutoTradingEnabled, CreatedAt, UpdatedAt)
+                    VALUES ('f1417324-3555-40a0-a2f9-b4baad790f50', N'ADAUSDT', N'ADA', 0, 1, 0, @walletNow, @walletNow);
                 """,
                 cancellationToken);
         }

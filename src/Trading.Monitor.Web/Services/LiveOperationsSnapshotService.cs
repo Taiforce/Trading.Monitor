@@ -9,6 +9,7 @@ namespace Trading.Monitor.Web.Services;
 public sealed class LiveOperationsSnapshotService(
     IOpportunityRepository opportunityRepository,
     TradeInstructionService instructionService,
+    IWalletRepository walletRepository,
     Microsoft.Extensions.Options.IOptionsMonitor<ReportingOptions> reportingOptions)
 {
     private static readonly CultureInfo CurrencyCulture = CultureInfo.GetCultureInfo("en-US");
@@ -22,10 +23,13 @@ public sealed class LiveOperationsSnapshotService(
             resolvedCapital = reportingOptions.CurrentValue.DefaultCapital;
 
         var report = await opportunityRepository.GetDashboardReportAsync(resolvedCapital, cancellationToken);
+        var wallet = await walletRepository.GetSnapshotAsync(cancellationToken);
         var now = DateTimeOffset.UtcNow;
         var resolvedInstructionService = IsClassicMode(mode) ? ClassicInstructionService : instructionService;
 
-        var filteredRows = ApplyFilters(report.RecentSignals, estado, symbol, tipoSenal).ToArray();
+        var filteredRows = ApplyFilters(report.RecentSignals, estado, symbol, tipoSenal)
+            .Where(row => WalletSignalPolicy.CanShowSignal(row, wallet))
+            .ToArray();
         var selectedRow = ResolveSelectedRow(filteredRows, selectedSignalId);
         var operations = filteredRows
             .OrderByDescending(row => row.Status == OpportunityStatus.Open)

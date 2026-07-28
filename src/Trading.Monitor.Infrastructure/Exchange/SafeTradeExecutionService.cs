@@ -5,6 +5,7 @@ using Microsoft.Extensions.Options;
 using Trading.Monitor.Application.Abstractions;
 using Trading.Monitor.Application.Configuration;
 using Trading.Monitor.Application.Reporting;
+using Trading.Monitor.Application.Services;
 using Trading.Monitor.Domain;
 
 namespace Trading.Monitor.Infrastructure.Exchange;
@@ -13,6 +14,7 @@ public sealed class SafeTradeExecutionService(
     IOptionsMonitor<ExchangeExecutionOptions> optionsMonitor,
     ITradeExecutionRepository executionRepository,
     IOpportunityRepository opportunityRepository,
+    IWalletRepository walletRepository,
     IExchangeExecutionClient exchangeClient,
     ILogger<SafeTradeExecutionService> logger) : ITradeExecutionService
 {
@@ -183,7 +185,24 @@ public sealed class SafeTradeExecutionService(
     private async Task<ExecutionDecision> ValidateEntryAsync(OpportunityReportRow opportunity, ExchangeExecutionOptions options, TradeExecutionMode mode, decimal requestedCapital, CancellationToken cancellationToken)
     {
         if (!options.Enabled)
-            return new ExecutionDecision(false, TradeExecutionStatus.Skipped, "execution-disabled", "Ejecucion automatica desactivada. La senal solo queda como propuesta.");
+            return new ExecutionDecision(false, TradeExecutionStatus.Skipped, "execution-disabled", "Ejecución automática desactivada. La señal solo queda como propuesta.");
+
+        var wallet = await walletRepository.GetSnapshotAsync(cancellationToken);
+
+        if (!wallet.AutoTradingEnabled)
+            return new ExecutionDecision(false, TradeExecutionStatus.Skipped, "wallet-auto-disabled", "Automático desactivado en Wallet. La señal queda como propuesta.");
+
+        if (!wallet.CanAutoTrade(opportunity.Symbol))
+            return new ExecutionDecision(false, TradeExecutionStatus.Skipped, "wallet-symbol-auto-disabled", $"Automático desactivado en Wallet para {opportunity.Symbol}.");
+
+        if (!WalletSignalPolicy.CanShowSignal(opportunity, wallet))
+            return new ExecutionDecision(false, TradeExecutionStatus.Skipped, "wallet-no-base-asset", $"Wallet no tiene {ResolveBaseAsset(opportunity.Symbol)} disponible; se omite vende alto - compra bajo.");
+
+        if (opportunity.Side == MarketSide.Long && wallet.CashCapital <= 0m)
+            return new ExecutionDecision(false, TradeExecutionStatus.Blocked, "wallet-cash-zero", "Wallet no tiene capital disponible para comprar.");
+
+        if (opportunity.Side == MarketSide.Long && requestedCapital > wallet.CashCapital)
+            return new ExecutionDecision(false, TradeExecutionStatus.Blocked, "wallet-cash-too-low", $"Capital automático {requestedCapital:N2} mayor al capital disponible en Wallet {wallet.CashCapital:N2}.");
 
         if (!options.EnableEntryOrders)
             return new ExecutionDecision(false, TradeExecutionStatus.Skipped, "entries-disabled", "Entradas automaticas desactivadas.");

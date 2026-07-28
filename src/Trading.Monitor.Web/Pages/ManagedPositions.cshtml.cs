@@ -14,18 +14,21 @@ public sealed class ManagedPositionsModel : TradingPageModel
 {
     private static readonly CultureInfo NumberCulture = CultureInfo.GetCultureInfo("en-US");
     private readonly IOpportunityRepository _opportunityRepository;
+    private readonly IWalletRepository _walletRepository;
     private readonly IOptionsMonitor<ReportingOptions> _reportingOptions;
     private readonly IOptionsMonitor<RiskOptions> _riskOptions;
     private readonly ILogger<ManagedPositionsModel> _logger;
 
     public ManagedPositionsModel(
         IOpportunityRepository opportunityRepository,
+        IWalletRepository walletRepository,
         IOptionsMonitor<ReportingOptions> reportingOptions,
         IOptionsMonitor<RiskOptions> riskOptions,
         ILogger<ManagedPositionsModel> logger)
         : base(opportunityRepository, reportingOptions)
     {
         _opportunityRepository = opportunityRepository;
+        _walletRepository = walletRepository;
         _reportingOptions = reportingOptions;
         _riskOptions = riskOptions;
         _logger = logger;
@@ -122,8 +125,11 @@ public sealed class ManagedPositionsModel : TradingPageModel
             TargetNetPercent = DefaultTargetNetPercent;
 
         await LoadReportAsync(cancellationToken);
+        var wallet = await _walletRepository.GetSnapshotAsync(cancellationToken);
         Symbols = BuildSymbolList(Report.RecentSignals.Select(row => row.Symbol));
-        Rows = ApplyFilters(Report.RecentSignals);
+        Rows = ApplyFilters(Report.RecentSignals)
+            .Where(row => WalletSignalPolicy.CanShowSignal(row, wallet))
+            .ToArray();
     }
 
     private IReadOnlyList<OpportunityReportRow> ApplyFilters(IEnumerable<OpportunityReportRow> rows)

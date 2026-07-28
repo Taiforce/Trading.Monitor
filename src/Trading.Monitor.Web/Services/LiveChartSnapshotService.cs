@@ -24,10 +24,17 @@ public sealed class LiveChartSnapshotService(
         var candles = await GetCandlesAsync(resolvedSymbol, resolvedInterval, range.From, range.To, cancellationToken);
         var operations = await operationsSnapshotService.GetAsync(resolvedCapital, estado, resolvedSymbol, tipoSenal, mode, selectedSignalId, cancellationToken);
         var currentPrice = candles.LastOrDefault()?.Close;
-        var matchingOperations = operations.Operations
+        var refreshedOperations = operations.Operations
             .Where(operation => string.Equals(operation.Symbol, resolvedSymbol, StringComparison.OrdinalIgnoreCase))
             .Select(operation => RefreshConversion(operation, currentPrice, reportingOptions.CurrentValue.EstimatedFeePercentPerSide))
+            .ToArray();
+        var selectedOperation = ResolveSelectedOperation(refreshedOperations, selectedSignalId);
+        var matchingOperations = refreshedOperations
             .Take(8)
+            .Append(selectedOperation)
+            .Where(operation => operation is not null)
+            .DistinctBy(operation => operation!.Id)
+            .Select(operation => operation!)
             .ToArray();
 
         return new LiveChartSnapshot(
@@ -80,6 +87,24 @@ public sealed class LiveChartSnapshotService(
             return null;
 
         return decimal.TryParse(value, NumberStyles.Currency, CultureInfo.GetCultureInfo("en-US"), out var parsed) ? parsed : null;
+    }
+
+    private static LiveOperationDto? ResolveSelectedOperation(IEnumerable<LiveOperationDto> operations, string? selectedSignalId)
+    {
+        var normalizedId = NormalizeSignalId(selectedSignalId);
+        if (string.IsNullOrWhiteSpace(normalizedId))
+            return null;
+
+        return operations.FirstOrDefault(operation => string.Equals(operation.Id, normalizedId, StringComparison.OrdinalIgnoreCase));
+    }
+
+    private static string NormalizeSignalId(string? selectedSignalId)
+    {
+        if (string.IsNullOrWhiteSpace(selectedSignalId))
+            return "";
+
+        var trimmed = selectedSignalId.Trim();
+        return Guid.TryParse(trimmed, out var id) ? id.ToString("N") : trimmed.Replace("-", "", StringComparison.Ordinal).ToLowerInvariant();
     }
 
     private async Task<IReadOnlyList<LiveCandleDto>> GetCandlesAsync(string symbol, string interval, DateTimeOffset? from, DateTimeOffset? to, CancellationToken cancellationToken)

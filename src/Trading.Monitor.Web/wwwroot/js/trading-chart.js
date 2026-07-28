@@ -61,7 +61,7 @@
     let candleSeries;
     let volumeSeries;
     let markerApi;
-    let selectedSymbol = symbolFilter || localStorage.getItem(symbolStorageKey) || "BTCUSDT";
+    let selectedSymbol = initialOperationId && symbolFilter ? symbolFilter : localStorage.getItem(symbolStorageKey) || symbolFilter || "BTCUSDT";
     let selectedInterval = initialInterval || localStorage.getItem(intervalStorageKey) || "1m";
     let chartZoom = Number(chartZoomInput?.value || 45);
     let lastOperations = [];
@@ -76,7 +76,7 @@
     let applyingRange = false;
     let hasRenderedSnapshot = false;
     let userViewLocked = false;
-    let userSelectedSymbol = Boolean(symbolFilter || localStorage.getItem(symbolStorageKey));
+    let userSelectedSymbol = Boolean(localStorage.getItem(symbolStorageKey)) && !(initialOperationId && symbolFilter);
     let savedLogicalRange = null;
     let resetViewOnNextRender = true;
     let chartRequestId = 0;
@@ -210,10 +210,6 @@
 
     function wireControls() {
         document.querySelectorAll("[data-chart-symbol-button]").forEach(button => {
-            if (symbolFilter && button.dataset.chartSymbolButton !== symbolFilter) {
-                button.disabled = true;
-            }
-
             button.classList.toggle("active", selectedSymbol === button.dataset.chartSymbolButton);
             button.addEventListener("click", async () => {
                 selectedSymbol = button.dataset.chartSymbolButton || selectedSymbol;
@@ -251,7 +247,8 @@
 
     async function refreshLiveTrades() {
         try {
-            const url = `/api/operaciones-vivas?capital=${encodeURIComponent(capital)}&estado=${encodeURIComponent(estado)}&symbol=${encodeURIComponent(symbolFilter)}&tipoSenal=${encodeURIComponent(tipoSenal)}&mode=${encodeURIComponent(liveMode)}&senal=${encodeURIComponent(selectedOperationId || "")}`;
+            const requestSymbol = selectedSymbol || symbolFilter;
+            const url = `/api/operaciones-vivas?capital=${encodeURIComponent(capital)}&estado=${encodeURIComponent(estado)}&symbol=${encodeURIComponent(requestSymbol)}&tipoSenal=${encodeURIComponent(tipoSenal)}&mode=${encodeURIComponent(liveMode)}&senal=${encodeURIComponent(selectedOperationId || "")}`;
             const response = await fetch(url, { cache: "no-store" });
             if (!response.ok) {
                 throw new Error(`HTTP ${response.status}`);
@@ -259,8 +256,8 @@
 
             const data = await response.json();
             lastOperations = data.operations || [];
-            selectedSymbol = symbolFilter || selectedSymbol || pickChartSymbol(lastOperations);
-            if (!symbolFilter && !userSelectedSymbol && lastOperations.length > 0 && !lastOperations.some(item => item.symbol === selectedSymbol)) {
+            selectedSymbol = selectedSymbol || symbolFilter || pickChartSymbol(lastOperations);
+            if (!userSelectedSymbol && lastOperations.length > 0 && !lastOperations.some(item => item.symbol === selectedSymbol)) {
                 selectedSymbol = pickChartSymbol(lastOperations);
             }
             document.querySelectorAll("[data-chart-symbol-button]").forEach(item => {
@@ -342,23 +339,29 @@
         hasRenderedSnapshot = true;
     }
 
-    function renderList(operations) {
-        if (isEditingTargetPercent()) {
+    function renderList(operations, force = false) {
+        if (!force && isEditingTargetPercent()) {
             return;
         }
 
-        const visibleOperations = operations.filter(item => item.symbol === selectedSymbol);
+        const selectedOperation = selectedOperationId
+            ? operations.find(item => item.id === selectedOperationId)
+            : null;
+        const visibleOperations = uniqueOperations([
+            ...operations.filter(item => item.symbol === selectedSymbol).slice(0, 18),
+            ...(selectedOperation && selectedOperation.symbol === selectedSymbol ? [selectedOperation] : [])
+        ]);
 
         if (visibleOperations.length === 0) {
             list.innerHTML = `<div class="empty-state"><strong>Sin operaciones.</strong><span>Esperando una señal clara.</span></div>`;
             return;
         }
 
-        if (selectedOperationId && !visibleOperations.some(item => item.id === selectedOperationId)) {
+        if (selectedOperationId && !operations.some(item => item.id === selectedOperationId)) {
             selectedOperationId = null;
         }
 
-        list.innerHTML = visibleOperations.slice(0, 18).map((item, index) => {
+        list.innerHTML = visibleOperations.map((item, index) => {
             const isSelected = item.id === selectedOperationId;
             return isManagedMode ? renderManagedCard(item, index, isSelected) : renderClassicCard(item, index, isSelected);
         }).join("");
@@ -410,6 +413,7 @@
         });
 
         list.querySelectorAll("[data-target-percent]").forEach(input => {
+            input.addEventListener("click", event => event.stopPropagation());
             input.addEventListener("focus", () => {
                 const id = input.getAttribute("data-target-percent");
                 targetDrafts.set(id, input.value);
@@ -419,6 +423,7 @@
                 targetDrafts.set(id, input.value);
             });
             input.addEventListener("keydown", async event => {
+                event.stopPropagation();
                 if (event.key !== "Enter") {
                     return;
                 }
@@ -1056,10 +1061,15 @@
     async function refreshTargetPercent(id, value) {
         const targetPercent = setTargetPercent(id, value);
         targetDrafts.delete(id);
+        selectedOperationId = id || selectedOperationId;
+        if (document.activeElement?.hasAttribute("data-target-percent")) {
+            document.activeElement.blur();
+        }
         await persistTargetPercent(id, targetPercent);
         lockCurrentView();
         await refreshChart();
-        renderList(lastOperations);
+        selectedOperationId = id || selectedOperationId;
+        renderList(lastOperations, true);
     }
 
     function getTargetPercent(item) {
@@ -1100,6 +1110,18 @@
 
     function isEditingTargetPercent() {
         return document.activeElement?.hasAttribute("data-target-percent") === true;
+    }
+
+    function uniqueOperations(items) {
+        const seen = new Set();
+        return items.filter(item => {
+            if (!item?.id || seen.has(item.id)) {
+                return false;
+            }
+
+            seen.add(item.id);
+            return true;
+        });
     }
 
     function targetStorageKey(id) {

@@ -22,6 +22,10 @@ public sealed class TradingMonitorDbContext : DbContext
 
     public DbSet<TradeExecutionEntity> TradeExecutions => Set<TradeExecutionEntity>();
 
+    public DbSet<WalletSettingsEntity> WalletSettings => Set<WalletSettingsEntity>();
+
+    public DbSet<WalletAssetEntity> WalletAssets => Set<WalletAssetEntity>();
+
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
         var opportunity = modelBuilder.Entity<TradingOpportunityEntity>();
@@ -164,5 +168,18 @@ public sealed class TradingMonitorDbContext : DbContext
             .WithMany()
             .HasForeignKey(entity => entity.OpportunityId)
             .OnDelete(DeleteBehavior.Cascade);
+
+        var walletSettings = modelBuilder.Entity<WalletSettingsEntity>();
+        walletSettings.ToTable("wallet_settings");
+        walletSettings.HasKey(entity => entity.Id);
+        walletSettings.Property(entity => entity.CashCapital).HasColumnType("decimal(18,2)");
+
+        var walletAsset = modelBuilder.Entity<WalletAssetEntity>();
+        walletAsset.ToTable("wallet_assets");
+        walletAsset.HasKey(entity => entity.Id);
+        walletAsset.HasIndex(entity => entity.Symbol).IsUnique();
+        walletAsset.Property(entity => entity.Symbol).HasMaxLength(32);
+        walletAsset.Property(entity => entity.Asset).HasMaxLength(16);
+        walletAsset.Property(entity => entity.CoinQuantity).HasColumnType("decimal(18,8)");
     }
 }

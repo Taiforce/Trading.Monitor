@@ -1,0 +1,128 @@
+@page "/wallet"
+@model WalletModel
+@{
+    ViewData["Title"] = "Wallet";
+}
+
+<section class="dashboard">
+    <div class="page-head">
+        <div>
+            <p class="eyebrow">Capital real y reglas</p>
+            <h1>Wallet</h1>
+        </div>
+        <a class="ghost-action" asp-page="/Connections">Ver conexión Binance</a>
+    </div>
+
+    @if (!string.IsNullOrWhiteSpace(Model.StatusMessage))
+    {
+        <div class="insight-strip wallet-message">
+            <span>Guardado</span>
+            <strong>@Model.StatusMessage</strong>
+        </div>
+    }
+
+    <section class="metrics-grid metrics-grid-four" aria-label="Resumen wallet">
+        <article class="metric">
+            <span>Capital</span>
+            <strong>@Model.Input.CashCapital.ToString("C2")</strong>
+            <small>disponible para compras</small>
+        </article>
+        <article class="metric">
+            <span>Activos con monedas</span>
+            <strong>@Model.Input.Assets.Count(asset => asset.CoinQuantity > 0m)</strong>
+            <small>pueden venderse primero</small>
+        </article>
+        <article class="metric">
+            <span>Automático</span>
+            <strong class="@(Model.Input.AutoTradingEnabled ? "status-open" : "status-muted")">@(Model.Input.AutoTradingEnabled ? "Autorizado" : "Apagado")</strong>
+            <small>además requiere protección Binance</small>
+        </article>
+        <article class="metric">
+            <span>Binance</span>
+            <strong class="@(Model.LiveOrdersReady ? "status-win" : "status-muted")">@(Model.LiveOrdersReady ? "Live" : "Protegido")</strong>
+            <small>@Model.BinanceSafetyText()</small>
+        </article>
+    </section>
+
+    <form method="post" class="wallet-layout">
+        <section class="report-section wallet-panel">
+            <div class="section-title">
+                <h2>Mi capital</h2>
+                <span>base USDT/USD</span>
+            </div>
+            <label class="wallet-field">
+                <span>Capital disponible</span>
+                <input asp-for="Input.CashCapital" type="number" min="0" step="0.01"/>
+            </label>
+            <label class="wallet-toggle">
+                <input asp-for="Input.AutoTradingEnabled" type="checkbox"/>
+                <span>Permitir automático desde esta wallet</span>
+            </label>
+            <p class="wallet-note">Aunque esté activo aquí, Binance real sigue bloqueado si la configuración no está en modo live seguro.</p>
+        </section>
+
+        <section class="report-section wallet-panel wallet-assets">
+            <div class="section-title">
+                <h2>Monedas</h2>
+                <span>reglas por cripto</span>
+            </div>
+
+            @for (var i = 0; i < Model.Input.Assets.Count; i++)
+            {
+                <article class="wallet-asset-row">
+                    <input asp-for="Input.Assets[i].Symbol" type="hidden"/>
+                    <input asp-for="Input.Assets[i].Asset" type="hidden"/>
+                    <div>
+                        <strong>@Model.Input.Assets[i].Asset</strong>
+                        <small>@Model.Input.Assets[i].Symbol</small>
+                    </div>
+                    <label>
+                        <span>Total monedas</span>
+                        <input asp-for="Input.Assets[i].CoinQuantity" type="number" min="0" step="0.00000001"/>
+                    </label>
+                    <label class="wallet-toggle compact">
+                        <input asp-for="Input.Assets[i].AllowSellHighBuyLow" type="checkbox"/>
+                        <span>Vender alto - comprar bajo</span>
+                    </label>
+                    <label class="wallet-toggle compact">
+                        <input asp-for="Input.Assets[i].AutoTradingEnabled" type="checkbox"/>
+                        <span>Automático</span>
+                    </label>
+                    <em class="@(Model.Input.Assets[i].CoinQuantity > 0m && Model.Input.Assets[i].AllowSellHighBuyLow ? "gain" : "flat")">@Model.SellHighStatus(Model.Input.Assets[i])</em>
+                </article>
+            }
+
+            <button type="submit" class="primary-action">Guardar wallet</button>
+        </section>
+
+        <section class="report-section wallet-panel">
+            <div class="section-title">
+                <h2>Binance automático</h2>
+                <span>@(Model.LiveOrdersReady ? "listo" : "bloqueado")</span>
+            </div>
+            <dl class="wallet-status-list">
+                <div>
+                    <dt>Modo</dt>
+                    <dd>@Model.ExchangeOptions.Mode</dd>
+                </div>
+                <div>
+                    <dt>Órdenes reales</dt>
+                    <dd>@(Model.ExchangeOptions.AllowLiveOrders ? "Permitidas por config" : "Bloqueadas por config")</dd>
+                </div>
+                <div>
+                    <dt>Endpoint de prueba</dt>
+                    <dd>@(Model.ExchangeOptions.UseTestOrderEndpoint ? "Activo" : "Apagado")</dd>
+                </div>
+                <div>
+                    <dt>Llave API</dt>
+                    <dd>@(Model.HasApiKey ? "Detectada" : "No detectada")</dd>
+                </div>
+                <div>
+                    <dt>Secreto API</dt>
+                    <dd>@(Model.HasApiSecret ? "Detectado" : "No detectado")</dd>
+                </div>
+            </dl>
+            <p class="wallet-note">@Model.BinanceSafetyText()</p>
+        </section>
+    </form>
+</section>

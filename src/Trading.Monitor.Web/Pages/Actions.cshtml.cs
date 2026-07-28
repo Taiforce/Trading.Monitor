@@ -10,7 +10,7 @@ using Trading.Monitor.Web.Services;
 
 namespace Trading.Monitor.Web.Pages;
 
-public sealed class ActionsModel(IOpportunityRepository opportunityRepository, IOptionsMonitor<ReportingOptions> reportingOptions, ILogger<ActionsModel> logger)
+public sealed class ActionsModel(IOpportunityRepository opportunityRepository, IWalletRepository walletRepository, IOptionsMonitor<ReportingOptions> reportingOptions, ILogger<ActionsModel> logger)
     : TradingPageModel(opportunityRepository, reportingOptions)
 {
     private static readonly CultureInfo NumberCulture = CultureInfo.GetCultureInfo("en-US");
@@ -44,9 +44,12 @@ public sealed class ActionsModel(IOpportunityRepository opportunityRepository, I
     {
         logger.LogInformation("Loading actions page for capital {Capital}.", Capital);
         await LoadReportAsync(cancellationToken);
+        var wallet = await walletRepository.GetSnapshotAsync(cancellationToken);
 
         Symbols = BuildSymbolList(Report.RecentSignals.Select(row => row.Symbol));
-        Rows = ApplyFilters(Report.RecentSignals);
+        Rows = ApplyFilters(Report.RecentSignals)
+            .Where(row => WalletSignalPolicy.CanShowSignal(row, wallet))
+            .ToArray();
         HighlightedRows = Rows.Where(row => InstructionFor(row).Highlight).Take(6).ToArray();
         CalculateMoneySummary();
     }

@@ -77,6 +77,16 @@ public sealed class MarketMonitorWorker(ILogger<MarketMonitorWorker> logger, Mar
         var duplicateWindow = TimeSpan.FromMinutes(Math.Max(1, monitor.DuplicateWindowMinutes));
         using var scope = scopeFactory.CreateScope();
         var repository = scope.ServiceProvider.GetRequiredService<IOpportunityRepository>();
+        var walletRepository = scope.ServiceProvider.GetRequiredService<IWalletRepository>();
+        var wallet = await walletRepository.GetSnapshotAsync(cancellationToken);
+
+        if (!WalletSignalPolicy.CanShowSignal(opportunity.Side, opportunity.Symbol, wallet))
+        {
+            logger.LogInformation("Skipping {Symbol} {SignalType}: wallet has no {Asset} balance for this operation type.", opportunity.Symbol, SignalTypeDescriptor.Label(opportunity.Side),
+                WalletSnapshot.ResolveAsset(opportunity.Symbol));
+            return;
+        }
+
         var isDuplicate = await repository.HasRecentSimilarSignalAsync(opportunity, duplicateWindow, cancellationToken);
 
         if (isDuplicate)
