@@ -1,22 +1,22 @@
 @page "/acciones"
 @model ActionsModel
 @{
-    ViewData["Title"] = "Acciones";
+    ViewData["Title"] = "Señales fijas";
 }
 
 <section class="dashboard">
     <div class="page-head">
         <div>
             <p class="eyebrow">@Model.MarketLabel() | entrada y salida fija</p>
-            <h1>Operaciones por señal</h1>
+            <h1>Señales fijas</h1>
         </div>
     </div>
 
-    <section class="metrics-grid metrics-grid-four" aria-label="Resumen de acciones">
+    <section class="metrics-grid metrics-grid-four" aria-label="Resumen de señales fijas">
         <article class="metric">
             <span>Saldo simulado</span>
             <strong class="@Model.SignedClass(Model.FilteredRealizedNet)">@Model.Money(Model.SimulatedBalanceAfterClosedOperations)</strong>
-            <small>capital + cierres filtrados</small>
+            <small>capital + cierres fijos</small>
         </article>
         <article class="metric">
             <span>Ganado</span>
@@ -31,18 +31,18 @@
         <article class="metric">
             <span>Resultado neto</span>
             <strong class="@Model.SignedClass(Model.FilteredRealizedNet)">@Model.Money(Model.FilteredRealizedNet)</strong>
-            <small>@Model.FilteredClosedOperations cierres medidos</small>
+            <small>@Model.FilteredClosedOperations cierres fijos medidos</small>
         </article>
     </section>
 
     <div class="insight-strip trade-type-guide">
-        <span>Operación fija</span>
-        <strong>Cada señal trae entrada, mercado objetivo y salida. Para entrar y dejar que el sistema busque la salida después, usa <a asp-page="/ManagedPositions" asp-route-Mercado="@Model.MarketRouteValue()">Seguimiento por señal</a>.</strong>
+        <span>Señal fija</span>
+        <strong>Cada señal trae entrada, mercado objetivo y salida. ★ marca prioridad dentro de la lista; para señales sin salida fija usa <a asp-page="/ManagedPositions" asp-route-Mercado="@Model.MarketRouteValue()">Seguimiento por señal</a>.</strong>
     </div>
 
     <section class="report-section live-board" data-live-mode="classic" data-live-market="@Model.MarketRouteValue()" data-live-capital="@Model.Report.Capital" data-live-estado="abiertas" data-live-symbol="@Model.Symbol" data-live-tipo-senal="@Model.TipoSenal" data-live-fee-percent="@Model.EstimatedFeePercentPerSide">
         <div class="section-title">
-            <h2>Gráfico y seguimiento</h2>
+            <h2>Gráfico y señales abiertas</h2>
             <span id="liveUpdated">actualizando...</span>
         </div>
         <form method="get" class="filter-bar live-inline-filter" id="actionsFilterForm">
@@ -100,136 +100,17 @@
                     <strong>@(Model.SymbolButtonLabel(Model.Symbols.FirstOrDefault() ?? "BTCUSDT"))</strong>
                     <span>cargando mercado...</span>
                 </div>
-                <div id="advancedTradesChart" class="tradingview-chart" aria-label="Gráfico de operaciones por señal"></div>
+                <div id="advancedTradesChart" class="tradingview-chart" aria-label="Gráfico de señales fijas"></div>
                 <div id="chartHoverInfo" class="chart-hover-card" hidden></div>
             </div>
             <div id="liveTradeCards" class="live-trade-list">
                 <div class="empty-state">
-                    <strong>Cargando operaciones...</strong>
+                    <strong>Cargando señales fijas...</strong>
                     <span>El tablero se refresca solo.</span>
                 </div>
             </div>
         </div>
     </section>
-
-    @if (Model.HighlightedRows.Count > 0)
-    {
-        <section class="report-section priority-section">
-            <div class="section-title">
-                <h2>Prioridad alta</h2>
-                <span>las mismas señales, solo las más fuertes</span>
-            </div>
-            <div class="priority-grid">
-                @foreach (var row in Model.HighlightedRows)
-                {
-                    var instruction = Model.InstructionFor(row);
-                    <article class="priority-card @instruction.CssClass">
-                        <div>
-                            <span>@instruction.ActionLabel</span>
-                            <strong>@row.Symbol</strong>
-                            <small>@Model.SignalTypeLabel(row.Side) | @instruction.ConvictionLabel | score @row.Score/100</small>
-                        </div>
-                        <p>@instruction.EntryTiming</p>
-                        <div class="priority-money">
-                            <strong class="gain">Ganar @Model.Money(row.NetProfitAtTakeProfit1)</strong>
-                            <strong class="loss">Perder max @Model.Money(row.NetLossAtStop)</strong>
-                        </div>
-                    </article>
-                }
-            </div>
-        </section>
-    }
-
-    <section class="report-section">
-        <div class="section-title">
-            <h2>Planes de operación</h2>
-            <span>todas las señales filtradas: @Model.Rows.Count</span>
-        </div>
-
-        @if (Model.Rows.Count == 0)
-        {
-            <div class="empty-state">
-                <strong>Sin oportunidades para este filtro.</strong>
-                <span>El monitor puede estar esperando una confluencia más fuerte.</span>
-            </div>
-        }
-        else
-        {
-            <div class="trade-card-grid compact-signal-grid">
-                @foreach (var row in Model.Rows)
-                {
-                    var instruction = Model.InstructionFor(row);
-                    var breakdown = Model.CostBreakdown(row);
-                    <article class="trade-card @instruction.CssClass @Model.NetResultClass(breakdown)">
-                        <div class="trade-card-head">
-                            <div>
-                                <strong>@row.Symbol</strong>
-                                <span class="signal-type-badge @Model.SignalTypeClass(row.Side)">Señal de @Model.SignalTypeLabel(row.Side)</span>
-                                <small>@Model.SignalTypeMeaning(row.Side)</small>
-                            </div>
-                            <div class="trade-badges">
-                                <span class="type-pill @Model.SignalTypeClass(row.Side)">@Model.SignalTypeRequirement(row.Side)</span>
-                                <span class="action-pill">@instruction.ActionLabel</span>
-                                <span class="conviction-pill">@instruction.ConvictionLabel</span>
-                                <span class="status @Model.StatusClass(row.Status)">@Model.StatusLabel(row.Status)</span>
-                                <span class="score-pill">@row.Score - @Model.ScoreLabel(row.Score)</span>
-                            </div>
-                        </div>
-
-                        <div class="money-scenario signal-detail-fields">
-                            <div>
-                                <span>Cantidad entrada</span>
-                                <strong>@Model.Money(breakdown.Investment)</strong>
-                                <small>@Model.SignalTypeLabel(row.Side)</small>
-                            </div>
-                            <div>
-                                <span>Costo unidad</span>
-                                <strong>@Model.Price(row.EntryPrice)</strong>
-                                <small>precio de entrada</small>
-                            </div>
-                            <div>
-                                <span>Activo obtenido</span>
-                                <strong>@Model.Quantity(row)</strong>
-                                <small>cantidad simulada</small>
-                            </div>
-                            <div>
-                                <span>Comisión entrada</span>
-                                <strong>@Model.EstimatedFeePercentPerSide.ToString("N2")%</strong>
-                                <small>@Model.Money(breakdown.EntryFee)</small>
-                            </div>
-                            <div>
-                                <span>Mercado objetivo</span>
-                                <strong>@Model.Price(row.TakeProfit1)</strong>
-                                <small>@(row.Side == Trading.Monitor.Domain.MarketSide.Long ? "vender ahí" : "comprar de regreso ahí")</small>
-                            </div>
-                            <div>
-                                <span>Ganancia objetivo</span>
-                                <strong class="@Model.SignedClass(breakdown.NetBenefit)">@Model.Money(breakdown.NetBenefit)</strong>
-                                <small>@Model.NetResultLabel(breakdown)</small>
-                            </div>
-                            <div>
-                                <span>Comisión salida</span>
-                                <strong>@Model.EstimatedFeePercentPerSide.ToString("N2")%</strong>
-                                <small>@Model.Money(breakdown.ExitFee)</small>
-                            </div>
-                            <div>
-                                <span>Total obtenido</span>
-                                <strong class="@Model.SignedClass(breakdown.NetBenefit)">@Model.Money(breakdown.TotalObtained)</strong>
-                                <small>neto después de comisiones</small>
-                            </div>
-                        </div>
-
-                        <div class="trade-footer">
-                            <span>Mercado actual @Model.Price(row.LastPrice)</span>
-                            <span>Pérdida máxima @Model.Money(row.NetLossAtStop)</span>
-                            <span>Riesgo/beneficio 1:@row.RiskReward.ToString("N2")</span>
-                        </div>
-                    </article>
-                }
-            </div>
-        }
-    </section>
-
 </section>
 
 @section Scripts {

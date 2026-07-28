@@ -124,8 +124,9 @@ public sealed class MarketMonitorWorker(ILogger<MarketMonitorWorker> logger, Mar
             await tradeExecutionService.TryEnterAsync(savedOpportunity, cancellationToken);
         }
 
-        logger.LogInformation("New signal {Symbol} {SignalType} score {Score}. Entry {EntryLower}-{EntryUpper}, pérdida máxima {StopLoss}, ganancia objetivo {TakeProfit1}.", opportunity.Symbol,
-            SignalTypeDescriptor.Label(opportunity.Side), opportunity.Score, opportunity.EntryLower, opportunity.EntryUpper, opportunity.StopLoss, opportunity.TakeProfit1);
+        logger.LogInformation("New {OperationKind} {OriginKind} signal {Symbol} {SignalType} score {Score}. Entry {EntryLower}-{EntryUpper}, pérdida máxima {StopLoss}, ganancia objetivo {TakeProfit1}.",
+            opportunity.OperationKind, opportunity.OriginKind, opportunity.Symbol, SignalTypeDescriptor.Label(opportunity.Side), opportunity.Score, opportunity.EntryLower, opportunity.EntryUpper,
+            opportunity.StopLoss, opportunity.TakeProfit1);
 
         foreach (var channel in notificationChannels)
         {

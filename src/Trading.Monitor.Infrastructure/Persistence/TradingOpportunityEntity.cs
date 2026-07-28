@@ -14,6 +14,10 @@ public sealed class TradingOpportunityEntity
 
     public OpportunityStatus Status { get; set; }
 
+    public SignalOperationKind OperationKind { get; set; } = SignalOperationKind.Fixed;
+
+    public SignalOriginKind OriginKind { get; set; } = SignalOriginKind.OwnAi;
+
     public int Score { get; set; }
 
     public DateTimeOffset ObservedAt { get; set; }

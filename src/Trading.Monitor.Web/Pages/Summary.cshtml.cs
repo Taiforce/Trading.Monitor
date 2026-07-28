@@ -5,6 +5,7 @@ using Trading.Monitor.Application.Configuration;
 using Trading.Monitor.Application.Reporting;
 using Trading.Monitor.Application.Services;
 using Trading.Monitor.Domain;
+using Trading.Monitor.Web.Services;
 
 namespace Trading.Monitor.Web.Pages;
 
@@ -66,7 +67,11 @@ public sealed class SummaryModel : TradingPageModel
         VistaResumen = NormalizeView(VistaResumen);
 
         var allSignals = await _opportunityRepository.GetSignalsAsync(Capital, cancellationToken);
-        MarketRows = allSignals.Where(MatchesCurrentMarket).OrderByDescending(row => row.ObservedAt).ToArray();
+        MarketRows = allSignals
+            .Where(MatchesCurrentMarket)
+            .Where(row => SignalSegmentation.MatchesOriginView(row, VistaResumen))
+            .OrderByDescending(row => row.ObservedAt)
+            .ToArray();
         OpenRows = MarketRows.Where(row => row.Status == OpportunityStatus.Open).Take(8).ToArray();
         ClosedRows = MarketRows.Where(row => row.Status != OpportunityStatus.Open).ToArray();
         RealizedNet = ClosedRows.Sum(row => row.RealizedNetPnL ?? 0m);
@@ -87,7 +92,7 @@ public sealed class SummaryModel : TradingPageModel
     {
         return VistaResumen switch
         {
-            "ia" => "Resumen basado en el consenso de enfoques externos: compara score, veto, riesgo y costo.",
+            "ia" => "Resumen de señales ajenas capturadas: solo entra aquí lo que venga marcado desde fuentes externas verificables.",
             "traders" => "Resumen de traders: fuentes, perfiles, historial local, operaciones abiertas y resultados cerrados.",
             _ => "Resumen del sistema propio: mide lo que el motor está generando y cómo le fue al cerrarse."
         };

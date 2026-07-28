@@ -22,12 +22,12 @@ public sealed class LiveOperationsSnapshotService(
         if (resolvedCapital <= 0m)
             resolvedCapital = reportingOptions.CurrentValue.DefaultCapital;
 
-        var report = await opportunityRepository.GetDashboardReportAsync(resolvedCapital, cancellationToken);
+        var rows = await opportunityRepository.GetSignalsAsync(resolvedCapital, cancellationToken);
         var wallet = await walletRepository.GetSnapshotAsync(MarketSymbolClassifier.NormalizeMarket(mercado), cancellationToken);
         var now = DateTimeOffset.UtcNow;
         var resolvedInstructionService = IsClassicMode(mode) ? ClassicInstructionService : instructionService;
 
-        var filteredRows = ApplyFilters(report.RecentSignals, estado, symbol, tipoSenal, mercado)
+        var filteredRows = ApplyFilters(rows, estado, symbol, tipoSenal, mode, mercado)
             .Where(row => WalletSignalPolicy.CanShowSignal(row, wallet))
             .ToArray();
         var selectedRow = ResolveSelectedRow(filteredRows, selectedSignalId);
@@ -85,6 +85,10 @@ public sealed class LiveOperationsSnapshotService(
             SignalTypeFormatter.Description(row.Side),
             row.Side == MarketSide.Long,
             HorizonFor(row),
+            row.OperationKind.ToString(),
+            SignalSegmentation.OperationKindLabel(row.OperationKind),
+            row.OriginKind.ToString(),
+            SignalSegmentation.OriginKindLabel(row.OriginKind),
             StatusLabel(row.Status),
             instruction.ActionLabel,
             instruction.ConvictionLabel,
@@ -150,9 +154,10 @@ public sealed class LiveOperationsSnapshotService(
         return string.Equals(mode, "classic", StringComparison.OrdinalIgnoreCase);
     }
 
-    private static IEnumerable<Application.Reporting.OpportunityReportRow> ApplyFilters(IEnumerable<Application.Reporting.OpportunityReportRow> rows, string? estado, string? symbol, string? tipoSenal, string? mercado)
+    private static IEnumerable<Application.Reporting.OpportunityReportRow> ApplyFilters(IEnumerable<Application.Reporting.OpportunityReportRow> rows, string? estado, string? symbol, string? tipoSenal, string? mode, string? mercado)
     {
         rows = rows.Where(row => MarketSymbolClassifier.MatchesMarket(row.Symbol, mercado));
+        rows = rows.Where(row => SignalSegmentation.MatchesOperationMode(row, mode));
 
         if (!string.IsNullOrWhiteSpace(symbol))
             rows = rows.Where(row => string.Equals(row.Symbol, symbol.Trim(), StringComparison.OrdinalIgnoreCase));

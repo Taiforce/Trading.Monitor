@@ -480,7 +480,7 @@
 
         return `
             <article class="live-card ${escapeHtml(item.signalClass)} ${resultClass} ${isSelected ? "selected-live-card" : ""}" data-operation-id="${escapeAttribute(item.id)}" style="--signal-color: ${escapeAttribute(routeColor)}">
-                ${cardSummary(item, isSelected, "Operación por señal", `${item.signalTypeLabel || item.side} | ${item.status} | actual ${signedMoney(currentMetrics.netBenefit)} | objetivo ${signedMoney(metrics.netBenefit)}`)}
+                ${cardSummary(item, isSelected, item.operationKindLabel || "Señal fija", `${item.originKindLabel || "IA propia"} | ${item.signalTypeLabel || item.side} | ${item.status} | actual ${signedMoney(currentMetrics.netBenefit)} | objetivo ${signedMoney(metrics.netBenefit)}`)}
                 <div class="live-card-body">
                     <dl class="signal-detail-grid">
                         ${detailCell("Cantidad entrada", formatMoney(metrics.investment), item.signalTypeLabel || item.side)}
@@ -516,7 +516,7 @@
 
         return `
             <article class="live-card managed-live-card ${escapeHtml(item.signalClass)} ${resultClass} ${isSelected ? "selected-live-card" : ""}" data-operation-id="${escapeAttribute(item.id)}" style="--signal-color: ${escapeAttribute(routeColor)}">
-                ${cardSummary(item, isSelected, "Seguimiento por señal", `${item.signalTypeLabel || item.side} | ${item.status} | actual ${signedMoney(currentMetrics.netBenefit)}`)}
+                ${cardSummary(item, isSelected, item.operationKindLabel || "Seguimiento", `${item.originKindLabel || "IA propia"} | ${item.signalTypeLabel || item.side} | ${item.status} | actual ${signedMoney(currentMetrics.netBenefit)}`)}
                 <div class="live-card-body">
                     <div class="target-editor">
                         <label>
@@ -556,7 +556,7 @@
                 <i aria-hidden="true"></i>
                 <div>
                     <span>${escapeHtml(label)}</span>
-                    <strong>${escapeHtml(item.symbol)}</strong>
+                    <strong>${escapeHtml(item.symbol)}${item.highlight ? ` <span class="priority-star" title="Prioritaria">★</span>` : ""}</strong>
                     <small>${escapeHtml(detail)} | score ${item.score}/100</small>
                 </div>
                 <em>${isSelected ? "siguiendo" : "ver"}</em>

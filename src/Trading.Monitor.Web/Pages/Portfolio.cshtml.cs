@@ -6,6 +6,7 @@ using Trading.Monitor.Application.Configuration;
 using Trading.Monitor.Application.Reporting;
 using Trading.Monitor.Application.Services;
 using Trading.Monitor.Domain;
+using Trading.Monitor.Web.Services;
 
 namespace Trading.Monitor.Web.Pages;
 
@@ -82,7 +83,9 @@ public sealed class PortfolioModel : TradingPageModel
         _logger.LogInformation("Loading virtual portfolio for initial capital {InitialCapital}.", InitialCapital);
         VistaSimulador = NormalizeSimulatorView(VistaSimulador);
         var allSignals = await _opportunityRepository.GetSignalsAsync(InitialCapital, cancellationToken);
-        Symbols = BuildSymbolListForMarket(allSignals.Select(row => row.Symbol));
+        Symbols = BuildSymbolListForMarket(allSignals
+            .Where(row => SignalSegmentation.MatchesOriginView(row, VistaSimulador))
+            .Select(row => row.Symbol));
         FilteredSignals = ApplyFilters(allSignals).ToArray();
         Simulation = _simulator.Simulate(FilteredSignals, InitialCapital, _reportingOptions.CurrentValue.EstimatedFeePercentPerSide);
         EquityPolyline = BuildEquityPolyline(Simulation.EquityPoints);
@@ -235,6 +238,7 @@ public sealed class PortfolioModel : TradingPageModel
     private IEnumerable<OpportunityReportRow> ApplyFilters(IEnumerable<OpportunityReportRow> rows)
     {
         rows = rows.Where(MatchesCurrentMarket);
+        rows = rows.Where(row => SignalSegmentation.MatchesOriginView(row, VistaSimulador));
         rows = rows.Where(row => row.Status != OpportunityStatus.Open);
 
         if (!string.IsNullOrWhiteSpace(Symbol))

@@ -233,7 +233,12 @@ public sealed class TradingSignalEngine(TechnicalAnalysisService technicalAnalys
         if (!HasEnoughNetEdge(side, entryPrice, takeProfit1, riskOptions, out var netTargetPercent, out var estimatedCostPercent, out var breakEvenPrice))
             return null;
 
+        var operationKind = ResolveOperationKind(symbol, score, expiryMinutes, riskOptions);
+        var operationReason = operationKind == SignalOperationKind.Managed
+            ? "Tipo Seguimiento: entrada viva; salida administrada por mercado, objetivo neto y retroceso."
+            : "Tipo Fija: entrada con objetivo y ventana de salida definidos desde la señal.";
         var enrichedReasons = reasons
+            .Append(operationReason)
             .Append($"Rentabilidad neta: objetivo {netTargetPercent:F2}% después de costo estimado {estimatedCostPercent:F2}%.")
             .Append($"Precio mínimo para no perder: {RoundPrice(breakEvenPrice)}.")
             .Distinct()
@@ -245,7 +250,19 @@ public sealed class TradingSignalEngine(TechnicalAnalysisService technicalAnalys
 
         return new TradingOpportunity(symbol, side, score, observedAt, now.AddMinutes(expiryMinutes), RoundPrice(price), RoundPrice(entryLower), RoundPrice(entryUpper),
             RoundPrice(stopLoss), RoundPrice(takeProfit1), RoundPrice(takeProfit2), Math.Round(riskReward, 2), confirmedIntervals, enrichedReasons, risks.Distinct().Take(8).ToArray(),
-            relatedNews);
+            relatedNews, operationKind, SignalOriginKind.OwnAi);
+    }
+
+    private static SignalOperationKind ResolveOperationKind(string symbol, int score, int expiryMinutes, RiskOptions riskOptions)
+    {
+        if (!riskOptions.ManagedProfitExitEnabled)
+            return SignalOperationKind.Fixed;
+
+        var hasManagedEdge = score >= 95 && expiryMinutes <= 240;
+        if (MarketSymbolClassifier.GetMarketKind(symbol) == MarketKind.Forex)
+            hasManagedEdge = score >= 96 && expiryMinutes <= 180;
+
+        return hasManagedEdge ? SignalOperationKind.Managed : SignalOperationKind.Fixed;
     }
 
     private static bool HasEnoughNetEdge(MarketSide side, decimal entryPrice, decimal takeProfit1, RiskOptions riskOptions, out decimal netTargetPercent, out decimal estimatedCostPercent,

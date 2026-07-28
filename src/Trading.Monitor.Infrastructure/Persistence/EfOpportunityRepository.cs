@@ -31,7 +31,11 @@ public sealed class EfOpportunityRepository : IOpportunityRepository
         var cutoff = DateTimeOffset.UtcNow.Subtract(duplicateWindow);
 
         var entities = await _dbContext.Opportunities.AsNoTracking()
-            .Where(entity => entity.Symbol == opportunity.Symbol && entity.Side == opportunity.Side && entity.ObservedAt >= cutoff)
+            .Where(entity => entity.Symbol == opportunity.Symbol
+                             && entity.Side == opportunity.Side
+                             && entity.OperationKind == opportunity.OperationKind
+                             && entity.OriginKind == opportunity.OriginKind
+                             && entity.ObservedAt >= cutoff)
             .ToArrayAsync(cancellationToken);
 
         return entities.Any(entity => IsSameSignalFamily(entity.ObservedAt, entity.ExpiresAt, opportunity));
@@ -55,6 +59,8 @@ public sealed class EfOpportunityRepository : IOpportunityRepository
             Symbol = opportunity.Symbol,
             Side = opportunity.Side,
             Status = OpportunityStatus.Open,
+            OperationKind = opportunity.OperationKind,
+            OriginKind = opportunity.OriginKind,
             Score = opportunity.Score,
             ObservedAt = opportunity.ObservedAt,
             ExpiresAt = opportunity.ExpiresAt,
@@ -236,7 +242,7 @@ public sealed class EfOpportunityRepository : IOpportunityRepository
             entity.EntryUpper, projection.EntryPrice, entity.StopLoss, entity.TakeProfit1, entity.TakeProfit2, entity.ExitPrice, projection.Capital, projection.EstimatedQuantity, projection.EstimatedFees,
             projection.NetProfitAtTakeProfit1, projection.NetProfitAtTakeProfit2, projection.NetLossAtStop, managedTarget.TargetNetPercent, managedTarget.TargetNetPnL, managedTarget.TargetExitPrice, realizedNet,
             realizedNetPercent, realizedTotalObtained, entity.RiskReward, string.Join(" | ", ReadStringArray(entity.ConfirmingIntervalsJson)),
-            string.Join(" | ", ReadStringArray(entity.ReasonsJson)), string.Join(" | ", ReadStringArray(entity.RisksJson)));
+            string.Join(" | ", ReadStringArray(entity.ReasonsJson)), string.Join(" | ", ReadStringArray(entity.RisksJson)), entity.OperationKind, entity.OriginKind);
     }
 
     private OpportunityReportRow[] ApplyQualityFilter(IReadOnlyList<OpportunityReportRow> rows)
@@ -303,7 +309,7 @@ public sealed class EfOpportunityRepository : IOpportunityRepository
     {
         return new TradingOpportunity(entity.Symbol, entity.Side, entity.Score, entity.ObservedAt, entity.ExpiresAt, entity.LastPrice, entity.EntryLower, entity.EntryUpper, entity.StopLoss, entity.TakeProfit1,
             entity.TakeProfit2, entity.RiskReward, ReadStringArray(entity.ConfirmingIntervalsJson), ReadStringArray(entity.ReasonsJson), ReadStringArray(entity.RisksJson),
-            ReadNewsArray(entity.RelatedNewsJson));
+            ReadNewsArray(entity.RelatedNewsJson), entity.OperationKind, entity.OriginKind);
     }
 
     private static IReadOnlyList<string> ReadStringArray(string json)

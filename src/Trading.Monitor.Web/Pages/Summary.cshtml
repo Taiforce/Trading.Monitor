@@ -199,7 +199,7 @@
                 <strong>Reportes</strong>
                 <span>Revisar cierres, ganancia, pérdida y patrones.</span>
             </a>
-            <a href="/cartera?Mercado=@Model.MarketRouteValue()&VistaSimulador=@(Model.VistaResumen == "traders" ? "traders" : "propio")">
+            <a href="/cartera?Mercado=@Model.MarketRouteValue()&VistaSimulador=@(Model.VistaResumen == "ia" ? "ia" : Model.VistaResumen == "traders" ? "traders" : "propio")">
                 <strong>Simulador</strong>
                 <span>Probar qué habría pasado siguiendo esas operaciones.</span>
             </a>

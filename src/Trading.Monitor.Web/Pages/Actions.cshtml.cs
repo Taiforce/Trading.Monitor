@@ -19,8 +19,6 @@ public sealed class ActionsModel(IOpportunityRepository opportunityRepository, I
 
     public IReadOnlyList<OpportunityReportRow> Rows { get; private set; } = [];
 
-    public IReadOnlyList<OpportunityReportRow> HighlightedRows { get; private set; } = [];
-
     public IReadOnlyList<string> Symbols { get; private set; } = [];
 
     public IReadOnlyDictionary<string, int> OpenCountBySymbol { get; private set; } = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase);
@@ -49,15 +47,18 @@ public sealed class ActionsModel(IOpportunityRepository opportunityRepository, I
         logger.LogInformation("Loading actions page for capital {Capital}.", Capital);
         await LoadReportAsync(cancellationToken);
         var wallet = await walletRepository.GetSnapshotAsync(Mercado, cancellationToken);
+        var fixedRows = Report.RecentSignals
+            .Where(MatchesCurrentMarket)
+            .Where(row => row.OperationKind == SignalOperationKind.Fixed)
+            .ToArray();
 
-        Symbols = BuildSymbolListForMarket(Report.RecentSignals.Select(row => row.Symbol));
-        Rows = ApplyFilters(Report.RecentSignals)
+        Symbols = BuildSymbolListForMarket(fixedRows.Select(row => row.Symbol));
+        Rows = ApplyFilters(fixedRows)
             .Where(row => WalletSignalPolicy.CanShowSignal(row, wallet))
             .ToArray();
         OpenCountBySymbol = Rows
             .GroupBy(row => row.Symbol, StringComparer.OrdinalIgnoreCase)
             .ToDictionary(group => group.Key, group => group.Count(), StringComparer.OrdinalIgnoreCase);
-        HighlightedRows = Rows.Where(row => InstructionFor(row).Highlight).Take(6).ToArray();
         CalculateMoneySummary();
     }
 
@@ -69,6 +70,11 @@ public sealed class ActionsModel(IOpportunityRepository opportunityRepository, I
     public TradeInstruction InstructionFor(OpportunityReportRow row)
     {
         return ClassicInstructionService.Create(row);
+    }
+
+    public bool IsPriority(OpportunityReportRow row)
+    {
+        return InstructionFor(row).Highlight;
     }
 
     public string TimeLeft(OpportunityReportRow row)
@@ -142,6 +148,7 @@ public sealed class ActionsModel(IOpportunityRepository opportunityRepository, I
     private IReadOnlyList<OpportunityReportRow> ApplyFilters(IEnumerable<OpportunityReportRow> rows)
     {
         rows = rows.Where(MatchesCurrentMarket);
+        rows = rows.Where(row => row.OperationKind == SignalOperationKind.Fixed);
 
         if (!string.IsNullOrWhiteSpace(Symbol))
             rows = rows.Where(row => string.Equals(row.Symbol, Symbol, StringComparison.OrdinalIgnoreCase));
@@ -160,6 +167,7 @@ public sealed class ActionsModel(IOpportunityRepository opportunityRepository, I
     {
         var closed = Report.RecentSignals
             .Where(MatchesCurrentMarket)
+            .Where(row => row.OperationKind == SignalOperationKind.Fixed)
             .Where(row => string.IsNullOrWhiteSpace(Symbol) || string.Equals(row.Symbol, Symbol, StringComparison.OrdinalIgnoreCase))
             .Where(row => MatchesSignalType(row, TipoSenal))
             .Where(row => row.Status != OpportunityStatus.Open && row.RealizedNetPnL.HasValue)

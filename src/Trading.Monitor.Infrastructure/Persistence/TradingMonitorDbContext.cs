@@ -36,10 +36,14 @@ public sealed class TradingMonitorDbContext : DbContext
         opportunity.HasIndex(entity => entity.AlertKey).IsUnique();
         opportunity.HasIndex(entity => new { entity.Symbol, entity.Side, entity.ObservedAt });
         opportunity.HasIndex(entity => entity.Status);
+        opportunity.HasIndex(entity => entity.OperationKind);
+        opportunity.HasIndex(entity => entity.OriginKind);
         opportunity.Property(entity => entity.Symbol).HasMaxLength(32);
         opportunity.Property(entity => entity.AlertKey).HasMaxLength(128);
         opportunity.Property(entity => entity.Side).HasConversion<string>().HasMaxLength(16);
         opportunity.Property(entity => entity.Status).HasConversion<string>().HasMaxLength(24);
+        opportunity.Property(entity => entity.OperationKind).HasConversion<string>().HasMaxLength(24);
+        opportunity.Property(entity => entity.OriginKind).HasConversion<string>().HasMaxLength(24);
         opportunity.Property(entity => entity.ExitReason).HasMaxLength(512);
         opportunity.Property(entity => entity.LastPrice).HasColumnType("decimal(18,8)");
         opportunity.Property(entity => entity.EntryLower).HasColumnType("decimal(18,8)");

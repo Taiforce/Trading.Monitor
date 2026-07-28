@@ -292,6 +292,20 @@ public static class DatabaseInitializer
         {
             await dbContext.Database.ExecuteSqlRawAsync(
                 """
+                IF COL_LENGTH(N'dbo.trading_opportunities', N'OperationKind') IS NULL
+                BEGIN
+                    ALTER TABLE dbo.trading_opportunities
+                    ADD OperationKind nvarchar(24) NOT NULL
+                        CONSTRAINT DF_trading_opportunities_OperationKind DEFAULT N'Fixed';
+                END;
+
+                IF COL_LENGTH(N'dbo.trading_opportunities', N'OriginKind') IS NULL
+                BEGIN
+                    ALTER TABLE dbo.trading_opportunities
+                    ADD OriginKind nvarchar(24) NOT NULL
+                        CONSTRAINT DF_trading_opportunities_OriginKind DEFAULT N'OwnAi';
+                END;
+
                 IF COL_LENGTH(N'dbo.trading_opportunities', N'ManagedTargetNetPercent') IS NULL
                 BEGIN
                     ALTER TABLE dbo.trading_opportunities
@@ -340,6 +354,41 @@ public static class DatabaseInitializer
                 UPDATE dbo.trading_opportunities
                 SET RealizedTotalObtained = ROUND(Capital + RealizedNetPnL, 2)
                 WHERE RealizedNetPnL IS NOT NULL AND RealizedTotalObtained IS NULL;
+
+                UPDATE dbo.trading_opportunities
+                SET OperationKind = N'Managed'
+                WHERE OperationKind = N'Fixed'
+                  AND (
+                        Status = N'ManagedProfitExit'
+                        OR ExitReason LIKE N'%administrada%'
+                        OR (Status = N'Open' AND Score >= 95 AND ManagedTargetExitPrice IS NOT NULL AND DATEDIFF(MINUTE, ObservedAt, ExpiresAt) <= 240)
+                      );
+
+                UPDATE dbo.trading_opportunities
+                SET OriginKind = N'Trader'
+                WHERE OriginKind <> N'Trader'
+                  AND (ReasonsJson LIKE N'%trader%' OR ReasonsJson LIKE N'%copy trading%' OR RisksJson LIKE N'%trader%');
+
+                UPDATE dbo.trading_opportunities
+                SET OriginKind = N'ExternalAi'
+                WHERE OriginKind = N'OwnAi'
+                  AND (
+                        ReasonsJson LIKE N'%IA ajena%'
+                        OR ReasonsJson LIKE N'%Zella%'
+                        OR ReasonsJson LIKE N'%Holly%'
+                        OR ReasonsJson LIKE N'%TrendSpider%'
+                        OR ReasonsJson LIKE N'%Tickeron%'
+                        OR ReasonsJson LIKE N'%Numerai%'
+                        OR ReasonsJson LIKE N'%Sentifi%'
+                        OR ReasonsJson LIKE N'%Q AI%'
+                        OR ReasonsJson LIKE N'%fuente externa%'
+                      );
+
+                IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE name = N'IX_trading_opportunities_OperationKind' AND object_id = OBJECT_ID(N'dbo.trading_opportunities'))
+                    CREATE INDEX IX_trading_opportunities_OperationKind ON dbo.trading_opportunities(OperationKind);
+
+                IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE name = N'IX_trading_opportunities_OriginKind' AND object_id = OBJECT_ID(N'dbo.trading_opportunities'))
+                    CREATE INDEX IX_trading_opportunities_OriginKind ON dbo.trading_opportunities(OriginKind);
                 """,
                 cancellationToken);
         }

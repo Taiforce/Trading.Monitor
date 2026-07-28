@@ -128,8 +128,12 @@ public sealed class ManagedPositionsModel : TradingPageModel
 
         await LoadReportAsync(cancellationToken);
         var wallet = await _walletRepository.GetSnapshotAsync(Mercado, cancellationToken);
-        Symbols = BuildSymbolListForMarket(Report.RecentSignals.Select(row => row.Symbol));
-        Rows = ApplyFilters(Report.RecentSignals)
+        var managedRows = Report.RecentSignals
+            .Where(MatchesCurrentMarket)
+            .Where(row => row.OperationKind == SignalOperationKind.Managed)
+            .ToArray();
+        Symbols = BuildSymbolListForMarket(managedRows.Select(row => row.Symbol));
+        Rows = ApplyFilters(managedRows)
             .Where(row => WalletSignalPolicy.CanShowSignal(row, wallet))
             .ToArray();
         OpenCountBySymbol = Rows
@@ -145,6 +149,7 @@ public sealed class ManagedPositionsModel : TradingPageModel
     private IReadOnlyList<OpportunityReportRow> ApplyFilters(IEnumerable<OpportunityReportRow> rows)
     {
         rows = rows.Where(MatchesCurrentMarket);
+        rows = rows.Where(row => row.OperationKind == SignalOperationKind.Managed);
 
         if (!string.IsNullOrWhiteSpace(Symbol))
             rows = rows.Where(row => string.Equals(row.Symbol, Symbol, StringComparison.OrdinalIgnoreCase));

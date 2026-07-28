@@ -114,9 +114,14 @@ public sealed class ReportsModel : TradingPageModel
     {
         _logger.LogInformation("Loading reports page for capital {Capital}.", Capital);
         await LoadReportAsync(cancellationToken);
+        VistaReporte = SignalSegmentation.NormalizeOriginView(VistaReporte);
 
         var allSignals = await _opportunityRepository.GetSignalsAsync(Capital, cancellationToken);
-        Symbols = BuildSymbolListForMarket(allSignals.Select(row => row.Symbol));
+        var originSignals = allSignals
+            .Where(MatchesCurrentMarket)
+            .Where(row => SignalSegmentation.MatchesOriginView(row, VistaReporte))
+            .ToArray();
+        Symbols = BuildSymbolListForMarket(originSignals.Select(row => row.Symbol));
         FilteredRows = ApplyFilters(allSignals).ToArray();
         BuildFilteredMetrics();
         LearningRows = BuildLearningRows(FilteredRows);
@@ -142,6 +147,7 @@ public sealed class ReportsModel : TradingPageModel
     private IEnumerable<OpportunityReportRow> ApplyFilters(IEnumerable<OpportunityReportRow> rows)
     {
         rows = rows.Where(MatchesCurrentMarket);
+        rows = rows.Where(row => SignalSegmentation.MatchesOriginView(row, VistaReporte));
 
         if (!string.IsNullOrWhiteSpace(Symbol))
             rows = rows.Where(row => string.Equals(row.Symbol, Symbol.Trim(), StringComparison.OrdinalIgnoreCase));
@@ -352,14 +358,12 @@ public sealed class ReportsModel : TradingPageModel
 
     public string OperationModeLabel(OpportunityReportRow row)
     {
-        return IsTrackingSignal(row) ? "Seguimiento" : "Señal fija";
+        return SignalSegmentation.OperationKindLabel(row.OperationKind);
     }
 
     public string OperationModeHint(OpportunityReportRow row)
     {
-        return IsTrackingSignal(row)
-            ? "Entrada con salida administrada por objetivo neto y mercado vivo."
-            : "Entrada con salida/objetivo definido desde la señal original.";
+        return SignalSegmentation.OperationKindHint(row.OperationKind);
     }
 
     public string OperationMeaning(OpportunityReportRow row)
@@ -466,20 +470,7 @@ public sealed class ReportsModel : TradingPageModel
 
     private static bool MatchesOperationMode(OpportunityReportRow row, string? mode)
     {
-        return mode?.Trim().ToLowerInvariant() switch
-        {
-            "fija" => !IsTrackingSignal(row),
-            "seguimiento" => IsTrackingSignal(row),
-            _ => true
-        };
-    }
-
-    private static bool IsTrackingSignal(OpportunityReportRow row)
-    {
-        if (row.Status is OpportunityStatus.ManagedProfitExit or OpportunityStatus.ManuallyClosed)
-            return true;
-
-        return false;
+        return SignalSegmentation.MatchesOperationMode(row, mode);
     }
 
     private static string Asset(string symbol)
