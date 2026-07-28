@@ -13,6 +13,15 @@ public sealed class OpportunityExitService
             : ResolveStaticExit(opportunity, candles);
     }
 
+    public bool HasTouchedManagedTarget(OpportunityReportRow opportunity, IReadOnlyList<MarketCandle> candles, RiskOptions riskOptions)
+    {
+        var minimumNetPercent = Math.Max(0.01m, riskOptions.ManagedProfitExitPercentAfterCosts);
+
+        return candles
+            .Where(candle => candle.CloseTime > opportunity.ObservedAt)
+            .Any(candle => TouchesManagedTarget(opportunity, candle, minimumNetPercent, riskOptions.EstimatedFeePercentPerSide));
+    }
+
     private static OpportunityExit? ResolveManagedProfitExit(OpportunityReportRow opportunity, IReadOnlyList<MarketCandle> candles, RiskOptions riskOptions)
     {
         var relevantCandles = candles.Where(candle => candle.CloseTime > opportunity.ObservedAt).OrderBy(candle => candle.CloseTime).ToArray();
@@ -20,54 +29,57 @@ public sealed class OpportunityExitService
             return null;
 
         var minimumNetPercent = Math.Max(0.01m, riskOptions.ManagedProfitExitPercentAfterCosts);
-        var quickNetPercent = Math.Max(minimumNetPercent, riskOptions.ManagedQuickProfitExitPercentAfterCosts);
         var trailingGivebackPercent = Math.Max(0m, riskOptions.ManagedTrailingGivebackPercent);
+        var requiredLowerCandles = Math.Max(1, riskOptions.ManagedProfitTrailCandlesAfterTarget);
         var peakNetPercent = decimal.MinValue;
+        var targetWasReached = false;
+        decimal? previousTargetCloseNetPercent = null;
+        var lowerNetCloseCount = 0;
         MarketCandle? previous = null;
 
         foreach (var candle in relevantCandles)
         {
             if (riskOptions.ManagedHardStopExitEnabled && TouchesStop(opportunity, candle))
-                return new OpportunityExit(OpportunityStatus.HitStopLoss, candle.CloseTime, opportunity.StopLoss, "Salida de proteccion activada por perdida maxima configurada.");
+                return new OpportunityExit(OpportunityStatus.HitStopLoss, candle.CloseTime, opportunity.StopLoss, "Salida de protección activada por pérdida máxima configurada.");
 
             var favorablePrice = opportunity.Side == MarketSide.Long ? candle.High : candle.Low;
             var favorableNetPercent = NetPercent(opportunity, favorablePrice, riskOptions.EstimatedFeePercentPerSide);
+            if (favorableNetPercent >= minimumNetPercent)
+                targetWasReached = true;
+
             if (favorableNetPercent > peakNetPercent)
                 peakNetPercent = favorableNetPercent;
 
             var currentNetPercent = NetPercent(opportunity, candle.Close, riskOptions.EstimatedFeePercentPerSide);
+            if (currentNetPercent > peakNetPercent)
+                peakNetPercent = currentNetPercent;
+
             var gaveBackFromPeak = peakNetPercent - currentNetPercent;
             var momentumWeakness = HasMomentumWeakness(opportunity.Side, candle, previous);
             var trailingExit = trailingGivebackPercent > 0m && gaveBackFromPeak >= trailingGivebackPercent;
             var canExitByMomentum = !riskOptions.ManagedExitRequiresMomentumWeakness || momentumWeakness || trailingExit;
 
-            if (currentNetPercent >= quickNetPercent)
+            if (targetWasReached && currentNetPercent >= minimumNetPercent)
             {
-                return new OpportunityExit(OpportunityStatus.ManagedProfitExit, candle.CloseTime, candle.Close,
-                    $"{ExitVerb(opportunity.Side)} ahora: beneficio neto estimado {currentNetPercent:N2}% despues de comisiones. Se alcanzo salida rapida.");
+                lowerNetCloseCount = previousTargetCloseNetPercent.HasValue && currentNetPercent < previousTargetCloseNetPercent.Value
+                    ? lowerNetCloseCount + 1
+                    : 0;
+
+                previousTargetCloseNetPercent = currentNetPercent;
+
+                if ((lowerNetCloseCount >= requiredLowerCandles && canExitByMomentum) || trailingExit)
+                {
+                    var reason = trailingExit
+                        ? $"{ExitVerb(opportunity.Side)} ahora: beneficio neto {currentNetPercent:N2}% y retroceso desde pico de {gaveBackFromPeak:N2}%."
+                        : $"{ExitVerb(opportunity.Side)} ahora: beneficio neto {currentNetPercent:N2}% después de comisiones; detecté {lowerNetCloseCount} velas seguidas con menor ganancia.";
+
+                    return new OpportunityExit(OpportunityStatus.ManagedProfitExit, candle.CloseTime, candle.Close, reason);
+                }
             }
-
-            if (TouchesManagedTarget(opportunity, candle, minimumNetPercent, riskOptions.EstimatedFeePercentPerSide))
+            else if (targetWasReached)
             {
-                var exitPrice = TradeCostCalculator.ResolveExitPriceForNetPercent(
-                    opportunity.Side,
-                    opportunity.Capital,
-                    opportunity.EstimatedQuantity,
-                    opportunity.EntryPrice,
-                    minimumNetPercent,
-                    riskOptions.EstimatedFeePercentPerSide);
-
-                return new OpportunityExit(OpportunityStatus.ManagedProfitExit, candle.CloseTime, exitPrice,
-                    $"Salida automatica: se alcanzo el objetivo neto minimo de {minimumNetPercent:N2}% despues de comisiones.");
-            }
-
-            if (currentNetPercent >= minimumNetPercent && canExitByMomentum)
-            {
-                var reason = trailingExit
-                    ? $"{ExitVerb(opportunity.Side)} ahora: beneficio neto {currentNetPercent:N2}% y retroceso desde pico de {gaveBackFromPeak:N2}%."
-                    : $"{ExitVerb(opportunity.Side)} ahora: beneficio neto {currentNetPercent:N2}% despues de comisiones y momentum perdiendo fuerza.";
-
-                return new OpportunityExit(OpportunityStatus.ManagedProfitExit, candle.CloseTime, candle.Close, reason);
+                lowerNetCloseCount = 0;
+                previousTargetCloseNetPercent = null;
             }
 
             previous = candle;
@@ -80,7 +92,7 @@ public sealed class OpportunityExitService
             var status = netPercent > 0m ? OpportunityStatus.ManagedProfitExit : OpportunityStatus.Expired;
             var reason = netPercent > 0m
                 ? $"Salida administrada por vencimiento con beneficio neto {netPercent:N2}%."
-                : "La oportunidad vencio y la salida administrada por vencimiento esta activa.";
+                : "La oportunidad venció y la salida administrada por vencimiento está activa.";
 
             return new OpportunityExit(status, last.CloseTime, last.Close, reason);
         }
@@ -97,7 +109,7 @@ public sealed class OpportunityExitService
             if (opportunity.Side == MarketSide.Long)
             {
                 if (candle.Low <= opportunity.StopLoss)
-                    return new OpportunityExit(OpportunityStatus.HitStopLoss, candle.CloseTime, opportunity.StopLoss, "Perdida maxima tocada antes de la ganancia objetivo.");
+                    return new OpportunityExit(OpportunityStatus.HitStopLoss, candle.CloseTime, opportunity.StopLoss, "Pérdida máxima tocada antes de la ganancia objetivo.");
 
                 if (candle.High >= opportunity.TakeProfit2)
                     return new OpportunityExit(OpportunityStatus.HitTakeProfit2, candle.CloseTime, opportunity.TakeProfit2, "Ganancia extra alcanzada.");
@@ -108,7 +120,7 @@ public sealed class OpportunityExitService
             else
             {
                 if (candle.High >= opportunity.StopLoss)
-                    return new OpportunityExit(OpportunityStatus.HitStopLoss, candle.CloseTime, opportunity.StopLoss, "Perdida maxima tocada antes de la ganancia objetivo.");
+                    return new OpportunityExit(OpportunityStatus.HitStopLoss, candle.CloseTime, opportunity.StopLoss, "Pérdida máxima tocada antes de la ganancia objetivo.");
 
                 if (candle.Low <= opportunity.TakeProfit2)
                     return new OpportunityExit(OpportunityStatus.HitTakeProfit2, candle.CloseTime, opportunity.TakeProfit2, "Ganancia extra alcanzada.");
@@ -121,7 +133,7 @@ public sealed class OpportunityExitService
         if (DateTimeOffset.UtcNow > opportunity.ExpiresAt && relevantCandles.Length > 0)
         {
             var last = relevantCandles[^1];
-            return new OpportunityExit(OpportunityStatus.Expired, last.CloseTime, last.Close, "La oportunidad vencio antes de tocar ganancia o perdida maxima.");
+            return new OpportunityExit(OpportunityStatus.Expired, last.CloseTime, last.Close, "La oportunidad venció antes de tocar ganancia o pérdida máxima.");
         }
 
         return null;

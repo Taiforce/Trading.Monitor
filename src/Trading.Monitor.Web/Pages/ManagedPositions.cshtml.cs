@@ -73,7 +73,9 @@ public sealed class ManagedPositionsModel : TradingPageModel
         var percent = CloseNetPercent == 0m ? ResolveTargetPercent() : CloseNetPercent;
         var exitPrice = TradeCostCalculator.ResolveExitPriceForNetPercent(row.Side, row.Capital, row.EstimatedQuantity, row.EntryPrice, percent, _reportingOptions.CurrentValue.EstimatedFeePercentPerSide);
         var breakdown = CostBreakdown(row, exitPrice);
-        var exit = new OpportunityExit(OpportunityStatus.ManuallyClosed, DateTimeOffset.UtcNow, exitPrice, $"Cierre manual web con resultado neto objetivo {percent:N2}% despues de comisiones.");
+        await _opportunityRepository.UpdateManagedTargetAsync(row.Id, percent, cancellationToken);
+
+        var exit = new OpportunityExit(OpportunityStatus.ManuallyClosed, DateTimeOffset.UtcNow, exitPrice, $"Cierre manual web con resultado neto objetivo {percent:N2}% después de comisiones.");
 
         await _opportunityRepository.UpdateExitAsync(row.Id, exit, breakdown.GrossBenefit, breakdown.NetBenefit, cancellationToken);
 

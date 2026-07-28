@@ -50,7 +50,7 @@ public static class TradeConversionCalculator
         var breakEvenMove = quantity > 0m ? estimatedFees / quantity : 0m;
         var breakEvenPrice = side == MarketSide.Long ? entryPrice + breakEvenMove : entryPrice - breakEvenMove;
         var breakEvenMovePercent = entryPrice > 0m ? Math.Abs(breakEvenPrice - entryPrice) / entryPrice * 100m : 0m;
-        var costText = $"Comision estimada: {Money(estimatedFees)}";
+        var costText = $"Comisión estimada: {Money(estimatedFees)}";
         var breakEvenText = side == MarketSide.Long
             ? $"Necesita subir a {Price(breakEvenPrice)} para empatar"
             : $"Necesita bajar a {Price(breakEvenPrice)} para empatar";
@@ -62,7 +62,7 @@ public static class TradeConversionCalculator
             netPnL = realizedNetPnL ?? Math.Round(gross - estimatedFees, 2);
             finalTotal = Math.Round(capital + netPnL.Value, 2);
             var label = exitPrice.HasValue ? "Salida real" : "Precio actual";
-            var gainWord = netPnL.Value >= 0m ? "Ganancia" : "Perdida";
+            var gainWord = netPnL.Value >= 0m ? "Ganancia" : "Pérdida";
             var sign = netPnL.Value >= 0m ? "+" : "-";
 
             if (side == MarketSide.Long)

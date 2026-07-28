@@ -54,9 +54,19 @@ public sealed class TradingOpportunityEntity
 
     public decimal NetLossAtStop { get; set; }
 
+    public decimal ManagedTargetNetPercent { get; set; } = 5m;
+
+    public decimal ManagedTargetNetPnL { get; set; }
+
+    public decimal? ManagedTargetExitPrice { get; set; }
+
     public decimal? RealizedGrossPnL { get; set; }
 
     public decimal? RealizedNetPnL { get; set; }
+
+    public decimal? RealizedNetPercent { get; set; }
+
+    public decimal? RealizedTotalObtained { get; set; }
 
     public string ConfirmingIntervalsJson { get; set; } = "[]";
 

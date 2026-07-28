@@ -24,13 +24,13 @@ public sealed class IndexModel(IOpportunityRepository opportunityRepository, IOp
     private static string BuildPainLine(DashboardReport report)
     {
         if (report.TotalSignals == 0)
-            return "Todavia no hay nada que lamentar. El tablero esta esperando la primera oportunidad.";
+            return "Todavía no hay nada que lamentar. El tablero está esperando la primera oportunidad.";
 
         if (report.PotentialNetAtTakeProfit1 > 0m)
-            return $"Si hubieras puesto {report.Capital:C2} en cada senal y salido en la ganancia objetivo, el mercado habria dejado {report.PotentialNetAtTakeProfit1:C2} mirandote desde la mesa.";
+            return $"Si hubieras puesto {report.Capital:C2} en cada señal y salido en la ganancia objetivo, el mercado habría dejado {report.PotentialNetAtTakeProfit1:C2} mirándote desde la mesa.";
 
         if (report.PotentialLossAtStop < 0m)
-            return $"La version honesta tambien duele: con {report.Capital:C2} por senal, la perdida maxima acumulada seria {report.PotentialLossAtStop:C2}.";
+            return $"La versión honesta también duele: con {report.Capital:C2} por señal, la pérdida máxima acumulada sería {report.PotentialLossAtStop:C2}.";
 
         return "No hay ventaja clara todavia. A veces no operar tambien es una posicion.";
     }

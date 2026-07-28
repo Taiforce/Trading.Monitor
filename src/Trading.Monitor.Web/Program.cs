@@ -80,16 +80,18 @@ try
         var row = rows.FirstOrDefault(item => item.Id == id);
 
         if (row is null)
-            return Results.NotFound(new { message = "Senal no encontrada." });
+            return Results.NotFound(new { message = "Señal no encontrada." });
 
         if (row.Status != Trading.Monitor.Domain.OpportunityStatus.Open)
-            return Results.BadRequest(new { message = "La senal ya esta cerrada." });
+            return Results.BadRequest(new { message = "La señal ya está cerrada." });
 
         var exitPrice = request.ExitPrice > 0m
             ? request.ExitPrice
             : TradeCostCalculator.ResolveExitPriceForNetPercent(row.Side, row.Capital, row.EstimatedQuantity, row.EntryPrice, request.TargetNetPercent, reportingOptions.CurrentValue.EstimatedFeePercentPerSide);
         var breakdown = TradeCostCalculator.Build(row.Side, row.Capital, row.EstimatedQuantity, row.EntryPrice, exitPrice, reportingOptions.CurrentValue.EstimatedFeePercentPerSide);
-        var reason = $"Cierre manual web al mercado actual. Objetivo neto configurado {request.TargetNetPercent:N2}%. Resultado neto {breakdown.NetPercent:N2}% despues de comisiones.";
+        await opportunityRepository.UpdateManagedTargetAsync(row.Id, request.TargetNetPercent, cancellationToken);
+
+        var reason = $"Cierre manual web al mercado actual. Objetivo neto configurado {request.TargetNetPercent:N2}%. Resultado neto {breakdown.NetPercent:N2}% después de comisiones.";
         var exit = new Trading.Monitor.Domain.OpportunityExit(Trading.Monitor.Domain.OpportunityStatus.ManuallyClosed, DateTimeOffset.UtcNow, exitPrice, reason);
 
         await opportunityRepository.UpdateExitAsync(row.Id, exit, breakdown.GrossBenefit, breakdown.NetBenefit, cancellationToken);
@@ -101,6 +103,31 @@ try
             breakdown.NetBenefit,
             breakdown.NetPercent,
             breakdown.TotalObtained
+        });
+    });
+    app.MapPost("/api/posiciones/{id:guid}/objetivo", async (Guid id, ManagedTargetRequest request, IOpportunityRepository opportunityRepository,
+        Microsoft.Extensions.Options.IOptionsMonitor<ReportingOptions> reportingOptions, CancellationToken cancellationToken) =>
+    {
+        var capital = request.Capital <= 0m ? reportingOptions.CurrentValue.DefaultCapital : request.Capital;
+        var rows = await opportunityRepository.GetSignalsAsync(capital, cancellationToken);
+        var row = rows.FirstOrDefault(item => item.Id == id);
+
+        if (row is null)
+            return Results.NotFound(new { message = "Señal no encontrada." });
+
+        var targetNetPercent = request.TargetNetPercent <= 0m ? row.ManagedTargetNetPercent : request.TargetNetPercent;
+        await opportunityRepository.UpdateManagedTargetAsync(row.Id, targetNetPercent, cancellationToken);
+
+        var exitPrice = TradeCostCalculator.ResolveExitPriceForNetPercent(row.Side, row.Capital, row.EstimatedQuantity, row.EntryPrice, targetNetPercent, reportingOptions.CurrentValue.EstimatedFeePercentPerSide);
+        var breakdown = TradeCostCalculator.Build(row.Side, row.Capital, row.EstimatedQuantity, row.EntryPrice, exitPrice, reportingOptions.CurrentValue.EstimatedFeePercentPerSide);
+
+        return Results.Json(new
+        {
+            status = "actualizada",
+            targetNetPercent,
+            targetExitPrice = exitPrice,
+            targetNetPnL = breakdown.NetBenefit,
+            targetTotalObtained = breakdown.TotalObtained
         });
     });
     app.MapGet("/api/exchange/status", async (ExchangeConnectionStatusService statusService, CancellationToken cancellationToken) =>
@@ -120,3 +147,5 @@ finally
 }
 
 internal sealed record ManagedCloseRequest(decimal Capital, decimal TargetNetPercent, decimal ExitPrice);
+
+internal sealed record ManagedTargetRequest(decimal Capital, decimal TargetNetPercent);

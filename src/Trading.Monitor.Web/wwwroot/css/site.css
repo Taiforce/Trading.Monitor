@@ -724,8 +724,8 @@ td small,
 }
 
 .selected-live-card {
-    border-color: color-mix(in srgb, var(--signal-color) 78%, var(--line));
-    box-shadow: 0 0 0 2px color-mix(in srgb, var(--signal-color) 24%, transparent), var(--shadow);
+    border-color: color-mix(in srgb, var(--result-color, var(--signal-color)) 78%, var(--line));
+    box-shadow: 0 0 0 2px color-mix(in srgb, var(--result-color, var(--signal-color)) 24%, transparent), var(--shadow);
 }
 
 .live-card-summary {
@@ -740,8 +740,8 @@ td small,
     height: 34px;
     display: block;
     border-radius: 999px;
-    background: var(--signal-color);
-    box-shadow: 0 0 0 4px color-mix(in srgb, var(--signal-color) 16%, transparent);
+    background: var(--result-color, var(--signal-color));
+    box-shadow: 0 0 0 4px color-mix(in srgb, var(--result-color, var(--signal-color)) 16%, transparent);
 }
 
 .live-card-summary em {
@@ -760,8 +760,8 @@ td small,
 
 .selected-live-card .live-card-summary em {
     color: var(--ink);
-    background: color-mix(in srgb, var(--signal-color) 18%, var(--surface));
-    border-color: color-mix(in srgb, var(--signal-color) 46%, var(--line));
+    background: color-mix(in srgb, var(--result-color, var(--signal-color)) 18%, var(--surface));
+    border-color: color-mix(in srgb, var(--result-color, var(--signal-color)) 46%, var(--line));
 }
 
 .live-card-body {
@@ -1014,6 +1014,26 @@ td small,
     gap: 12px;
     border-top: 1px solid var(--line);
     padding-top: 10px;
+}
+
+.priority-grid,
+.compact-signal-grid {
+    max-height: min(520px, calc(100vh - 260px));
+    overflow-y: auto;
+    padding-right: 6px;
+    scrollbar-color: color-mix(in srgb, var(--accent) 70%, var(--line)) transparent;
+    scrollbar-width: thin;
+}
+
+.priority-grid::-webkit-scrollbar,
+.compact-signal-grid::-webkit-scrollbar {
+    width: 8px;
+}
+
+.priority-grid::-webkit-scrollbar-thumb,
+.compact-signal-grid::-webkit-scrollbar-thumb {
+    background: color-mix(in srgb, var(--accent) 70%, var(--line));
+    border-radius: 999px;
 }
 
 .signal-prime {
@@ -2197,15 +2217,21 @@ td small,
 }
 
 .live-card.result-green {
+    --result-color: var(--good);
     border-left-color: var(--good);
+    background: color-mix(in srgb, var(--good) 7%, var(--surface-2));
 }
 
 .live-card.result-yellow {
+    --result-color: var(--warn);
     border-left-color: var(--warn);
+    background: color-mix(in srgb, var(--warn) 8%, var(--surface-2));
 }
 
 .live-card.result-red {
+    --result-color: var(--bad);
     border-left-color: var(--bad);
+    background: color-mix(in srgb, var(--bad) 7%, var(--surface-2));
 }
 
 .live-card.result-green .live-card-summary i {

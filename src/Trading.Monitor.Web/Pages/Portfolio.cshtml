@@ -26,7 +26,7 @@
                 </select>
             </label>
             <label>
-                <span>Tipo de senal</span>
+                <span>Tipo de señal</span>
                 <select asp-for="TipoSenal">
                     <option value="">Todas</option>
                     <option value="@Model.BuyLowSellHighValue">Compra bajo - vende alto</option>
@@ -61,7 +61,7 @@
 
     <div class="insight-strip">
         <span>Regla</span>
-        <strong>Usa todo el saldo en cada senal cerrada. Si no tienes el activo, filtra por Compra bajo - vende alto para simular operaciones spot normales.</strong>
+        <strong>Usa todo el saldo en cada señal cerrada. Si no tienes el activo, filtra por Compra bajo - vende alto para simular operaciones spot normales.</strong>
     </div>
 
     <section class="metrics-grid metrics-grid-four" aria-label="Resumen cartera virtual">
@@ -81,7 +81,7 @@
             <small>@Model.Simulation.SkippedTrades omitidas, @Model.WinRate() win rate</small>
         </article>
         <article class="metric">
-            <span>Caida maxima</span>
+            <span>Caída máxima</span>
             <strong class="loss">@Model.Simulation.MaxDrawdown.ToString("N2")%</strong>
             <small>pico @Model.Money(Model.Simulation.PeakBalance)</small>
         </article>
@@ -90,7 +90,7 @@
     <section class="report-section">
         <div class="section-title">
             <h2>Curva de cartera</h2>
-            <span>@Model.FilteredSignals.Count senales en el rango</span>
+            <span>@Model.FilteredSignals.Count señales en el rango</span>
         </div>
         <div class="equity-chart">
             <svg viewBox="0 0 1000 170" role="img" aria-label="Evolucion de cartera virtual">
@@ -110,7 +110,7 @@
         {
             <div class="empty-state">
                 <strong>Elige un trader para simular.</strong>
-                <span>El simulador usara sus trades cerrados importados o conectados y pondra todo el saldo en cada operacion.</span>
+                <span>El simulador usará sus trades cerrados importados o conectados y pondrá todo el saldo en cada operación.</span>
                 <a asp-page="/Traders">Ver traders disponibles</a>
             </div>
         }
@@ -141,7 +141,7 @@
                     <small>@Model.TraderSimulation.SkippedTrades omitidos, @Model.TraderWinRate() win rate</small>
                 </article>
                 <article class="metric">
-                    <span>Caida maxima trader</span>
+                    <span>Caída máxima trader</span>
                     <strong class="loss">@Model.TraderSimulation.MaxDrawdown.ToString("N2")%</strong>
                     <small>pico @Model.Money(Model.TraderSimulation.PeakBalance)</small>
                 </article>
@@ -208,18 +208,18 @@
                                 <article><span>Salida</span><strong>@(row.ClosedAt.HasValue ? row.ClosedAt.Value.ToLocalTime().ToString("dd MMM HH:mm") : "-")</strong><small>@(row.ExitPrice.HasValue ? Model.Price(row.ExitPrice.Value) : row.SkipReason)</small></article>
                                 <article><span>Saldo antes</span><strong>@Model.Money(row.StartingBalance)</strong><small>capital completo</small></article>
                                 <article><span>Cantidad</span><strong>@(row.WasApplied ? Model.Quantity(row) : "-")</strong><small>simulada</small></article>
-                                <article><span>Comision</span><strong>@Model.Money(row.Fees)</strong><small>ida y vuelta</small></article>
+                                <article><span>Comisión</span><strong>@Model.Money(row.Fees)</strong><small>ida y vuelta</small></article>
                                 <article><span>Resultado</span><strong class="@Model.ResultClass(row.NetPnL)">@(row.WasApplied ? Model.Money(row.NetPnL) : row.SkipReason)</strong><small>@(row.WasApplied ? $"{row.ReturnPercent:N2}%" : "")</small></article>
-                                <article><span>Saldo despues</span><strong>@Model.Money(row.EndingBalance)</strong><small>compuesto</small></article>
+                                <article><span>Saldo después</span><strong>@Model.Money(row.EndingBalance)</strong><small>compuesto</small></article>
                                 <article><span>Estado</span><strong>@(row.WasApplied ? "Aplicada" : "Omitida")</strong><small>@row.SkipReason</small></article>
                             </div>
                             <div class="portfolio-trade-replay">
                                 <div class="section-title compact-title">
-                                    <h2>Replay de la operacion</h2>
+                                    <h2>Replay de la operación</h2>
                                     <span>ruta simulada sobre velas reales</span>
                                 </div>
                                 <div class="signal-replay-chart portfolio-replay-chart" data-signal-chart>
-                                    <span>Cargando replay de la operacion...</span>
+                                    <span>Cargando replay de la operación...</span>
                                 </div>
                             </div>
                         </article>
@@ -232,14 +232,14 @@
     <section class="report-section">
         <div class="section-title">
             <h2>Secuencia compuesta</h2>
-            <span>saldo completo por senal</span>
+            <span>saldo completo por señal</span>
         </div>
 
         @if (Model.Simulation.Trades.Count == 0)
         {
             <div class="empty-state">
-                <strong>Sin senales para simular.</strong>
-                <span>Cambia el rango de fechas, activo o score minimo.</span>
+                <strong>Sin señales para simular.</strong>
+                <span>Cambia el rango de fechas, activo o score mínimo.</span>
             </div>
         }
         else
@@ -294,22 +294,22 @@
                                 <span>@row.OperationType | @row.Horizon</span>
                             </div>
                             <div class="detail-grid">
-                                <article><span>Senal</span><strong>@row.SignalTime.ToLocalTime().ToString("dd MMM HH:mm")</strong><small>@row.Horizon</small></article>
+                                <article><span>Señal</span><strong>@row.SignalTime.ToLocalTime().ToString("dd MMM HH:mm")</strong><small>@row.Horizon</small></article>
                                 <article><span>Entrada</span><strong>@row.EntryTime.ToLocalTime().ToString("HH:mm")</strong><small>@Model.Price(row.EntryPrice)</small></article>
                                 <article><span>Salida</span><strong>@(row.ExitTime.HasValue ? row.ExitTime.Value.ToLocalTime().ToString("dd MMM HH:mm") : "-")</strong><small>@(row.ExitPrice.HasValue ? Model.Price(row.ExitPrice.Value) : row.SkipReason)</small></article>
                                 <article><span>Saldo antes</span><strong>@Model.Money(row.StartingBalance)</strong><small>todo el saldo</small></article>
                                 <article><span>Cantidad comprada/vendida</span><strong>@(row.WasApplied ? Model.Quantity(row) : "-")</strong><small>empate @Model.Price(Model.BreakEvenPrice(row))</small></article>
-                                <article><span>Comision</span><strong>@Model.Money(row.Fees)</strong><small>costo estimado</small></article>
+                                <article><span>Comisión</span><strong>@Model.Money(row.Fees)</strong><small>costo estimado</small></article>
                                 <article><span>Resultado</span><strong class="@Model.ResultClass(row.NetPnL)">@(row.WasApplied ? Model.Money(row.NetPnL) : Model.AppliedLabel(row))</strong><small>@(row.WasApplied ? $"{row.ReturnPercent:N2}%" : "")</small></article>
-                                <article><span>Saldo despues</span><strong>@Model.Money(row.EndingBalance)</strong><small>@Model.AppliedLabel(row)</small></article>
+                                <article><span>Saldo después</span><strong>@Model.Money(row.EndingBalance)</strong><small>@Model.AppliedLabel(row)</small></article>
                             </div>
                             <div class="portfolio-trade-replay">
                                 <div class="section-title compact-title">
-                                    <h2>Replay de la senal</h2>
+                                    <h2>Replay de la señal</h2>
                                     <span>entrada, recorrido y salida simulada</span>
                                 </div>
                                 <div class="signal-replay-chart portfolio-replay-chart" data-signal-chart>
-                                    <span>Cargando replay de la senal...</span>
+                                    <span>Cargando replay de la señal...</span>
                                 </div>
                             </div>
                         </article>

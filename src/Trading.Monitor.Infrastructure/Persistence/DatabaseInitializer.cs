@@ -31,6 +31,7 @@ public static class DatabaseInitializer
         try
         {
             await dbContext.Database.ExecuteSqlRawAsync("EXEC sp_getapplock @Resource = N'TradingMonitorTraderResearchSeed', @LockMode = N'Exclusive', @LockOwner = N'Session', @LockTimeout = 15000;", cancellationToken);
+            await EnsureOpportunityManagedSchemaAsync(dbContext, cancellationToken);
             await EnsureTraderResearchSchemaAsync(dbContext, cancellationToken);
             await EnsureTradeExecutionSchemaAsync(dbContext, cancellationToken);
 
@@ -91,6 +92,69 @@ public static class DatabaseInitializer
                 cancellationToken);
         }
         catch (SqlException exception) when (exception.Number is 2714 or 1913)
+        {
+            await Task.Delay(TimeSpan.FromSeconds(1), cancellationToken);
+        }
+    }
+
+    private static async Task EnsureOpportunityManagedSchemaAsync(TradingMonitorDbContext dbContext, CancellationToken cancellationToken)
+    {
+        try
+        {
+            await dbContext.Database.ExecuteSqlRawAsync(
+                """
+                IF COL_LENGTH(N'dbo.trading_opportunities', N'ManagedTargetNetPercent') IS NULL
+                BEGIN
+                    ALTER TABLE dbo.trading_opportunities
+                    ADD ManagedTargetNetPercent decimal(18,4) NOT NULL
+                        CONSTRAINT DF_trading_opportunities_ManagedTargetNetPercent DEFAULT(5.0000);
+                END;
+
+                IF COL_LENGTH(N'dbo.trading_opportunities', N'ManagedTargetNetPnL') IS NULL
+                BEGIN
+                    ALTER TABLE dbo.trading_opportunities
+                    ADD ManagedTargetNetPnL decimal(18,2) NOT NULL
+                        CONSTRAINT DF_trading_opportunities_ManagedTargetNetPnL DEFAULT(0);
+                END;
+
+                IF COL_LENGTH(N'dbo.trading_opportunities', N'ManagedTargetExitPrice') IS NULL
+                BEGIN
+                    ALTER TABLE dbo.trading_opportunities
+                    ADD ManagedTargetExitPrice decimal(18,8) NULL;
+                END;
+
+                IF COL_LENGTH(N'dbo.trading_opportunities', N'RealizedNetPercent') IS NULL
+                BEGIN
+                    ALTER TABLE dbo.trading_opportunities
+                    ADD RealizedNetPercent decimal(18,4) NULL;
+                END;
+
+                IF COL_LENGTH(N'dbo.trading_opportunities', N'RealizedTotalObtained') IS NULL
+                BEGIN
+                    ALTER TABLE dbo.trading_opportunities
+                    ADD RealizedTotalObtained decimal(18,2) NULL;
+                END;
+
+                """,
+                cancellationToken);
+
+            await dbContext.Database.ExecuteSqlRawAsync(
+                """
+                UPDATE dbo.trading_opportunities
+                SET ManagedTargetNetPnL = ROUND(Capital * ManagedTargetNetPercent / 100.0, 2)
+                WHERE ManagedTargetNetPnL = 0 AND Capital > 0;
+
+                UPDATE dbo.trading_opportunities
+                SET RealizedNetPercent = ROUND(RealizedNetPnL / NULLIF(Capital, 0) * 100.0, 4)
+                WHERE RealizedNetPnL IS NOT NULL AND RealizedNetPercent IS NULL;
+
+                UPDATE dbo.trading_opportunities
+                SET RealizedTotalObtained = ROUND(Capital + RealizedNetPnL, 2)
+                WHERE RealizedNetPnL IS NOT NULL AND RealizedTotalObtained IS NULL;
+                """,
+                cancellationToken);
+        }
+        catch (SqlException exception) when (exception.Number is 2705 or 2714)
         {
             await Task.Delay(TimeSpan.FromSeconds(1), cancellationToken);
         }

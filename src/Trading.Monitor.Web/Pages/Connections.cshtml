@@ -65,7 +65,7 @@
         <article class="metric metric-soft">
             <span>Conectadas hoy</span>
             <strong class="gain">@Model.CatalogInUseCount</strong>
-            <small>ya participan o estan listas</small>
+            <small>ya participan o están listas</small>
         </article>
         <article class="metric metric-soft">
             <span>Por conectar</span>
@@ -112,7 +112,7 @@
                         <strong class="@(Model.ExchangeStatus.LiveTradingAllowed ? "loss" : "gain")">@(Model.ExchangeStatus.LiveTradingAllowed ? "Habilitadas" : "Bloqueadas")</strong>
                     </article>
                     <article>
-                        <span>Score minimo auto</span>
+                        <span>Score mínimo auto</span>
                         <strong>@Model.ExchangeStatus.MinimumScoreToExecute/100</strong>
                     </article>
                     <article>
@@ -124,7 +124,7 @@
                         <strong>@Model.ExchangeStatus.MaxCapitalPerTrade.ToString("C2")</strong>
                     </article>
                     <article>
-                        <span>Perdida 24h maxima</span>
+                        <span>Pérdida 24h máxima</span>
                         <strong>@Model.ExchangeStatus.DailyLossLimit.ToString("C2")</strong>
                     </article>
                     <article>
@@ -151,8 +151,8 @@
             @if (Model.RecentExecutions.Count == 0)
             {
                 <div class="empty-state">
-                    <strong>Aun no hay intentos registrados.</strong>
-                    <span>Cuando llegue una senal nueva, aqui veras si fue simulada, validada, bloqueada o enviada.</span>
+                    <strong>Aún no hay intentos registrados.</strong>
+                    <span>Cuando llegue una señal nueva, aquí verás si fue simulada, validada, bloqueada o enviada.</span>
                 </div>
             }
             else
@@ -202,7 +202,7 @@
     {
         <div class="empty-state">
             <strong>No hay conexiones para ese filtro.</strong>
-            <span>Prueba cambiando estado, tipo o texto de busqueda.</span>
+            <span>Prueba cambiando estado, tipo o texto de búsqueda.</span>
         </div>
     }
     else
@@ -279,7 +279,7 @@
             @if (Model.Report.RecentResearch.Count == 0)
             {
                 <div class="empty-state">
-                    <strong>Aun no hay investigacion capturada.</strong>
+                    <strong>Aún no hay investigación capturada.</strong>
                     <span>Las noticias, reportes macro y resumenes de IA apareceran aqui cuando coincidan con los activos monitoreados.</span>
                 </div>
             }

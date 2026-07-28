@@ -16,12 +16,14 @@ public sealed class EfOpportunityRepository : IOpportunityRepository
     private readonly TradingMonitorDbContext _dbContext;
     private readonly OpportunityProjectionService _projectionService;
     private readonly IOptionsMonitor<ReportingOptions> _reportingOptions;
+    private readonly IOptionsMonitor<RiskOptions> _riskOptions;
 
-    public EfOpportunityRepository(TradingMonitorDbContext dbContext, OpportunityProjectionService projectionService, IOptionsMonitor<ReportingOptions> reportingOptions)
+    public EfOpportunityRepository(TradingMonitorDbContext dbContext, OpportunityProjectionService projectionService, IOptionsMonitor<ReportingOptions> reportingOptions, IOptionsMonitor<RiskOptions> riskOptions)
     {
         _dbContext = dbContext;
         _projectionService = projectionService;
         _reportingOptions = reportingOptions;
+        _riskOptions = riskOptions;
     }
 
     public async Task<bool> HasRecentSimilarSignalAsync(TradingOpportunity opportunity, TimeSpan duplicateWindow, CancellationToken cancellationToken)
@@ -43,6 +45,7 @@ public sealed class EfOpportunityRepository : IOpportunityRepository
             return;
 
         var projection = _projectionService.Project(opportunity, _reportingOptions.CurrentValue);
+        var managedTarget = BuildManagedTarget(opportunity.Side, projection.Capital, projection.EstimatedQuantity, projection.EntryPrice, _riskOptions.CurrentValue.ManagedProfitExitPercentAfterCosts);
         var now = DateTimeOffset.UtcNow;
 
         _dbContext.Opportunities.Add(new TradingOpportunityEntity
@@ -69,6 +72,9 @@ public sealed class EfOpportunityRepository : IOpportunityRepository
             NetProfitAtTakeProfit1 = projection.NetProfitAtTakeProfit1,
             NetProfitAtTakeProfit2 = projection.NetProfitAtTakeProfit2,
             NetLossAtStop = projection.NetLossAtStop,
+            ManagedTargetNetPercent = managedTarget.TargetNetPercent,
+            ManagedTargetNetPnL = managedTarget.TargetNetPnL,
+            ManagedTargetExitPrice = managedTarget.TargetExitPrice,
             ConfirmingIntervalsJson = JsonSerializer.Serialize(opportunity.ConfirmingIntervals, JsonOptions),
             ReasonsJson = JsonSerializer.Serialize(opportunity.Reasons, JsonOptions),
             RisksJson = JsonSerializer.Serialize(opportunity.Risks, JsonOptions),
@@ -120,6 +126,22 @@ public sealed class EfOpportunityRepository : IOpportunityRepository
             .SumAsync(entity => entity.RealizedNetPnL!.Value, cancellationToken);
     }
 
+    public async Task UpdateManagedTargetAsync(Guid id, decimal targetNetPercent, CancellationToken cancellationToken)
+    {
+        var entity = await _dbContext.Opportunities.FirstOrDefaultAsync(item => item.Id == id, cancellationToken);
+
+        if (entity is null)
+            return;
+
+        var target = BuildManagedTarget(entity.Side, entity.Capital, entity.EstimatedQuantity, entity.EntryPrice, targetNetPercent);
+        entity.ManagedTargetNetPercent = target.TargetNetPercent;
+        entity.ManagedTargetNetPnL = target.TargetNetPnL;
+        entity.ManagedTargetExitPrice = target.TargetExitPrice;
+        entity.UpdatedAt = DateTimeOffset.UtcNow;
+
+        await _dbContext.SaveChangesAsync(cancellationToken);
+    }
+
     public async Task UpdateExitAsync(Guid id, OpportunityExit exit, decimal realizedGrossPnL, decimal realizedNetPnL, CancellationToken cancellationToken)
     {
         var entity = await _dbContext.Opportunities.FirstOrDefaultAsync(item => item.Id == id, cancellationToken);
@@ -133,6 +155,8 @@ public sealed class EfOpportunityRepository : IOpportunityRepository
         entity.ExitReason = exit.Reason;
         entity.RealizedGrossPnL = Math.Round(realizedGrossPnL, 2);
         entity.RealizedNetPnL = Math.Round(realizedNetPnL, 2);
+        entity.RealizedNetPercent = entity.Capital <= 0m ? 0m : Math.Round(realizedNetPnL / entity.Capital * 100m, 4);
+        entity.RealizedTotalObtained = Math.Round(entity.Capital + realizedNetPnL, 2);
         entity.UpdatedAt = DateTimeOffset.UtcNow;
 
         await _dbContext.SaveChangesAsync(cancellationToken);
@@ -200,10 +224,18 @@ public sealed class EfOpportunityRepository : IOpportunityRepository
         var opportunity = ToOpportunity(entity);
         var projection = _projectionService.Project(opportunity, capital, _reportingOptions.CurrentValue.EstimatedFeePercentPerSide);
         var realizedNet = entity.ExitPrice.HasValue ? CalculateNetPnL(entity, projection) : entity.RealizedNetPnL;
+        var managedTarget = BuildManagedTarget(entity.Side, projection.Capital, projection.EstimatedQuantity, projection.EntryPrice, entity.ManagedTargetNetPercent);
+        var realizedNetPercent = realizedNet.HasValue && projection.Capital > 0m
+            ? Math.Round(realizedNet.Value / projection.Capital * 100m, 4)
+            : entity.RealizedNetPercent;
+        var realizedTotalObtained = realizedNet.HasValue
+            ? Math.Round(projection.Capital + realizedNet.Value, 2)
+            : entity.RealizedTotalObtained;
 
         return new OpportunityReportRow(entity.Id, entity.Symbol, entity.Side, entity.Status, entity.Score, entity.ObservedAt, entity.ExpiresAt, entity.ExitTime, entity.LastPrice, entity.EntryLower,
             entity.EntryUpper, projection.EntryPrice, entity.StopLoss, entity.TakeProfit1, entity.TakeProfit2, entity.ExitPrice, projection.Capital, projection.EstimatedQuantity, projection.EstimatedFees,
-            projection.NetProfitAtTakeProfit1, projection.NetProfitAtTakeProfit2, projection.NetLossAtStop, realizedNet, entity.RiskReward, string.Join(" | ", ReadStringArray(entity.ConfirmingIntervalsJson)),
+            projection.NetProfitAtTakeProfit1, projection.NetProfitAtTakeProfit2, projection.NetLossAtStop, managedTarget.TargetNetPercent, managedTarget.TargetNetPnL, managedTarget.TargetExitPrice, realizedNet,
+            realizedNetPercent, realizedTotalObtained, entity.RiskReward, string.Join(" | ", ReadStringArray(entity.ConfirmingIntervalsJson)),
             string.Join(" | ", ReadStringArray(entity.ReasonsJson)), string.Join(" | ", ReadStringArray(entity.RisksJson)));
     }
 
@@ -232,6 +264,30 @@ public sealed class EfOpportunityRepository : IOpportunityRepository
             _reportingOptions.CurrentValue.EstimatedFeePercentPerSide);
 
         return breakdown.NetBenefit;
+    }
+
+    private ManagedTargetSnapshot BuildManagedTarget(MarketSide side, decimal capital, decimal quantity, decimal entryPrice, decimal targetNetPercent)
+    {
+        var resolvedTargetNetPercent = Math.Max(0.01m, targetNetPercent);
+        var targetExitPrice = TradeCostCalculator.ResolveExitPriceForNetPercent(
+            side,
+            capital,
+            quantity,
+            entryPrice,
+            resolvedTargetNetPercent,
+            _reportingOptions.CurrentValue.EstimatedFeePercentPerSide);
+        var targetBreakdown = TradeCostCalculator.Build(
+            side,
+            capital,
+            quantity,
+            entryPrice,
+            targetExitPrice,
+            _reportingOptions.CurrentValue.EstimatedFeePercentPerSide);
+
+        return new ManagedTargetSnapshot(
+            resolvedTargetNetPercent,
+            targetBreakdown.NetBenefit,
+            targetExitPrice);
     }
 
     private static bool IsSameSignalFamily(DateTimeOffset observedAt, DateTimeOffset expiresAt, TradingOpportunity opportunity)
@@ -274,3 +330,5 @@ public sealed class EfOpportunityRepository : IOpportunityRepository
         }
     }
 }
+
+internal sealed record ManagedTargetSnapshot(decimal TargetNetPercent, decimal TargetNetPnL, decimal TargetExitPrice);

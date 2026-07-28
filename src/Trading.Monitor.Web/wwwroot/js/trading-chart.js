@@ -350,7 +350,7 @@
         const visibleOperations = operations.filter(item => item.symbol === selectedSymbol);
 
         if (visibleOperations.length === 0) {
-            list.innerHTML = `<div class="empty-state"><strong>Sin operaciones.</strong><span>Esperando una senal clara.</span></div>`;
+            list.innerHTML = `<div class="empty-state"><strong>Sin operaciones.</strong><span>Esperando una señal clara.</span></div>`;
             return;
         }
 
@@ -457,28 +457,29 @@
         const metrics = buildCostMetrics(item, targetPrice);
         const currentMetrics = buildCostMetrics(item, Number(item.markPrice || item.lastPrice || targetPrice));
         const stopMetrics = buildCostMetrics(item, Number(item.stopLoss || item.lastPrice || targetPrice));
-        const resultClass = resultClassForNet(metrics.netBenefit);
+        const statusMetrics = item.status === "Abierta" ? currentMetrics : metrics;
+        const resultClass = resultClassForNet(statusMetrics.netBenefit);
 
         return `
             <article class="live-card ${escapeHtml(item.signalClass)} ${resultClass} ${isSelected ? "selected-live-card" : ""}" data-operation-id="${escapeAttribute(item.id)}" style="--signal-color: ${escapeAttribute(routeColor)}">
-                ${cardSummary(item, isSelected, "Operacion por senal", `${item.signalTypeLabel || item.side} | ${item.status} | objetivo ${formatMoney(metrics.netBenefit)}`)}
+                ${cardSummary(item, isSelected, "Operación por señal", `${item.signalTypeLabel || item.side} | ${item.status} | actual ${signedMoney(currentMetrics.netBenefit)} | objetivo ${signedMoney(metrics.netBenefit)}`)}
                 <div class="live-card-body">
                     <dl class="signal-detail-grid">
                         ${detailCell("Cantidad entrada", formatMoney(metrics.investment), item.signalTypeLabel || item.side)}
                         ${detailCell("Costo unidad", formatPrice(item.entryPrice), "precio de entrada")}
                         ${detailCell(`${assetFor(item.symbol)} obtenido`, quantityText(item), quantityMeaning(item))}
-                        ${detailCell("Comision entrada", `${formatPercent(item.feePercentPerSide ?? feePercent)}`, formatMoney(metrics.entryFee))}
+                        ${detailCell("Comisión entrada", `${formatPercent(item.feePercentPerSide ?? feePercent)}`, formatMoney(metrics.entryFee))}
                         ${detailCell("Mercado objetivo", formatPrice(targetPrice), targetActionText(item))}
-                        ${detailCell("Ganancia objetivo", signedMoney(metrics.netBenefit), "despues de salida y comisiones", signedClass(metrics.netBenefit))}
-                        ${detailCell("Comision salida", `${formatPercent(item.feePercentPerSide ?? feePercent)}`, formatMoney(metrics.exitFee))}
+                        ${detailCell("Ganancia objetivo", signedMoney(metrics.netBenefit), "después de salida y comisiones", signedClass(metrics.netBenefit))}
+                        ${detailCell("Comisión salida", `${formatPercent(item.feePercentPerSide ?? feePercent)}`, formatMoney(metrics.exitFee))}
                         ${detailCell("Total obtenido", formatMoney(metrics.totalObtained), "en mercado objetivo")}
                     </dl>
                     <div class="signal-extra-row">
                         <span>Mercado actual: <strong>${formatPrice(item.markPrice || item.lastPrice)}</strong></span>
                         <span>Ganancia actual: <strong class="${signedClass(currentMetrics.netBenefit)}">${signedMoney(currentMetrics.netBenefit)}</strong></span>
-                        <span>Perdida maxima: <strong class="loss">${signedMoney(stopMetrics.netBenefit)}</strong></span>
+                        <span>Pérdida máxima: <strong class="loss">${signedMoney(stopMetrics.netBenefit)}</strong></span>
                     </div>
-                    ${tradeLinks(item, "Ver en grafico")}
+                    ${tradeLinks(item, "Ver en gráfico")}
                 </div>
             </article>`;
     }
@@ -497,7 +498,7 @@
 
         return `
             <article class="live-card managed-live-card ${escapeHtml(item.signalClass)} ${resultClass} ${isSelected ? "selected-live-card" : ""}" data-operation-id="${escapeAttribute(item.id)}" style="--signal-color: ${escapeAttribute(routeColor)}">
-                ${cardSummary(item, isSelected, "Seguimiento por senal", `${item.signalTypeLabel || item.side} | ${item.status} | actual ${signedMoney(currentMetrics.netBenefit)}`)}
+                ${cardSummary(item, isSelected, "Seguimiento por señal", `${item.signalTypeLabel || item.side} | ${item.status} | actual ${signedMoney(currentMetrics.netBenefit)}`)}
                 <div class="live-card-body">
                     <div class="target-editor">
                         <label>
@@ -511,10 +512,10 @@
                         ${detailCell("Cantidad entrada", formatMoney(currentMetrics.investment), item.signalTypeLabel || item.side)}
                         ${detailCell("Costo unidad", formatPrice(item.entryPrice), "precio de entrada")}
                         ${detailCell(`${assetFor(item.symbol)} obtenido`, quantityText(item), quantityMeaning(item))}
-                        ${detailCell("Comision entrada", `${formatPercent(item.feePercentPerSide ?? feePercent)}`, formatMoney(currentMetrics.entryFee))}
+                        ${detailCell("Comisión entrada", `${formatPercent(item.feePercentPerSide ?? feePercent)}`, formatMoney(currentMetrics.entryFee))}
                         ${detailCell("Mercado objetivo", formatPrice(targetPrice), `${targetPercent.toFixed(2)}% neto`)}
-                        ${detailCell("Ganancia objetivo", signedMoney(targetMetrics.netBenefit), "despues de salida y comisiones", signedClass(targetMetrics.netBenefit))}
-                        ${detailCell("Comision salida", `${formatPercent(item.feePercentPerSide ?? feePercent)}`, formatMoney(targetMetrics.exitFee))}
+                        ${detailCell("Ganancia objetivo", signedMoney(targetMetrics.netBenefit), "después de salida y comisiones", signedClass(targetMetrics.netBenefit))}
+                        ${detailCell("Comisión salida", `${formatPercent(item.feePercentPerSide ?? feePercent)}`, formatMoney(targetMetrics.exitFee))}
                         ${detailCell("Total obtenido", formatMoney(currentMetrics.totalObtained), "si cierras al mercado actual")}
                     </dl>
                     <div class="signal-extra-row">
@@ -523,7 +524,7 @@
                         <span>Diferencia: <strong class="${difference <= 0 ? "gain" : "flat"}">${difference <= 0 ? "+" : "-"}${formatMoney(Math.abs(difference))}</strong></span>
                     </div>
                     <div class="trade-links">
-                        <button type="button" data-chart-symbol="${escapeHtml(item.symbol)}" data-card-operation="${escapeAttribute(item.id)}">Ver en grafico</button>
+                        <button type="button" data-chart-symbol="${escapeHtml(item.symbol)}" data-card-operation="${escapeAttribute(item.id)}">Ver en gráfico</button>
                         <button type="button" data-close-current="${escapeAttribute(item.id)}" ${closeDisabled ? "disabled" : ""}>Cerrar al mercado actual</button>
                         ${(item.links || []).slice(0, 5).map(link => link.url?.startsWith("/") ? `<a href="${escapeAttribute(link.url)}">${escapeHtml(link.label)}</a>` : `<a href="${escapeAttribute(link.url)}" target="_blank" rel="noopener noreferrer">${escapeHtml(link.label)}</a>`).join("")}
                     </div>
@@ -732,10 +733,10 @@
         hoverCard.innerHTML = `
             <strong>${formatDateTime(param.time)}</strong>
             <dl>
-                <div><dt>Abrio</dt><dd>${formatPrice(candle.open)}</dd></div>
+                <div><dt>Abrió</dt><dd>${formatPrice(candle.open)}</dd></div>
                 <div><dt>Alto</dt><dd>${formatPrice(candle.high)}</dd></div>
                 <div><dt>Bajo</dt><dd>${formatPrice(candle.low)}</dd></div>
-                <div><dt>Cerro</dt><dd class="${change >= 0 ? "gain" : "loss"}">${formatPrice(candle.close)} (${changePercent.toFixed(2)}%)</dd></div>
+                <div><dt>Cerró</dt><dd class="${change >= 0 ? "gain" : "loss"}">${formatPrice(candle.close)} (${changePercent.toFixed(2)}%)</dd></div>
             </dl>`;
         hoverCard.hidden = false;
 
@@ -755,9 +756,9 @@
                     <div class="analysis-headline">
                         <div>
                             <span>${escapeHtml(snapshot.symbol)} ${escapeHtml(snapshot.interval)} | seguimiento vivo</span>
-                            <strong>Selecciona una senal</strong>
+                            <strong>Selecciona una señal</strong>
                         </div>
-                        <small>El detalle calculara objetivo, ganancia actual, diferencia y cierre al mercado actual.</small>
+                        <small>El detalle calculará objetivo, ganancia actual, diferencia y cierre al mercado actual.</small>
                     </div>`;
                 return;
             }
@@ -775,7 +776,7 @@
                         <span>${escapeHtml(operation.symbol)} ${escapeHtml(snapshot.interval)} | ${escapeHtml(operation.signalTypeLabel || operation.side)} | ${escapeHtml(operation.status)}</span>
                         <strong class="${signedClass(currentMetrics.netBenefit)}">${signedMoney(currentMetrics.netBenefit)} actual</strong>
                     </div>
-                    <small>${difference <= 0 ? `El mercado ya supera el objetivo por ${formatMoney(Math.abs(difference))}.` : `Aun faltan ${formatMoney(difference)} para el objetivo configurado.`}</small>
+                    <small>${difference <= 0 ? `El mercado ya supera el objetivo por ${formatMoney(Math.abs(difference))}.` : `Aún faltan ${formatMoney(difference)} para el objetivo configurado.`}</small>
                 </div>
                 <dl class="analysis-grid">
                     <div><dt>Entrada</dt><dd>${formatPrice(operation.entryPrice)}</dd><small>${quantityText(operation)}</small></div>
@@ -790,7 +791,7 @@
         const sideClass = operation
             ? operation.realizedText?.startsWith("-") ? "loss" : operation.realizedText === "Abierta" ? "flat" : "gain"
             : analysis.side === "Long" ? "gain" : analysis.side === "Short" ? "loss" : "flat";
-        const sourceText = operation ? "senal guardada" : analysisTrade ? "lectura tecnica" : "sin entrada";
+        const sourceText = operation ? "señal guardada" : analysisTrade ? "lectura técnica" : "sin entrada";
         const actionText = operation ? operation.action : analysis.action || "Esperar";
         const readoutText = operation
             ? `${operation.signalTypeLabel || operation.side} | ${operation.status} | score ${operation.score}/100 | ${operation.realizedFormulaText}`
@@ -1053,8 +1054,9 @@
     }
 
     async function refreshTargetPercent(id, value) {
-        setTargetPercent(id, value);
+        const targetPercent = setTargetPercent(id, value);
         targetDrafts.delete(id);
+        await persistTargetPercent(id, targetPercent);
         lockCurrentView();
         await refreshChart();
         renderList(lastOperations);
@@ -1062,17 +1064,38 @@
 
     function getTargetPercent(item) {
         const stored = localStorage.getItem(targetStorageKey(item?.id));
-        const value = parseNumber(stored, defaultTargetPercent);
+        const fallback = parseNumber(item?.managedTargetNetPercent, defaultTargetPercent);
+        const value = parseNumber(stored, fallback);
         return Math.max(-99, Math.min(1000, value));
     }
 
     function setTargetPercent(id, value) {
         if (!id) {
-            return;
+            return defaultTargetPercent;
         }
 
         const parsed = parseNumber(value, defaultTargetPercent);
         localStorage.setItem(targetStorageKey(id), String(parsed));
+        return parsed;
+    }
+
+    async function persistTargetPercent(id, targetPercent) {
+        if (!id) {
+            return;
+        }
+
+        try {
+            await fetch(`/api/posiciones/${encodeURIComponent(id)}/objetivo`, {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({
+                    capital: Number(capital || 0),
+                    targetNetPercent: Number(targetPercent || defaultTargetPercent)
+                })
+            });
+        } catch {
+            // La pantalla mantiene el valor local y el siguiente refresco volverá a intentarlo.
+        }
     }
 
     function isEditingTargetPercent() {

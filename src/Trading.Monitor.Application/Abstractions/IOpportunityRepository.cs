@@ -15,6 +15,8 @@ public interface IOpportunityRepository : ISignalStore
 
     Task<decimal> GetRealizedNetSinceAsync(DateTimeOffset since, CancellationToken cancellationToken);
 
+    Task UpdateManagedTargetAsync(Guid id, decimal targetNetPercent, CancellationToken cancellationToken);
+
     Task UpdateExitAsync(Guid id, OpportunityExit exit, decimal realizedGrossPnL, decimal realizedNetPnL, CancellationToken cancellationToken);
 
     Task<DashboardReport> GetDashboardReportAsync(decimal capital, CancellationToken cancellationToken);

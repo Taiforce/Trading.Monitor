@@ -50,8 +50,13 @@ public sealed class TradingMonitorDbContext : DbContext
         opportunity.Property(entity => entity.NetProfitAtTakeProfit1).HasColumnType("decimal(18,2)");
         opportunity.Property(entity => entity.NetProfitAtTakeProfit2).HasColumnType("decimal(18,2)");
         opportunity.Property(entity => entity.NetLossAtStop).HasColumnType("decimal(18,2)");
+        opportunity.Property(entity => entity.ManagedTargetNetPercent).HasColumnType("decimal(18,4)");
+        opportunity.Property(entity => entity.ManagedTargetNetPnL).HasColumnType("decimal(18,2)");
+        opportunity.Property(entity => entity.ManagedTargetExitPrice).HasColumnType("decimal(18,8)");
         opportunity.Property(entity => entity.RealizedGrossPnL).HasColumnType("decimal(18,2)");
         opportunity.Property(entity => entity.RealizedNetPnL).HasColumnType("decimal(18,2)");
+        opportunity.Property(entity => entity.RealizedNetPercent).HasColumnType("decimal(18,4)");
+        opportunity.Property(entity => entity.RealizedTotalObtained).HasColumnType("decimal(18,2)");
 
         var source = modelBuilder.Entity<DataSourceEntity>();
         source.ToTable("data_sources");

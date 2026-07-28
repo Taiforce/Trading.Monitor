@@ -8,7 +8,7 @@
     <div class="page-head">
         <div>
             <p class="eyebrow">Entrada y salida fija</p>
-            <h1>Operaciones por senal</h1>
+            <h1>Operaciones por señal</h1>
         </div>
         <form method="get" class="filter-bar actions-filter" id="actionsFilterForm">
             <label>
@@ -24,7 +24,7 @@
                 </select>
             </label>
             <label>
-                <span>Tipo de senal</span>
+                <span>Tipo de señal</span>
                 <select asp-for="TipoSenal">
                     <option value="">Todas</option>
                     <option value="@Model.BuyLowSellHighValue">Compra bajo - vende alto</option>
@@ -47,38 +47,38 @@
 
     <section class="metrics-grid metrics-grid-four" aria-label="Resumen de acciones">
         <article class="metric">
-            <span>Abiertas</span>
-            <strong>@Model.Report.OpenSignals</strong>
-            <small>requieren seguimiento</small>
+            <span>Saldo simulado</span>
+            <strong class="@Model.SignedClass(Model.FilteredRealizedNet)">@Model.Money(Model.SimulatedBalanceAfterClosedOperations)</strong>
+            <small>capital + cierres filtrados</small>
         </article>
         <article class="metric">
-            <span>Ganancia objetivo</span>
-            <strong class="@Model.SignedClass(Model.Report.PotentialNetAtTakeProfit1)">@Model.Money(Model.Report.PotentialNetAtTakeProfit1)</strong>
-            <small>con @Model.Money(Model.Report.Capital) por senal</small>
+            <span>Ganado</span>
+            <strong class="gain">@Model.Money(Model.FilteredWonAmount)</strong>
+            <small>después de comisiones</small>
         </article>
         <article class="metric">
-            <span>Ganancia extra</span>
-            <strong class="@Model.SignedClass(Model.Report.PotentialNetAtTakeProfit2)">@Model.Money(Model.Report.PotentialNetAtTakeProfit2)</strong>
-            <small>escenario extendido</small>
+            <span>Perdido</span>
+            <strong class="loss">@Model.Money(Model.FilteredLostAmount)</strong>
+            <small>después de comisiones</small>
         </article>
         <article class="metric">
-            <span>Perdida maxima</span>
-            <strong class="@Model.SignedClass(Model.Report.PotentialLossAtStop)">@Model.Money(Model.Report.PotentialLossAtStop)</strong>
-            <small>lo que doleria</small>
+            <span>Resultado neto</span>
+            <strong class="@Model.SignedClass(Model.FilteredRealizedNet)">@Model.Money(Model.FilteredRealizedNet)</strong>
+            <small>@Model.Rows.Count(row => row.Status != Trading.Monitor.Domain.OpportunityStatus.Open) cierres medidos</small>
         </article>
     </section>
 
     <div class="insight-strip trade-type-guide">
-        <span>Operacion fija</span>
-        <strong>Cada senal trae entrada, mercado objetivo y salida. Para entrar y dejar que el sistema busque la salida despues, usa <a asp-page="/ManagedPositions">Seguimiento por senal</a>.</strong>
+        <span>Operación fija</span>
+        <strong>Cada señal trae entrada, mercado objetivo y salida. Para entrar y dejar que el sistema busque la salida después, usa <a asp-page="/ManagedPositions">Seguimiento por señal</a>.</strong>
     </div>
 
     <section class="report-section live-board" data-live-mode="classic" data-live-capital="@Model.Report.Capital" data-live-estado="@Model.Estado" data-live-symbol="@Model.Symbol" data-live-tipo-senal="@Model.TipoSenal" data-live-fee-percent="@Model.EstimatedFeePercentPerSide">
         <div class="section-title">
-            <h2>Grafico y seguimiento</h2>
+            <h2>Gráfico y seguimiento</h2>
             <span id="liveUpdated">actualizando...</span>
         </div>
-        <div class="chart-toolbar" aria-label="Controles del grafico">
+        <div class="chart-toolbar" aria-label="Controles del gráfico">
             <div>
                 <span>Activo</span>
                 @foreach (var symbol in Model.Symbols)
@@ -99,7 +99,7 @@
             <div class="chart-zoom-control">
                 <span>Zoom</span>
                 <button type="button" data-chart-zoom-out>-</button>
-                <input id="chartZoom" type="range" min="0" max="100" value="45" aria-label="Zoom del grafico"/>
+                <input id="chartZoom" type="range" min="0" max="100" value="45" aria-label="Zoom del gráfico"/>
                 <button type="button" data-chart-zoom-in>+</button>
                 <strong id="chartZoomLabel">medio</strong>
             </div>
@@ -117,7 +117,7 @@
                     <strong>BTCUSDT</strong>
                     <span>cargando mercado...</span>
                 </div>
-                <div id="advancedTradesChart" class="tradingview-chart" aria-label="Grafico de operaciones por senal"></div>
+                <div id="advancedTradesChart" class="tradingview-chart" aria-label="Gráfico de operaciones por señal"></div>
                 <div id="chartHoverInfo" class="chart-hover-card" hidden></div>
             </div>
             <div id="liveTradeCards" class="live-trade-list">
@@ -133,8 +133,8 @@
     {
         <section class="report-section priority-section">
             <div class="section-title">
-                <h2>Remarcadas</h2>
-                <span>prioridad alta</span>
+                <h2>Prioridad alta</h2>
+                <span>las mismas señales, solo las más fuertes</span>
             </div>
             <div class="priority-grid">
                 @foreach (var row in Model.HighlightedRows)
@@ -159,21 +159,21 @@
 
     <section class="report-section">
         <div class="section-title">
-            <h2>Planes de operacion</h2>
-            <span>@Model.Rows.Count registros</span>
+            <h2>Planes de operación</h2>
+            <span>todas las señales filtradas: @Model.Rows.Count</span>
         </div>
 
         @if (Model.Rows.Count == 0)
         {
             <div class="empty-state">
                 <strong>Sin oportunidades para este filtro.</strong>
-                <span>El monitor puede estar esperando una confluencia mas fuerte.</span>
+                <span>El monitor puede estar esperando una confluencia más fuerte.</span>
             </div>
         }
         else
         {
             <div class="trade-card-grid compact-signal-grid">
-                @foreach (var row in Model.Rows.Take(12))
+                @foreach (var row in Model.Rows)
                 {
                     var instruction = Model.InstructionFor(row);
                     var breakdown = Model.CostBreakdown(row);
@@ -181,7 +181,7 @@
                         <div class="trade-card-head">
                             <div>
                                 <strong>@row.Symbol</strong>
-                                <span class="signal-type-badge @Model.SignalTypeClass(row.Side)">Senal de @Model.SignalTypeLabel(row.Side)</span>
+                                <span class="signal-type-badge @Model.SignalTypeClass(row.Side)">Señal de @Model.SignalTypeLabel(row.Side)</span>
                                 <small>@Model.SignalTypeMeaning(row.Side)</small>
                             </div>
                             <div class="trade-badges">
@@ -210,14 +210,14 @@
                                 <small>cantidad simulada</small>
                             </div>
                             <div>
-                                <span>Comision entrada</span>
+                                <span>Comisión entrada</span>
                                 <strong>@Model.EstimatedFeePercentPerSide.ToString("N2")%</strong>
                                 <small>@Model.Money(breakdown.EntryFee)</small>
                             </div>
                             <div>
                                 <span>Mercado objetivo</span>
                                 <strong>@Model.Price(row.TakeProfit1)</strong>
-                                <small>@(row.Side == Trading.Monitor.Domain.MarketSide.Long ? "vender ahi" : "comprar de regreso ahi")</small>
+                                <small>@(row.Side == Trading.Monitor.Domain.MarketSide.Long ? "vender ahí" : "comprar de regreso ahí")</small>
                             </div>
                             <div>
                                 <span>Ganancia objetivo</span>
@@ -225,20 +225,20 @@
                                 <small>@Model.NetResultLabel(breakdown)</small>
                             </div>
                             <div>
-                                <span>Comision salida</span>
+                                <span>Comisión salida</span>
                                 <strong>@Model.EstimatedFeePercentPerSide.ToString("N2")%</strong>
                                 <small>@Model.Money(breakdown.ExitFee)</small>
                             </div>
                             <div>
                                 <span>Total obtenido</span>
                                 <strong class="@Model.SignedClass(breakdown.NetBenefit)">@Model.Money(breakdown.TotalObtained)</strong>
-                                <small>neto despues de comisiones</small>
+                                <small>neto después de comisiones</small>
                             </div>
                         </div>
 
                         <div class="trade-footer">
                             <span>Mercado actual @Model.Price(row.LastPrice)</span>
-                            <span>Perdida maxima @Model.Money(row.NetLossAtStop)</span>
+                            <span>Pérdida máxima @Model.Money(row.NetLossAtStop)</span>
                             <span>Riesgo/beneficio 1:@row.RiskReward.ToString("N2")</span>
                         </div>
                     </article>

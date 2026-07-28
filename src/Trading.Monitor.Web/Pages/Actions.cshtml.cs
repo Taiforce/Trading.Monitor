@@ -23,6 +23,14 @@ public sealed class ActionsModel(IOpportunityRepository opportunityRepository, I
 
     public IReadOnlyList<string> Symbols { get; private set; } = [];
 
+    public decimal FilteredWonAmount { get; private set; }
+
+    public decimal FilteredLostAmount { get; private set; }
+
+    public decimal FilteredRealizedNet { get; private set; }
+
+    public decimal SimulatedBalanceAfterClosedOperations { get; private set; }
+
     [BindProperty(SupportsGet = true)]
     public string Estado { get; set; } = "abiertas";
 
@@ -40,6 +48,7 @@ public sealed class ActionsModel(IOpportunityRepository opportunityRepository, I
         Symbols = BuildSymbolList(Report.RecentSignals.Select(row => row.Symbol));
         Rows = ApplyFilters(Report.RecentSignals);
         HighlightedRows = Rows.Where(row => InstructionFor(row).Highlight).Take(6).ToArray();
+        CalculateMoneySummary();
     }
 
     public TradeInstruction InstructionFor(OpportunityReportRow row)
@@ -112,7 +121,7 @@ public sealed class ActionsModel(IOpportunityRepository opportunityRepository, I
         if (!row.ExitPrice.HasValue || !row.RealizedNetPnL.HasValue)
             return $"{side}: {Money(row.Capital)} / {Price(row.EntryPrice)} = {Quantity(row)}. Cuando cierre, se calcula contra el precio de salida.";
 
-        return $"{side}: {Money(row.Capital)} / {Price(row.EntryPrice)} = {Quantity(row)}; salida {Price(row.ExitPrice.Value)}; neto despues de comisiones {Money(row.RealizedNetPnL.Value)}.";
+        return $"{side}: {Money(row.Capital)} / {Price(row.EntryPrice)} = {Quantity(row)}; salida {Price(row.ExitPrice.Value)}; neto después de comisiones {Money(row.RealizedNetPnL.Value)}.";
     }
 
     private IReadOnlyList<OpportunityReportRow> ApplyFilters(IEnumerable<OpportunityReportRow> rows)
@@ -134,6 +143,15 @@ public sealed class ActionsModel(IOpportunityRepository opportunityRepository, I
             .ThenByDescending(row => row.Score)
             .ThenByDescending(row => row.ObservedAt)
             .ToArray();
+    }
+
+    private void CalculateMoneySummary()
+    {
+        var closed = Rows.Where(row => row.Status != OpportunityStatus.Open && row.RealizedNetPnL.HasValue).ToArray();
+        FilteredWonAmount = closed.Where(row => row.RealizedNetPnL > 0m).Sum(row => row.RealizedNetPnL!.Value);
+        FilteredLostAmount = Math.Abs(closed.Where(row => row.RealizedNetPnL < 0m).Sum(row => row.RealizedNetPnL!.Value));
+        FilteredRealizedNet = FilteredWonAmount - FilteredLostAmount;
+        SimulatedBalanceAfterClosedOperations = Report.Capital + FilteredRealizedNet;
     }
 
     private static string FormatDuration(TimeSpan value)

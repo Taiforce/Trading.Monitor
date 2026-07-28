@@ -203,18 +203,18 @@ public sealed class ReportsModel : TradingPageModel
             return "Todavia no hay suficiente historial. Primero deja que el worker acumule oportunidades.";
 
         if (FilteredTotalSignals == 0)
-            return "No hay operaciones para esos filtros. Cambia activo, fecha, estado o score minimo.";
+            return "No hay operaciones para esos filtros. Cambia activo, fecha, estado o score mínimo.";
 
         if (FilteredWinRate >= 55m && FilteredRealizedNetPnL > 0m)
             return "El historial cerrado tiene ventaja positiva. La prioridad es repetir setups similares sin aumentar riesgo.";
 
         if (FilteredOpenSignals > 0 && FilteredClosedSignals == 0)
-            return "Hay oportunidades abiertas, pero aun no hay resultados cerrados. Decide solo con entrada, perdida maxima y tamano de posicion claros.";
+            return "Hay oportunidades abiertas, pero aún no hay resultados cerrados. Decide solo con entrada, pérdida máxima y tamaño de posición claros.";
 
         if (FilteredPotentialLoss < 0m && FilteredPotentialTarget <= Math.Abs(FilteredPotentialLoss))
-            return "La recompensa potencial todavia no compensa el dano posible. Aqui el filtro debe ser mas exigente.";
+            return "La recompensa potencial todavía no compensa el daño posible. Aquí el filtro debe ser más exigente.";
 
-        return "El sistema esta generando datos utiles, pero la muestra aun necesita mas cierres para juzgar calidad real.";
+        return "El sistema está generando datos útiles, pero la muestra aún necesita más cierres para juzgar calidad real.";
     }
 
     private IReadOnlyList<SignalLearningRow> BuildLearningRows(IReadOnlyList<OpportunityReportRow> rows)
@@ -246,17 +246,17 @@ public sealed class ReportsModel : TradingPageModel
     private string BuildLearningReadout()
     {
         if (LearningRows.Count == 0)
-            return "Aun no hay cierres suficientes para aprender de las propias senales.";
+            return "Aún no hay cierres suficientes para aprender de las propias señales.";
 
         var risky = LearningRows.FirstOrDefault(row => row.ClassName == "loss");
         if (risky is not null)
-            return $"El sistema debe ponerse mas exigente con {risky.Pattern}: {risky.WinRate:N1}% win rate y {Money(risky.RealizedNetPnL)} neto.";
+            return $"El sistema debe ponerse más exigente con {risky.Pattern}: {risky.WinRate:N1}% win rate y {Money(risky.RealizedNetPnL)} neto.";
 
         var strong = LearningRows.FirstOrDefault(row => row.ClassName == "gain");
         if (strong is not null)
             return $"El mejor patron medido es {strong.Pattern}: {strong.WinRate:N1}% win rate y {Money(strong.RealizedNetPnL)} neto.";
 
-        return "Los patrones cerrados todavia estan neutrales; conviene acumular mas muestra antes de ajustar fuerte.";
+        return "Los patrones cerrados todavía están neutrales; conviene acumular más muestra antes de ajustar fuerte.";
     }
 
     private static string BuildLearningRecommendation(int total, decimal winRate, decimal net, decimal averageScore)
@@ -265,13 +265,13 @@ public sealed class ReportsModel : TradingPageModel
             return "Muestra pequena: observar antes de cambiar reglas.";
 
         if (winRate < 42m && net < 0m)
-            return $"Bloquear o subir score minimo sobre {Math.Min(100, Math.Ceiling(averageScore + 3m)):N0}.";
+            return $"Bloquear o subir score mínimo sobre {Math.Min(100, Math.Ceiling(averageScore + 3m)):N0}.";
 
         if (winRate >= 55m && net > 0m)
             return "Priorizar con el mismo riesgo; no aumentar capital automaticamente.";
 
         if (net < 0m)
-            return "Reducir frecuencia y exigir mas confirmaciones.";
+            return "Reducir frecuencia y exigir más confirmaciones.";
 
         return "Mantener en observacion; ventaja todavia moderada.";
     }

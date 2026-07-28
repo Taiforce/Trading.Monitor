@@ -111,7 +111,7 @@ public sealed class MarketMonitorWorker(ILogger<MarketMonitorWorker> logger, Mar
             await tradeExecutionService.TryEnterAsync(savedOpportunity, cancellationToken);
         }
 
-        logger.LogInformation("New signal {Symbol} {SignalType} score {Score}. Entry {EntryLower}-{EntryUpper}, perdida maxima {StopLoss}, ganancia objetivo {TakeProfit1}.", opportunity.Symbol,
+        logger.LogInformation("New signal {Symbol} {SignalType} score {Score}. Entry {EntryLower}-{EntryUpper}, pérdida máxima {StopLoss}, ganancia objetivo {TakeProfit1}.", opportunity.Symbol,
             SignalTypeDescriptor.Label(opportunity.Side), opportunity.Score, opportunity.EntryLower, opportunity.EntryUpper, opportunity.StopLoss, opportunity.TakeProfit1);
 
         foreach (var channel in notificationChannels)
@@ -151,8 +151,27 @@ public sealed class MarketMonitorWorker(ILogger<MarketMonitorWorker> logger, Mar
             {
                 var trackingInterval = ResolveExitTrackingInterval(opportunity);
                 var candles = await marketDataProvider.GetCandlesAsync(opportunity.Symbol, trackingInterval, Math.Min(1000, Math.Max(100, monitor.CandleLimit)), cancellationToken);
+                var exitCandles = candles;
 
-                var exit = opportunityExitService.ResolveExit(opportunity, candles, risk);
+                if (risk.ManagedProfitExitEnabled && opportunityExitService.HasTouchedManagedTarget(opportunity, candles, risk))
+                {
+                    try
+                    {
+                        var oneSecondLimit = Math.Min(1000, Math.Max(180, monitor.CandleLimit));
+                        var oneSecondCandles = await marketDataProvider.GetCandlesAsync(opportunity.Symbol, "1s", oneSecondLimit, cancellationToken);
+                        if (oneSecondCandles.Count >= Math.Max(4, risk.ManagedProfitTrailCandlesAfterTarget + 1))
+                        {
+                            exitCandles = oneSecondCandles;
+                            logger.LogInformation("Opportunity {OpportunityId} reached managed target. Tracking exit with 1s candles.", opportunity.Id);
+                        }
+                    }
+                    catch (Exception exception)
+                    {
+                        logger.LogWarning(exception, "Could not switch opportunity {OpportunityId} to 1s exit tracking. Continuing with {Interval}.", opportunity.Id, trackingInterval);
+                    }
+                }
+
+                var exit = opportunityExitService.ResolveExit(opportunity, exitCandles, risk);
 
                 if (exit is null)
                     continue;
@@ -242,8 +261,8 @@ public sealed class MarketMonitorWorker(ILogger<MarketMonitorWorker> logger, Mar
 
         return minutes switch
         {
-            <= 30 => "Rapida",
-            <= 240 => "Intradia",
+            <= 30 => "Rápida",
+            <= 240 => "Intradía",
             <= 2880 => "Swing",
             <= 10080 => "Semanal",
             _ => "Mensual"

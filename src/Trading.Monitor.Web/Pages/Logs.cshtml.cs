@@ -60,7 +60,7 @@ public sealed class LogsModel(OperationalLogReader logReader, ILogger<LogsModel>
         MaxBucketCount = Buckets.Select(bucket => bucket.Count).DefaultIfEmpty(0).Max();
         ErrorCount = Entries.Count(entry => entry.Level is "ERR" or "FTL");
         WarningCount = Entries.Count(entry => entry.Level == "WRN");
-        SignalCount = Entries.Count(entry => entry.EventType == "Senal");
+        SignalCount = Entries.Count(entry => entry.EventType == "Señal");
         ScanCount = Entries.Count(entry => entry.EventType == "Barrido");
     }
 
@@ -99,7 +99,7 @@ public sealed class LogsModel(OperationalLogReader logReader, ILogger<LogsModel>
         return eventType switch
         {
             "Incidente" => "loss",
-            "Senal" => "gain",
+            "Señal" => "gain",
             "Barrido" => "flat",
             _ => "muted"
         };
@@ -138,9 +138,9 @@ public sealed class LogsModel(OperationalLogReader logReader, ILogger<LogsModel>
             "INF" => "Info",
             "WRN" => "Alerta",
             "ERR" => "Error",
-            "FTL" => "Critico",
+            "FTL" => "Crítico",
             "DBG" => "Debug",
-            _ => "Linea"
+            _ => "Línea"
         };
     }
 
@@ -150,7 +150,7 @@ public sealed class LogsModel(OperationalLogReader logReader, ILogger<LogsModel>
             return "Incidente";
 
         if (ContainsAny(message, "New signal", "Signal sent", "closed as", "Skipping duplicate"))
-            return "Senal";
+            return "Señal";
 
         if (ContainsAny(message, "Scanning", "No valid opportunities", "valid opportunities"))
             return "Barrido";

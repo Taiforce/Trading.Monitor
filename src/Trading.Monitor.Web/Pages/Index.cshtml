@@ -28,7 +28,7 @@
 
     <section class="metrics-grid" aria-label="Metricas principales">
         <article class="metric">
-            <span>Senales</span>
+            <span>Señales</span>
             <strong>@Model.Report.TotalSignals</strong>
             <small>@Model.Report.OpenSignals abiertas</small>
         </article>
@@ -40,12 +40,12 @@
         <article class="metric">
             <span>Ganancia objetivo</span>
             <strong class="@Model.SignedClass(Model.Report.PotentialNetAtTakeProfit1)">@Model.Money(Model.Report.PotentialNetAtTakeProfit1)</strong>
-            <small>con @Model.Money(Model.Report.Capital) por senal</small>
+            <small>con @Model.Money(Model.Report.Capital) por señal</small>
         </article>
         <article class="metric">
-            <span>Perdida maxima</span>
+            <span>Pérdida máxima</span>
             <strong class="@Model.SignedClass(Model.Report.PotentialLossAtStop)">@Model.Money(Model.Report.PotentialLossAtStop)</strong>
-            <small>perdida neta estimada</small>
+            <small>pérdida neta estimada</small>
         </article>
         <article class="metric">
             <span>Conexiones</span>
@@ -62,7 +62,7 @@
     <section class="quick-links" aria-label="Secciones">
         <a asp-page="/Actions" asp-route-Capital="@Model.Report.Capital">
             <strong>Acciones</strong>
-            <span>Hora de entrada, salida, ganancia, perdida y monto hipotetico.</span>
+            <span>Hora de entrada, salida, ganancia, pérdida y monto hipotético.</span>
         </a>
         <a asp-page="/Reports" asp-route-Capital="@Model.Report.Capital">
             <strong>Reportes</strong>
@@ -70,7 +70,7 @@
         </a>
         <a asp-page="/Portfolio" asp-route-InitialCapital="@Model.Report.Capital">
             <strong>Cartera</strong>
-            <span>Simula interes compuesto usando todo el saldo por senal.</span>
+            <span>Simula interés compuesto usando todo el saldo por señal.</span>
         </a>
         <a asp-page="/Connections">
             <strong>Conexiones</strong>

@@ -103,7 +103,7 @@ public sealed class TradingSignalEngine(TechnicalAnalysisService technicalAnalys
         if (selectedRisks.Distinct(StringComparer.OrdinalIgnoreCase).Count() > 5)
             return null;
 
-        selectedReasons.Insert(0, $"Horizonte {horizonName}: trigger {trigger.Interval}, vida maxima {FormatDuration(expiryMinutes)}.");
+        selectedReasons.Insert(0, $"Horizonte {horizonName}: trigger {trigger.Interval}, vida máxima {FormatDuration(expiryMinutes)}.");
 
         return BuildOpportunity(symbol, side, score, trigger, expiryMinutes, riskOptions, confirmedIntervals, selectedReasons, selectedRisks, relatedNews);
     }
@@ -234,8 +234,8 @@ public sealed class TradingSignalEngine(TechnicalAnalysisService technicalAnalys
             return null;
 
         var enrichedReasons = reasons
-            .Append($"Rentabilidad neta: objetivo {netTargetPercent:F2}% despues de costo estimado {estimatedCostPercent:F2}%.")
-            .Append($"Precio minimo para no perder: {RoundPrice(breakEvenPrice)}.")
+            .Append($"Rentabilidad neta: objetivo {netTargetPercent:F2}% después de costo estimado {estimatedCostPercent:F2}%.")
+            .Append($"Precio mínimo para no perder: {RoundPrice(breakEvenPrice)}.")
             .Distinct()
             .Take(10)
             .ToArray();

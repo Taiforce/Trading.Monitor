@@ -34,7 +34,7 @@ public class TradeInstructionServiceTests
 
         Assert.True(instruction.Highlight);
         Assert.Equal("COMPRAR AHORA", instruction.ActionLabel);
-        Assert.Contains("buscar minimo", instruction.ProfitReport);
+        Assert.Contains("buscar mínimo", instruction.ProfitReport);
     }
 
     [Fact]

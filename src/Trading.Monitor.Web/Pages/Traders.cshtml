@@ -202,7 +202,7 @@
                                                     <p>@trader.PerformanceText</p>
                                                 </div>
                                                 <div class="detail-grid">
-                                                    <article><span>Popularidad</span><strong>@trader.PopularityText</strong><small>senal social</small></article>
+                                                    <article><span>Popularidad</span><strong>@trader.PopularityText</strong><small>señal social</small></article>
                                                     <article><span>Historial local</span><strong>@trader.TrackedTrades trades</strong><small>@trader.OpenTrades abiertos, @trader.ClosedTrades cerrados</small></article>
                                                     <article><span>Win rate local</span><strong>@(trader.WinRatePercent.HasValue ? $"{trader.WinRatePercent:N2}%" : "-")</strong><small>solo trades importados</small></article>
                                                     <article><span>Neto local</span><strong class="@Model.SignedClass(trader.RealizedNetPnL)">@Model.Money(trader.RealizedNetPnL)</strong><small>resultado medido</small></article>

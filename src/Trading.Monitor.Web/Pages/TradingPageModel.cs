@@ -62,7 +62,7 @@ public abstract class TradingPageModel(IOpportunityRepository opportunityReposit
             OpportunityStatus.HitTakeProfit1 => "Ganada",
             OpportunityStatus.HitTakeProfit2 => "Ganancia extra",
             OpportunityStatus.ManagedProfitExit => "Ganancia administrada",
-            OpportunityStatus.HitStopLoss => "Perdida",
+            OpportunityStatus.HitStopLoss => "Pérdida",
             OpportunityStatus.Expired => "Expirada",
             OpportunityStatus.ManuallyClosed => "Cerrada",
             _ => status.ToString()
@@ -150,12 +150,12 @@ public abstract class TradingPageModel(IOpportunityRepository opportunityReposit
     public string NetResultLabel(TradeCostBreakdown breakdown)
     {
         if (breakdown.NetBenefit > 0.01m)
-            return "Ganancia despues de comisiones";
+            return "Ganancia después de comisiones";
 
         if (breakdown.NetBenefit < -0.01m)
-            return "Sin ganancias despues de comisiones";
+            return "Sin ganancias después de comisiones";
 
-        return "Ganancia nula despues de comisiones";
+        return "Ganancia nula después de comisiones";
     }
 
     public string ScoreLabel(int score)
@@ -242,9 +242,9 @@ public abstract class TradingPageModel(IOpportunityRepository opportunityReposit
         {
             OpportunityStatus.Open => "Todavia necesita seguimiento.",
             OpportunityStatus.HitTakeProfit1 => "Alcanzo la ganancia objetivo.",
-            OpportunityStatus.HitTakeProfit2 => "Alcanzo una ganancia mas alta.",
-            OpportunityStatus.ManagedProfitExit => "El sistema detecto beneficio neto suficiente despues de comisiones.",
-            OpportunityStatus.HitStopLoss => "La idea llego a la perdida maxima.",
+            OpportunityStatus.HitTakeProfit2 => "Alcanzó una ganancia más alta.",
+            OpportunityStatus.ManagedProfitExit => "El sistema detectó beneficio neto suficiente después de comisiones.",
+            OpportunityStatus.HitStopLoss => "La idea llegó a la pérdida máxima.",
             OpportunityStatus.Expired => "La ventana de oportunidad vencio.",
             OpportunityStatus.ManuallyClosed => "Fue cerrada manualmente.",
             _ => "Estado registrado por el sistema."
@@ -257,8 +257,8 @@ public abstract class TradingPageModel(IOpportunityRepository opportunityReposit
 
         return minutes switch
         {
-            <= 30 => "Rapida",
-            <= 240 => "Intradia",
+            <= 30 => "Rápida",
+            <= 240 => "Intradía",
             <= 2880 => "Swing",
             <= 10080 => "Semanal",
             _ => "Mensual"

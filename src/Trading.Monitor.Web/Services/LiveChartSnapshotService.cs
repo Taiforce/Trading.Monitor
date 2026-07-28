@@ -147,6 +147,9 @@ public sealed class LiveChartSnapshotService(
         if (product is null)
             return [];
 
+        if (string.Equals(interval, "1s", StringComparison.OrdinalIgnoreCase))
+            return await GetCoinbaseTradeCandlesAsync(symbol, product, from, to, cancellationToken);
+
         var granularity = ToCoinbaseGranularity(interval);
         var end = to ?? DateTimeOffset.UtcNow;
         var start = from ?? end.AddSeconds(-granularity * 180);
@@ -178,6 +181,57 @@ public sealed class LiveChartSnapshotService(
             }
 
             return candles.OrderBy(candle => candle.OpenTime).TakeLast(180).ToArray();
+        }
+    }
+
+    private async Task<IReadOnlyList<LiveCandleDto>> GetCoinbaseTradeCandlesAsync(string symbol, string product, DateTimeOffset? from, DateTimeOffset? to, CancellationToken cancellationToken)
+    {
+        var requestUri = $"https://api.exchange.coinbase.com/products/{Uri.EscapeDataString(product)}/trades?limit=1000";
+        var document = await GetJsonDocumentAsync(requestUri, cancellationToken);
+        if (document is null)
+            return [];
+
+        using (document)
+        {
+            var trades = new List<LiveCoinbaseTradeTick>();
+            foreach (var item in document.RootElement.EnumerateArray())
+            {
+                if (!item.TryGetProperty("time", out var timeElement)
+                    || !item.TryGetProperty("price", out var priceElement)
+                    || !item.TryGetProperty("size", out var sizeElement))
+                {
+                    continue;
+                }
+
+                if (!DateTimeOffset.TryParse(timeElement.GetString(), CultureInfo.InvariantCulture, DateTimeStyles.AssumeUniversal, out var tradeTime))
+                    continue;
+
+                if (from.HasValue && tradeTime < from.Value)
+                    continue;
+
+                if (to.HasValue && tradeTime > to.Value)
+                    continue;
+
+                trades.Add(new LiveCoinbaseTradeTick(tradeTime, ReadDecimal(priceElement), ReadDecimal(sizeElement)));
+            }
+
+            return trades
+                .OrderBy(trade => trade.Time)
+                .GroupBy(trade => trade.Time.ToUnixTimeSeconds())
+                .Select(group =>
+                {
+                    var values = group.OrderBy(trade => trade.Time).ToArray();
+                    var openTime = DateTimeOffset.FromUnixTimeSeconds(group.Key);
+                    var open = values[0].Price;
+                    var close = values[^1].Price;
+                    var high = values.Max(trade => trade.Price);
+                    var low = values.Min(trade => trade.Price);
+                    var volume = values.Sum(trade => trade.Size);
+
+                    return new LiveCandleDto(openTime, openTime.AddSeconds(1), open, high, low, close, volume);
+                })
+                .TakeLast(180)
+                .ToArray();
         }
     }
 
@@ -500,7 +554,7 @@ public sealed class LiveChartSnapshotService(
         return interval switch
         {
             "1s" or "1m" or "3m" or "5m" => "Scalping",
-            "15m" or "30m" or "1h" => "Intradia",
+            "15m" or "30m" or "1h" => "Intradía",
             "4h" or "1d" => "Swing",
             "1w" or "1M" => "Posicional",
             _ => "Mercado"
@@ -576,3 +630,5 @@ public sealed class LiveChartSnapshotService(
 }
 
 internal sealed record CandleRange(DateTimeOffset? From, DateTimeOffset? To);
+
+internal sealed record LiveCoinbaseTradeTick(DateTimeOffset Time, decimal Price, decimal Size);

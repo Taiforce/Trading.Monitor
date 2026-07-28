@@ -107,6 +107,9 @@ public sealed class LiveOperationsSnapshotService(
             row.Capital,
             row.EstimatedQuantity,
             breakdown.TotalFees,
+            row.ManagedTargetNetPercent,
+            row.ManagedTargetNetPnL,
+            row.ManagedTargetExitPrice,
             markPrice,
             reportingOptions.CurrentValue.EstimatedFeePercentPerSide,
             breakdown.EntryFee,
@@ -124,6 +127,8 @@ public sealed class LiveOperationsSnapshotService(
             Money(row.NetLossAtStop),
             RealizedText(row),
             RealizedPercent(row),
+            row.RealizedNetPercent,
+            row.RealizedTotalObtained,
             EntryExitText(row),
             QuantityText(row),
             RealizedFormulaText(row),
@@ -173,7 +178,7 @@ public sealed class LiveOperationsSnapshotService(
             OpportunityStatus.HitTakeProfit1 => "Ganada",
             OpportunityStatus.HitTakeProfit2 => "Ganancia extra",
             OpportunityStatus.ManagedProfitExit => "Ganancia administrada",
-            OpportunityStatus.HitStopLoss => "Perdida",
+            OpportunityStatus.HitStopLoss => "Pérdida",
             OpportunityStatus.Expired => "Vencida",
             OpportunityStatus.ManuallyClosed => "Cerrada",
             _ => status.ToString()
@@ -186,8 +191,8 @@ public sealed class LiveOperationsSnapshotService(
 
         return minutes switch
         {
-            <= 30 => "Rapida",
-            <= 240 => "Intradia",
+            <= 30 => "Rápida",
+            <= 240 => "Intradía",
             <= 2880 => "Swing",
             <= 10080 => "Semanal",
             _ => "Mensual"
@@ -216,6 +221,9 @@ public sealed class LiveOperationsSnapshotService(
 
     private static string RealizedPercent(Application.Reporting.OpportunityReportRow row)
     {
+        if (row.RealizedNetPercent.HasValue)
+            return $"{row.RealizedNetPercent.Value:N2}%";
+
         if (!row.RealizedNetPnL.HasValue || row.Capital <= 0m)
             return "-";
 
@@ -262,7 +270,7 @@ public sealed class LiveOperationsSnapshotService(
 
         return
         [
-            new TradeLinkDto("Abrir senal", internalUrl),
+            new TradeLinkDto("Abrir señal", internalUrl),
             new TradeLinkDto("Binance", $"https://www.binance.com/en/trade/{binancePair}?type=spot"),
             new TradeLinkDto("TradingView", $"https://www.tradingview.com/chart/?symbol=BINANCE:{asset}{quote}"),
             new TradeLinkDto("Coinbase", $"https://advanced.coinbase.com/trade/{coinbaseProduct}"),

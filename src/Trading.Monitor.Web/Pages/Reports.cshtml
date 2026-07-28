@@ -22,7 +22,7 @@
                     <option value="abiertas">Abiertas</option>
                     <option value="cerradas">Cerradas</option>
                     <option value="ganadas">Ganadas</option>
-                    <option value="perdidas">Perdidas</option>
+                    <option value="perdidas">Pérdidas</option>
                 </select>
             </label>
             <label>
@@ -36,7 +36,7 @@
                 </select>
             </label>
             <label>
-                <span>Tipo de senal</span>
+                <span>Tipo de señal</span>
                 <select asp-for="TipoSenal">
                     <option value="">Todas</option>
                     <option value="@Model.BuyLowSellHighValue">Compra bajo - vende alto</option>
@@ -81,7 +81,7 @@
             <small>@Model.Money(Model.BestSymbol?.RealizedNetPnL ?? 0m) realizado</small>
         </article>
         <article class="metric">
-            <span>Promedio por senal</span>
+            <span>Promedio por señal</span>
             <strong class="gain">@Model.Money(Model.AveragePotentialTp1)</strong>
             <small>si llegaba a ganancia objetivo</small>
         </article>
@@ -99,7 +99,7 @@
             <small>@Model.Money(Model.BestDay?.RealizedNetPnL ?? 0m) realizado</small>
         </article>
         <article class="metric metric-soft">
-            <span>Perdida maxima promedio</span>
+            <span>Pérdida máxima promedio</span>
             <strong class="loss">@Model.Money(Model.AverageStopLoss)</strong>
             <small>por oportunidad</small>
         </article>
@@ -113,12 +113,12 @@
     <section class="report-section">
         <div class="section-title">
             <h2>Calidad operativa</h2>
-            <span>senales remarcadas</span>
+            <span>señales remarcadas</span>
         </div>
         <div class="guide-grid">
             <article>
                 <strong>@Model.HighConvictionRows.Count</strong>
-                <span>Senales con score fuerte y riesgo controlado.</span>
+                <span>Señales con score fuerte y riesgo controlado.</span>
             </article>
             <article>
                 <strong class="gain">@Model.Money(Model.AverageHighConvictionTp1)</strong>
@@ -126,7 +126,7 @@
             </article>
             <article>
                 <strong class="loss">@Model.Money(Model.AverageHighConvictionStop)</strong>
-                <span>Perdida maxima promedio.</span>
+                <span>Pérdida máxima promedio.</span>
             </article>
             <article>
                 <strong>@Model.FilteredOpenSignals</strong>
@@ -148,7 +148,7 @@
         {
             <div class="empty-state">
                 <strong>Todavia no hay patrones cerrados.</strong>
-                <span>Cuando las senales terminen, el sistema comparara score, tipo, activo y horizonte para endurecer o priorizar reglas.</span>
+                <span>Cuando las señales terminen, el sistema comparará score, tipo, activo y horizonte para endurecer o priorizar reglas.</span>
             </div>
         }
         else
@@ -183,7 +183,7 @@
             @if (Model.FilteredSymbolBreakdown.Count == 0)
             {
                 <div class="empty-state">
-                    <strong>Sin senales por simbolo.</strong>
+                    <strong>Sin señales por símbolo.</strong>
                     <span>Cuando aparezcan oportunidades, este reporte separara rendimiento por activo.</span>
                 </div>
             }
@@ -195,7 +195,7 @@
                         <article class="symbol-row">
                             <div>
                                 <strong>@row.Symbol</strong>
-                                <span>@row.TotalSignals senales, @row.OpenSignals abiertas</span>
+                                <span>@row.TotalSignals señales, @row.OpenSignals abiertas</span>
                             </div>
                             <div class="bar-set">
                                 <div class="bar gain-bar" style="width:@Model.BarWidth(row.PotentialNetAtTakeProfit1, Model.MaxSymbolValue)%"></div>
@@ -206,7 +206,7 @@
                                 <span class="loss">@Model.Money(row.PotentialLossAtStop)</span>
                             </div>
                             <p class="row-note">
-                                @row.Winners ganadas, @row.Losers perdidas, @Model.Money(row.RealizedNetPnL) realizado.
+                                @row.Winners ganadas, @row.Losers pérdidas, @Model.Money(row.RealizedNetPnL) realizado.
                             </p>
                         </article>
                     }
@@ -234,7 +234,7 @@
                     {
                         <article class="daily-row">
                             <strong>@row.Day.ToString("dd MMM yyyy")</strong>
-                            <span>@row.TotalSignals senales</span>
+                            <span>@row.TotalSignals señales</span>
                             <span class="@Model.SignedClass(row.RealizedNetPnL)">@Model.Money(row.RealizedNetPnL)</span>
                             <span class="gain">@Model.Money(row.PotentialNetAtTakeProfit1)</span>
                         </article>
@@ -247,14 +247,14 @@
     <section class="report-section">
         <div class="section-title">
             <h2>Operaciones claras</h2>
-            <span>@Model.FilteredRows.Count senales filtradas</span>
+            <span>@Model.FilteredRows.Count señales filtradas</span>
         </div>
 
         @if (Model.FilteredRows.Count == 0)
         {
             <div class="empty-state">
                 <strong>Sin operaciones para esos filtros.</strong>
-                <span>Cambia rango, activo, estado o score minimo.</span>
+                <span>Cambia rango, activo, estado o score mínimo.</span>
             </div>
         }
         else
@@ -315,11 +315,11 @@
                                 <span>@Model.StatusLabel(row.Status) | score @row.Score</span>
                             </div>
                             <div class="signal-replay-chart" data-signal-chart>
-                                <span>Cargando replay de la senal...</span>
+                                <span>Cargando replay de la señal...</span>
                             </div>
                             <div class="detail-grid">
                                 <article>
-                                    <span>Senal recibida</span>
+                                    <span>Señal recibida</span>
                                     <strong>@row.ObservedAt.ToLocalTime().ToString("dd MMM yyyy HH:mm")</strong>
                                     <small>@Model.OperationMeaning(row)</small>
                                 </article>
@@ -354,7 +354,7 @@
                                     <small>total @Model.RealTotal(conversion)</small>
                                 </article>
                                 <article>
-                                    <span>Comision y empate</span>
+                                    <span>Comisión y empate</span>
                                     <strong>@Model.Money(conversion.EstimatedFees)</strong>
                                     <small>@conversion.BreakEvenText</small>
                                 </article>
@@ -397,15 +397,15 @@
             </article>
             <article>
                 <strong>Score</strong>
-                <span>Fuerza de la senal.</span>
+                <span>Fuerza de la señal.</span>
             </article>
             <article>
                 <strong>Compra bajo</strong>
-                <span>Compras con dinero y vendes mas caro.</span>
+                <span>Compras con dinero y vendes más caro.</span>
             </article>
             <article>
                 <strong>Vende alto</strong>
-                <span>Vendes primero y recompras mas barato; requiere moneda, margen o futuros.</span>
+                <span>Vendes primero y recompras más barato; requiere moneda, margen o futuros.</span>
             </article>
         </div>
     </section>

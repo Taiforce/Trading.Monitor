@@ -31,8 +31,8 @@ public static class SignalTypeDescriptor
     public static string Description(MarketSide side)
     {
         return side == MarketSide.Long
-            ? "Compras el activo con tu dinero y buscas venderlo mas caro."
-            : "Vendes primero y buscas recomprar mas barato; requiere tener moneda, margen o futuros.";
+            ? "Compras el activo con tu dinero y buscas venderlo más caro."
+            : "Vendes primero y buscas recomprar más barato; requiere tener moneda, margen o futuros.";
     }
 
     public static string Requirement(MarketSide side)

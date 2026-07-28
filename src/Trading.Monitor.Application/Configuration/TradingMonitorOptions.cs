@@ -24,7 +24,7 @@ public sealed class TradingMonitorOptions
     [
         new()
         {
-            Name = "Rapida",
+            Name = "Rápida",
             TriggerInterval = "5m",
             SignalExpiryMinutes = 15,
             MinimumScore = 88,
@@ -33,7 +33,7 @@ public sealed class TradingMonitorOptions
         },
         new()
         {
-            Name = "Intradia",
+            Name = "Intradía",
             TriggerInterval = "15m",
             SignalExpiryMinutes = 180,
             MinimumScore = 90,
@@ -74,7 +74,7 @@ public sealed class TradingMonitorOptions
 
 public sealed class TradingHorizonOptions
 {
-    public string Name { get; set; } = "Rapida";
+    public string Name { get; set; } = "Rápida";
 
     public string TriggerInterval { get; set; } = "5m";
 

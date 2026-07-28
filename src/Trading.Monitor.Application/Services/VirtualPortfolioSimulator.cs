@@ -118,8 +118,8 @@ public sealed class VirtualPortfolioSimulator
 
         return minutes switch
         {
-            <= 30 => "Rapida",
-            <= 240 => "Intradia",
+            <= 30 => "Rápida",
+            <= 240 => "Intradía",
             <= 2880 => "Swing",
             <= 10080 => "Semanal",
             _ => "Mensual"

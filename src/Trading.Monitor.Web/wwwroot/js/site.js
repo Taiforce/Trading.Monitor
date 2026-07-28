@@ -87,7 +87,7 @@
 
     function renderList(operations) {
         if (operations.length === 0) {
-            list.innerHTML = `<div class="empty-state"><strong>Sin operaciones.</strong><span>Esperando una senal clara.</span></div>`;
+            list.innerHTML = `<div class="empty-state"><strong>Sin operaciones.</strong><span>Esperando una señal clara.</span></div>`;
             return;
         }
 
@@ -102,7 +102,7 @@
                     <div><dt>Entrar</dt><dd>${formatTime(item.entryAt)}-${formatTime(item.entryUntil)}</dd></div>
                     <div><dt>Precio entrada</dt><dd>${formatPrice(item.entryLower)}-${formatPrice(item.entryUpper)}</dd></div>
                     <div><dt>Ganancia objetivo</dt><dd class="gain">${escapeHtml(item.potentialTp1)}</dd></div>
-                    <div><dt>Perdida max</dt><dd class="loss">${escapeHtml(item.potentialStop)}</dd></div>
+                    <div><dt>Pérdida max</dt><dd class="loss">${escapeHtml(item.potentialStop)}</dd></div>
                     <div><dt>Salir antes de</dt><dd>${formatTime(item.exitBy)}</dd></div>
                     <div><dt>Tiempo</dt><dd>${escapeHtml(item.timeText)}</dd></div>
                     <div><dt>Resultado final</dt><dd class="${item.realizedText.startsWith("-") ? "loss" : item.realizedText === "Abierta" ? "" : "gain"}">${escapeHtml(item.realizedText)}</dd></div>
@@ -112,7 +112,7 @@
                 </dl>
                 <p class="live-calc">${escapeHtml(item.realizedFormulaText)}</p>
                 <div class="trade-links">
-                    <button type="button" data-chart-symbol="${escapeHtml(item.symbol)}">Ver grafico</button>
+                    <button type="button" data-chart-symbol="${escapeHtml(item.symbol)}">Ver gráfico</button>
                     ${(item.links || []).slice(0, 5).map(link => link.url?.startsWith("/") ? `<a href="${escapeAttribute(link.url)}">${escapeHtml(link.label)}</a>` : `<a href="${escapeAttribute(link.url)}" target="_blank" rel="noopener noreferrer">${escapeHtml(link.label)}</a>`).join("")}
                 </div>
             </article>`).join("");
@@ -262,7 +262,7 @@
             context.fillText(`${formatPrice(last.close)} (${change >= 0 ? "+" : ""}${formatPrice(change)})`, 132, 24);
             context.fillStyle = mutedColor;
             context.font = "700 12px Inter, sans-serif";
-            context.fillText(item ? `${item.action} · entrar ${formatTime(item.entryAt)}-${formatTime(item.entryUntil)} · salir antes de ${formatTime(item.exitBy)}` : "Sin operacion viva seleccionada", 18, height - 14);
+            context.fillText(item ? `${item.action} · entrar ${formatTime(item.entryAt)}-${formatTime(item.entryUntil)} · salir antes de ${formatTime(item.exitBy)}` : "Sin operación viva seleccionada", 18, height - 14);
         }
 
         function drawGrid(leftX, rightX, topY, bottomY, lineColor, mutedColor) {
@@ -438,7 +438,7 @@
 
             drawLegend(width - 430, 26, palette.amber, "Entrada");
             drawLegend(width - 330, 26, palette.green, "Ganancia");
-            drawLegend(width - 220, 26, palette.red, "Perdida max");
+            drawLegend(width - 220, 26, palette.red, "Pérdida max");
             drawLegend(width - 110, 26, palette.blue, "Precio");
         }
 
@@ -663,7 +663,7 @@
         const sideClass = operation
             ? operation.realizedText?.startsWith("-") ? "loss" : operation.realizedText === "Abierta" ? "flat" : "gain"
             : analysis.side === "Long" ? "gain" : analysis.side === "Short" ? "loss" : "flat";
-        const sourceText = operation ? "senal guardada" : analysisTrade ? "lectura tecnica" : "sin entrada";
+        const sourceText = operation ? "señal guardada" : analysisTrade ? "lectura técnica" : "sin entrada";
         const actionText = operation ? operation.action : analysis.action || "Esperar";
         const readoutText = operation
             ? `${operation.status} | score ${operation.score}/100 | ${operation.realizedFormulaText}`

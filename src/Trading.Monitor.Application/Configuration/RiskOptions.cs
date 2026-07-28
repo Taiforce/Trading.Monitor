@@ -30,6 +30,8 @@ public sealed class RiskOptions
 
     public decimal ManagedTrailingGivebackPercent { get; set; } = 0.75m;
 
+    public int ManagedProfitTrailCandlesAfterTarget { get; set; } = 3;
+
     public bool ManagedExitRequiresMomentumWeakness { get; set; } = true;
 
     public bool ManagedHardStopExitEnabled { get; set; }

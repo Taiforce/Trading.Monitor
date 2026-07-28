@@ -75,20 +75,20 @@ public sealed class TradeInstructionService
             OpportunityStatus.ManagedProfitExit => row.Side == MarketSide.Long ? "VENDER AHORA: ganancia neta" : "COMPRAR AHORA: ganancia neta",
             OpportunityStatus.HitTakeProfit2 => "SALIR: ganancia extra alcanzada",
             OpportunityStatus.HitTakeProfit1 => "SALIR: ganancia objetivo alcanzada",
-            OpportunityStatus.HitStopLoss => "SALIR: perdida maxima tocada",
-            OpportunityStatus.Expired => "NO ENTRAR: senal vencida",
+            OpportunityStatus.HitStopLoss => "SALIR: pérdida máxima tocada",
+            OpportunityStatus.Expired => "NO ENTRAR: señal vencida",
             _ => "SALIDA ACTUALIZADA"
         };
 
         var cssClass = realizedNetPnL > 0m ? "signal-prime" : realizedNetPnL < 0m ? "signal-danger" : "signal-watch";
-        var conviction = realizedNetPnL > 0m ? "Operacion cerrada con ganancia" : realizedNetPnL < 0m ? "Operacion cerrada con perdida" : "Operacion cerrada plana";
+        var conviction = realizedNetPnL > 0m ? "Operación cerrada con ganancia" : realizedNetPnL < 0m ? "Operación cerrada con pérdida" : "Operación cerrada plana";
 
         return new TradeInstruction(
             action,
             conviction,
             cssClass,
             realizedNetPnL > 0m,
-            $"La senal de entrada ya no debe abrirse. Precio de salida registrado: {FormatPrice(exit.ExitPrice)}.",
+            $"La señal de entrada ya no debe abrirse. Precio de salida registrado: {FormatPrice(exit.ExitPrice)}.",
             ResolveExitMeaning(exit.Status),
             $"Resultado neto estimado para {Money(row.Capital)}: {Money(realizedNetPnL)}.",
             $"Comisiones estimadas incluidas: {Money(row.EstimatedFees)}.",
@@ -139,8 +139,8 @@ public sealed class TradeInstructionService
                 false,
                 "No entrar. Ya paso.",
                 realizedNetPnL.HasValue ? $"Cierre: {Money(realizedNetPnL.Value)}." : "Cierre pendiente.",
-                $"Plan original: ganar {Money(netProfitAtTakeProfit1)}, ganar mas {Money(netProfitAtTakeProfit2)}.",
-                $"Perdida maxima original: {Money(netLossAtStop)}.",
+                $"Plan original: ganar {Money(netProfitAtTakeProfit1)}, ganar más {Money(netProfitAtTakeProfit2)}.",
+                $"Pérdida máxima original: {Money(netLossAtStop)}.",
                 "Usar solo para revisar resultado.",
                 "Historial medido.");
         }
@@ -159,7 +159,7 @@ public sealed class TradeInstructionService
                 "Ganancia ya no aplica.",
                 "Entrar tarde rompe el riesgo.",
                 "Descartar.",
-                "Senal vencida.");
+                "Señal vencida.");
         }
 
         var tp1Percent = PercentOfCapital(netProfitAtTakeProfit1, capital);
@@ -189,7 +189,7 @@ public sealed class TradeInstructionService
             var minimumManagedProfit = Math.Max(0.01m, _riskOptions.ManagedProfitExitPercentAfterCosts);
             var minimumManagedProfitMoney = capital * minimumManagedProfit / 100m;
             var riskText = _riskOptions.ManagedHardStopExitEnabled
-                ? $"Proteccion activa: si toca perdida maxima {FormatPrice(stopLoss)}, el sistema puede cerrar."
+                ? $"Protección activa: si toca pérdida máxima {FormatPrice(stopLoss)}, el sistema puede cerrar."
                 : "No se cierra por stop fijo en este modo; si va en contra queda viva y necesita seguimiento.";
 
             return new TradeInstruction(
@@ -198,10 +198,10 @@ public sealed class TradeInstructionService
                 cssClass,
                 highConviction && isInsideLeadWindow,
                 $"{PreEntryLeadMinutes} min: {entryAction} {FormatPrice(entryLower)}-{FormatPrice(entryUpper)}. Vence entrada {expiresAt.ToLocalTime():HH:mm}.",
-                $"Salida administrada: cerrar {exitAction} cuando el neto sea >= {minimumManagedProfit:N2}% despues de comisiones.",
-                $"{Money(capital)} -> buscar minimo {Money(minimumManagedProfitMoney)} neto antes de cerrar.",
+                $"Salida administrada: cerrar {exitAction} cuando el neto sea >= {minimumManagedProfit:N2}% después de comisiones.",
+                $"{Money(capital)} -> buscar mínimo {Money(minimumManagedProfitMoney)} neto antes de cerrar.",
                 riskText,
-                $"El sistema revisa la posicion viva. Si toca {minimumManagedProfit:N2}% neto, la cierra en historico y manda alerta.",
+                $"El sistema revisa la posición viva. Si supera {minimumManagedProfit:N2}% neto y luego detecta retroceso, la cierra en histórico y manda alerta.",
                 $"{confirmingIntervals} tiempos alineados. El objetivo es vender con beneficio neto, no adivinar una hora fija.");
         }
 
@@ -211,9 +211,9 @@ public sealed class TradeInstructionService
             cssClass,
             highConviction && isInsideLeadWindow,
             $"{PreEntryLeadMinutes} min: {entryAction} {FormatPrice(entryLower)}-{FormatPrice(entryUpper)}. Vence {expiresAt.ToLocalTime():HH:mm}.",
-            $"Salir: {exitAction} en ganancia {FormatPrice(takeProfit1)} / ganancia extra {FormatPrice(takeProfit2)}. Cortar perdida {FormatPrice(stopLoss)}.",
-            $"{Money(capital)} -> ganar {Money(netProfitAtTakeProfit1)} | ganar mas {Money(netProfitAtTakeProfit2)}.",
-            $"Perdida maxima {Money(netLossAtStop)} | R:B 1:{riskReward:N2}.",
+            $"Salir: {exitAction} en ganancia {FormatPrice(takeProfit1)} / ganancia extra {FormatPrice(takeProfit2)}. Cortar pérdida {FormatPrice(stopLoss)}.",
+            $"{Money(capital)} -> ganar {Money(netProfitAtTakeProfit1)} | ganar más {Money(netProfitAtTakeProfit2)}.",
+            $"Pérdida máxima {Money(netLossAtStop)} | R:B 1:{riskReward:N2}.",
             $"Vida max {maxLifeMinutes} min. Al llegar a ganancia, protege entrada {FormatPrice(entryPrice)}.",
             $"{confirmingIntervals} tiempos alineados. Sin garantia.");
     }
@@ -222,12 +222,12 @@ public sealed class TradeInstructionService
     {
         return status switch
         {
-            OpportunityStatus.HitTakeProfit2 => "El movimiento alcanzo el objetivo extendido. La operacion deberia estar fuera.",
+            OpportunityStatus.HitTakeProfit2 => "El movimiento alcanzó el objetivo extendido. La operación debería estar fuera.",
             OpportunityStatus.HitTakeProfit1 => "Ganancia objetivo tocada. Proteger ganancia.",
-            OpportunityStatus.ManagedProfitExit => "Salida administrada: el sistema detecto beneficio neto suficiente despues de comisiones.",
-            OpportunityStatus.HitStopLoss => "Perdida maxima tocada. Salir.",
-            OpportunityStatus.Expired => "Vencio sin tocar ganancia ni perdida maxima.",
-            _ => "Operacion actualizada."
+            OpportunityStatus.ManagedProfitExit => "Salida administrada: el sistema detectó beneficio neto suficiente después de comisiones.",
+            OpportunityStatus.HitStopLoss => "Pérdida máxima tocada. Salir.",
+            OpportunityStatus.Expired => "Venció sin tocar ganancia ni pérdida máxima.",
+            _ => "Operación actualizada."
         };
     }
 

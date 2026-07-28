@@ -170,7 +170,7 @@ public sealed class PortfolioModel : TradingPageModel
         if (!row.WasApplied)
             return string.Equals(row.SkipReason, "Abierta", StringComparison.OrdinalIgnoreCase) ? "Abierta" : "Omitida";
 
-        return row.NetPnL < 0m ? "Perdida" : row.NetPnL > 0m ? "Ganada" : "Cerrada";
+        return row.NetPnL < 0m ? "Pérdida" : row.NetPnL > 0m ? "Ganada" : "Cerrada";
     }
 
     public string ReplayStatus(TraderFollowTradeRow row)
@@ -178,7 +178,7 @@ public sealed class PortfolioModel : TradingPageModel
         if (!row.WasApplied)
             return row.SkipReason.StartsWith("Abierta", StringComparison.OrdinalIgnoreCase) ? "Abierta" : "Omitida";
 
-        return row.NetPnL < 0m ? "Perdida" : row.NetPnL > 0m ? "Ganada" : "Cerrada";
+        return row.NetPnL < 0m ? "Pérdida" : row.NetPnL > 0m ? "Ganada" : "Cerrada";
     }
 
     public string ResultClass(decimal value)

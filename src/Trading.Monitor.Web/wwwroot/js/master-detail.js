@@ -149,7 +149,7 @@
             const snapshot = await response.json();
             drawReplay(host, panel, snapshot);
         } catch {
-            host.innerHTML = "<span>No pude cargar el replay de velas para esta senal.</span>";
+            host.innerHTML = "<span>No pude cargar el replay de velas para esta señal.</span>";
         }
     }
 
@@ -282,7 +282,7 @@
         const isLong = panel.dataset.side === "Long";
         const entryTime = nearestTime(toUnix(panel.dataset.observedAt), candles);
         const exitTime = nearestTime(toUnix(panel.dataset.exitTime), candles);
-        const resultColor = panel.dataset.status === "Perdida" ? "#f6465d" : panel.dataset.status === "Abierta" ? "#2ab5f6" : "#0ecb81";
+        const resultColor = panel.dataset.status === "Pérdida" ? "#f6465d" : panel.dataset.status === "Abierta" ? "#2ab5f6" : "#0ecb81";
         const markers = [];
 
         if (Number.isFinite(entryTime)) {

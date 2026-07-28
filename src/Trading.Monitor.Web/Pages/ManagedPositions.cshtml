@@ -7,8 +7,8 @@
 <section class="dashboard">
     <div class="page-head">
         <div>
-            <p class="eyebrow">Entrada viva, salida por analisis</p>
-            <h1>Seguimiento por senal</h1>
+            <p class="eyebrow">Entrada viva, salida por análisis</p>
+            <h1>Seguimiento por señal</h1>
         </div>
         <form method="get" class="filter-bar managed-filter">
             <label>
@@ -58,7 +58,7 @@
         <article class="metric">
             <span>Objetivo neto</span>
             <strong class="gain">@Model.TargetNetPercent.ToString("N2")%</strong>
-            <small>despues de comisiones</small>
+            <small>después de comisiones</small>
         </article>
         <article class="metric">
             <span>Cerradas</span>
@@ -66,15 +66,15 @@
             <small>con resultado medido</small>
         </article>
         <article class="metric">
-            <span>Capital por senal</span>
+            <span>Capital por señal</span>
             <strong>@Model.Money(Model.Report.Capital)</strong>
-            <small>simulacion actual</small>
+            <small>simulación actual</small>
         </article>
     </section>
 
     <div class="insight-strip trade-type-guide">
         <span>Sin salida fija</span>
-        <strong>La senal indica entrada. Despues el sistema monitorea el mercado y tu puedes ajustar el porcentaje neto por senal para decidir si cierras al precio actual.</strong>
+        <strong>La señal indica entrada. Después el sistema monitorea el mercado y puedes ajustar el porcentaje neto por señal para decidir si cierras al precio actual.</strong>
     </div>
 
     <section class="report-section live-board" data-live-mode="managed" data-live-capital="@Model.Report.Capital" data-live-estado="@Model.Estado" data-live-symbol="@Model.Symbol" data-live-tipo-senal="@Model.TipoSenal" data-live-target-net-percent="@Model.TargetNetPercent" data-live-fee-percent="@Model.EstimatedFeePercentPerSide">
@@ -82,7 +82,7 @@
             <h2>Seguimiento en vivo</h2>
             <span id="liveUpdated">actualizando...</span>
         </div>
-        <div class="chart-toolbar" aria-label="Controles del grafico">
+        <div class="chart-toolbar" aria-label="Controles del gráfico">
             <div>
                 <span>Activo</span>
                 @foreach (var symbol in Model.Symbols)
@@ -103,7 +103,7 @@
             <div class="chart-zoom-control">
                 <span>Zoom</span>
                 <button type="button" data-chart-zoom-out>-</button>
-                <input id="chartZoom" type="range" min="0" max="100" value="45" aria-label="Zoom del grafico"/>
+                <input id="chartZoom" type="range" min="0" max="100" value="45" aria-label="Zoom del gráfico"/>
                 <button type="button" data-chart-zoom-in>+</button>
                 <strong id="chartZoomLabel">medio</strong>
             </div>
@@ -121,7 +121,7 @@
                     <strong>BTCUSDT</strong>
                     <span>cargando mercado...</span>
                 </div>
-                <div id="advancedTradesChart" class="tradingview-chart" aria-label="Grafico de seguimiento por senal"></div>
+                <div id="advancedTradesChart" class="tradingview-chart" aria-label="Gráfico de seguimiento por señal"></div>
                 <div id="chartHoverInfo" class="chart-hover-card" hidden></div>
             </div>
             <div id="liveTradeCards" class="live-trade-list">
