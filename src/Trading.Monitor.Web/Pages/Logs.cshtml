@@ -2,106 +2,50 @@
 @model LogsModel
 @{
     ViewData["Title"] = "Logs";
+    var firstEntry = Model.FilteredEntries.FirstOrDefault();
 }
 
 <section class="dashboard">
     <div class="page-head">
         <div>
-            <p class="eyebrow">Serilog</p>
+            <p class="eyebrow">@Model.Ambito | Serilog</p>
             <h1>Logs operativos</h1>
         </div>
-        <form method="get" class="filter-bar logs-filter">
-            <label>
-                <span>Archivo</span>
-                <select asp-for="LogFile">
-                    @foreach (var file in Model.Files)
-                    {
-                        <option value="@file.RelativePath" selected="@(file.RelativePath == Model.LogFile)">@file.DisplayName</option>
-                    }
-                </select>
-            </label>
-            <label>
-                <span>Lineas</span>
-                <input asp-for="Lines" type="number" min="50" max="1000" step="50"/>
-            </label>
-            <label>
-                <span>Nivel</span>
-                <select asp-for="Nivel">
-                    <option value="">Todos</option>
-                    @foreach (var level in Model.AvailableLevels)
-                    {
-                        <option value="@level">@level</option>
-                    }
-                </select>
-            </label>
-            <label>
-                <span>Evento</span>
-                <select asp-for="Evento">
-                    <option value="">Todos</option>
-                    @foreach (var eventType in Model.AvailableEvents)
-                    {
-                        <option value="@eventType">@eventType</option>
-                    }
-                </select>
-            </label>
-            <label>
-                <span>Buscar</span>
-                <input asp-for="Buscar" type="search" placeholder="señal, error, binance"/>
-            </label>
-            <button type="submit">Filtrar</button>
-        </form>
+        <div class="market-subnav" aria-label="Cambiar ámbito">
+            <a class="@(Model.Ambito == "crypto" ? "active" : "")" asp-page="/Logs" asp-route-Ambito="crypto">Crypto</a>
+            <a class="@(Model.Ambito == "forex" ? "active" : "")" asp-page="/Logs" asp-route-Ambito="forex">Forex</a>
+            <a class="@(Model.Ambito == "traders" ? "active" : "")" asp-page="/Logs" asp-route-Ambito="traders">Traders</a>
+            <a class="@(Model.Ambito == "todo" ? "active" : "")" asp-page="/Logs">Todo</a>
+        </div>
     </div>
 
     <section class="metrics-grid metrics-grid-four" aria-label="Resumen de logs">
         <article class="metric">
-            <span>Archivos</span>
-            <strong>@Model.Files.Count</strong>
-            <small>@Model.Snapshot.RootPath</small>
-        </article>
-        <article class="metric">
             <span>Archivo activo</span>
-            <strong>@(Model.Snapshot.File?.DisplayName ?? "-")</strong>
-            <small>@(Model.Snapshot.File is null ? "sin seleccion" : Model.SizeLabel(Model.Snapshot.File.SizeBytes))</small>
+            <strong id="logMetricFile">@(Model.Snapshot.File?.DisplayName ?? "-")</strong>
+            <small id="logMetricRoot">@Model.Snapshot.RootPath</small>
         </article>
         <article class="metric">
-            <span>Ultima escritura</span>
-            <strong>@(Model.Snapshot.File?.LastWriteTime.ToLocalTime().ToString("HH:mm") ?? "-")</strong>
-            <small>@(Model.Snapshot.File?.LastWriteTime.ToLocalTime().ToString("dd MMM yyyy") ?? "-")</small>
-        </article>
-        <article class="metric">
-            <span>Eventos vistos</span>
-            <strong>@Model.FilteredEntries.Count</strong>
+            <span>Eventos visibles</span>
+            <strong id="logMetricEvents">@Model.FilteredEntries.Count</strong>
             <small>después de filtros</small>
         </article>
-    </section>
-
-    <section class="metrics-grid metrics-grid-four" aria-label="Resumen interpretado de logs">
-        <article class="metric metric-soft">
-            <span>Errores</span>
-            <strong class="@(Model.ErrorCount > 0 ? "loss" : "gain")">@Model.ErrorCount</strong>
-            <small>criticos o fallidos</small>
+        <article class="metric">
+            <span>Errores / alertas</span>
+            <strong id="logMetricWarnings" class="@(Model.ErrorCount > 0 ? "loss" : "gain")">@Model.ErrorCount / @Model.WarningCount</strong>
+            <small>críticos y avisos</small>
         </article>
-        <article class="metric metric-soft">
-            <span>Alertas</span>
-            <strong class="@(Model.WarningCount > 0 ? "loss" : "gain")">@Model.WarningCount</strong>
-            <small>avisos sin detener servicio</small>
-        </article>
-        <article class="metric metric-soft">
-            <span>Señales</span>
-            <strong>@Model.SignalCount</strong>
-            <small>entradas/salidas detectadas</small>
-        </article>
-        <article class="metric metric-soft">
-            <span>Barridos</span>
-            <strong>@Model.ScanCount</strong>
-            <small>lecturas de mercado</small>
+        <article class="metric">
+            <span>Señales / barridos</span>
+            <strong id="logMetricSignals">@Model.SignalCount / @Model.ScanCount</strong>
+            <small>actividad del monitor</small>
         </article>
     </section>
 
     <section class="report-section">
         <div class="section-title">
-            <h2>Actividad por hora</h2>
-            <span>@(Model.Snapshot.File?.DisplayName ?? "sin archivo")</span>
+            <h2>Explorador de logs</h2>
+            <span id="logActiveFile">@(Model.Snapshot.File?.DisplayName ?? "sin archivo")</span>
         </div>
 
         @if (!string.IsNullOrWhiteSpace(Model.Snapshot.ErrorMessage))
@@ -111,140 +55,141 @@
                 <span>@Model.Snapshot.ErrorMessage</span>
             </div>
         }
-        else if (Model.FilteredEntries.Count == 0)
-        {
-            <div class="empty-state">
-                <strong>Sin eventos para mostrar.</strong>
-                <span>Prueba quitando filtros o aumentando el numero de lineas.</span>
-            </div>
-        }
-        else
-        {
-            <div class="log-chart">
-                @foreach (var bucket in Model.Buckets)
-                {
-                    <article>
-                        <span>@bucket.Hour:00</span>
-                        <div>
-                            <i style="width:@Model.BarWidth(bucket.Count)%"></i>
-                        </div>
-                        <strong>@bucket.Count</strong>
-                    </article>
-                }
-            </div>
-        }
-    </section>
 
-    <section class="report-section">
-        <div class="section-title">
-            <h2>Eventos interpretados</h2>
-            <span>@Model.FilteredEntries.Count eventos</span>
-        </div>
+        <div class="logs-explorer"
+             data-log-explorer
+             data-log-file="@Model.LogFile"
+             data-log-lines="@Model.Lines"
+             data-log-scope="@Model.Ambito">
+            <aside class="logs-sidebar">
+                <form method="get" class="connection-filter-card logs-filter-panel" data-log-filter>
+                    <input asp-for="Ambito" type="hidden" data-log-scope-input/>
+                    <label>
+                        <span>Buscar</span>
+                        <input asp-for="Buscar" type="search" placeholder="señal, error, binance" data-log-search/>
+                    </label>
+                    <label>
+                        <span>Nivel</span>
+                        <select asp-for="Nivel" data-log-level>
+                            <option value="">Todos</option>
+                            @foreach (var level in Model.AvailableLevels)
+                            {
+                                <option value="@level">@level</option>
+                            }
+                        </select>
+                    </label>
+                    <label>
+                        <span>Evento</span>
+                        <select asp-for="Evento" data-log-event>
+                            <option value="">Todos</option>
+                            @foreach (var eventType in Model.AvailableEvents)
+                            {
+                                <option value="@eventType">@eventType</option>
+                            }
+                        </select>
+                    </label>
+                    <label>
+                        <span>Líneas</span>
+                        <input asp-for="Lines" type="number" min="50" max="1000" step="50" data-log-lines-input/>
+                    </label>
+                    <button type="submit" data-log-apply>Filtrar</button>
+                </form>
 
-        @if (Model.FilteredEntries.Count == 0)
-        {
-            <div class="empty-state">
-                <strong>No hay eventos para ese filtro.</strong>
-                <span>Prueba con otro nivel, evento o busqueda.</span>
-            </div>
-        }
-        else
-        {
-            <div class="master-detail logs-workbench" data-master-detail>
-                <div class="master-list" aria-label="Eventos de log">
-                    @for (var index = 0; index < Model.FilteredEntries.Count; index++)
+                <div class="section-title compact-title">
+                    <h2>Archivos</h2>
+                    <span id="logFileCount">@Model.Files.Count</span>
+                </div>
+                <div class="log-file-list interactive-log-file-list" id="logFileList">
+                    @foreach (var file in Model.Files)
                     {
-                        var entry = Model.FilteredEntries[index];
-                        var key = $"log-{index}";
                         <button type="button"
-                                class="master-item @(index == 0 ? "active" : "")"
-                                data-detail-key="@key"
-                                data-filter-text="@($"{entry.Time} {entry.Service} {entry.EventType} {entry.LevelLabel} {entry.Message}")"
-                                data-filter-status="@entry.LevelLabel"
-                                data-filter-type="@entry.EventType">
-                            <span class="master-kicker">@entry.Time | @entry.Service</span>
-                            <strong>@entry.EventType</strong>
-                            <span class="status @Model.LevelClass(entry.Level)">@entry.LevelLabel</span>
-                            <small>@entry.Message</small>
-                            <div class="master-item-extra">
-                                <span>Nivel @entry.Level</span>
-                                <span>Hora @entry.Hour:00</span>
-                            </div>
+                                class="log-file-link @(file.RelativePath == Model.LogFile ? "active" : "")"
+                                data-log-file="@file.RelativePath">
+                            <strong>@file.DisplayName</strong>
+                            <span>@Model.SizeLabel(file.SizeBytes)</span>
+                            <span>@file.LastWriteTime.ToLocalTime().ToString("dd MMM HH:mm")</span>
                         </button>
                     }
                 </div>
-                <div class="detail-stack">
-                    @for (var index = 0; index < Model.FilteredEntries.Count; index++)
+            </aside>
+
+            <section class="logs-events-panel">
+                <div class="section-title compact-title">
+                    <h2>Actividad por hora</h2>
+                    <span>archivo seleccionado</span>
+                </div>
+                <div class="log-chart" id="logBucketChart">
+                    @foreach (var bucket in Model.Buckets)
                     {
-                        var entry = Model.FilteredEntries[index];
-                        var key = $"log-{index}";
-                        <article class="detail-panel @(index == 0 ? "active" : "")" data-detail-panel="@key">
-                            <div class="section-title">
-                                <h2>@entry.EventType</h2>
-                                <span>@entry.Time | @entry.Service</span>
-                            </div>
-                            <div class="detail-grid">
-                                <article><span>Nivel</span><strong class="@Model.EventClass(entry.EventType)">@entry.LevelLabel</strong><small>@entry.Level</small></article>
-                                <article><span>Servicio</span><strong>@entry.Service</strong><small>@(Model.Snapshot.File?.DisplayName ?? "-")</small></article>
-                                <article><span>Hora</span><strong>@entry.Time</strong><small>bucket @entry.Hour:00</small></article>
-                                <article><span>Tipo</span><strong>@entry.EventType</strong><small>interpretado</small></article>
-                            </div>
-                            <p class="detail-copy">@entry.Message</p>
-                            <details class="compact-details">
-                                <summary>Ver linea cruda</summary>
-                                <pre class="log-output compact-log-output">@entry.RawLine</pre>
-                            </details>
+                        <article>
+                            <span>@bucket.Hour:00</span>
+                            <div><i style="width:@Model.BarWidth(bucket.Count)%"></i></div>
+                            <strong>@bucket.Count</strong>
                         </article>
                     }
                 </div>
-            </div>
-        }
-    </section>
 
-    <section class="report-section">
-        <div class="section-title">
-            <h2>Texto crudo</h2>
-            <span>auditoria</span>
-        </div>
+                <div class="section-title compact-title">
+                    <h2>Eventos</h2>
+                    <span id="logEventCount">@Model.FilteredEntries.Count</span>
+                </div>
+                <div class="master-list logs-event-list" id="logEventList" aria-label="Eventos de log">
+                    @if (Model.FilteredEntries.Count == 0)
+                    {
+                        <div class="empty-state">
+                            <strong>No hay eventos para ese filtro.</strong>
+                            <span>Prueba con otro nivel, evento o búsqueda.</span>
+                        </div>
+                    }
+                    else
+                    {
+                        @for (var index = 0; index < Model.FilteredEntries.Count; index++)
+                        {
+                            var entry = Model.FilteredEntries[index];
+                            <button type="button"
+                                    class="master-item @(index == 0 ? "active" : "")"
+                                    data-log-entry-index="@index">
+                                <span class="master-kicker">@entry.Time | @entry.Service</span>
+                                <strong>@entry.EventType</strong>
+                                <span class="status @Model.LevelClass(entry.Level)">@entry.LevelLabel</span>
+                                <small>@entry.Message</small>
+                            </button>
+                        }
+                    }
+                </div>
+            </section>
 
-        @if (Model.Snapshot.Lines.Count == 0)
-        {
-            <div class="empty-state">
-                <strong>Sin lineas para mostrar.</strong>
-                <span>Cuando web o worker escriban logs, apareceran aqui.</span>
-            </div>
-        }
-        else
-        {
-            <details class="compact-details">
-                <summary>Ver lineas originales</summary>
-                <pre class="log-output">@foreach (var line in Model.Snapshot.Lines)
-{
-@line
-}</pre>
-            </details>
-        }
-    </section>
-
-    <section class="report-section">
-        <div class="section-title">
-            <h2>Archivos disponibles</h2>
-            <span>@Model.Files.Count encontrados</span>
-        </div>
-
-        <div class="log-file-list">
-            @foreach (var file in Model.Files)
-            {
-                <a asp-page="/Logs" asp-route-LogFile="@file.RelativePath" asp-route-Lines="@Model.Lines" class="log-file-link">
-                    <strong>@file.DisplayName</strong>
-                    <span>@Model.SizeLabel(file.SizeBytes)</span>
-                    <span>@file.LastWriteTime.ToLocalTime().ToString("dd MMM HH:mm")</span>
-                </a>
-            }
+            <aside class="logs-detail-panel" id="logDetailPanel">
+                @if (firstEntry is null)
+                {
+                    <div class="empty-state">
+                        <strong>Selecciona un evento.</strong>
+                        <span>Aquí aparecerá el detalle interpretado del log.</span>
+                    </div>
+                }
+                else
+                {
+                    <div class="section-title">
+                        <h2>@firstEntry.EventType</h2>
+                        <span>@firstEntry.Time | @firstEntry.Service</span>
+                    </div>
+                    <div class="detail-grid">
+                        <article><span>Nivel</span><strong class="@Model.EventClass(firstEntry.EventType)">@firstEntry.LevelLabel</strong><small>@firstEntry.Level</small></article>
+                        <article><span>Servicio</span><strong>@firstEntry.Service</strong><small>@(Model.Snapshot.File?.DisplayName ?? "-")</small></article>
+                        <article><span>Hora</span><strong>@firstEntry.Time</strong><small>bucket @firstEntry.Hour:00</small></article>
+                        <article><span>Tipo</span><strong>@firstEntry.EventType</strong><small>interpretado</small></article>
+                    </div>
+                    <p class="detail-copy">@firstEntry.Message</p>
+                    <details class="compact-details">
+                        <summary>Ver línea cruda</summary>
+                        <pre class="log-output compact-log-output">@firstEntry.RawLine</pre>
+                    </details>
+                }
+            </aside>
         </div>
     </section>
 </section>
 
 @section Scripts {
-    <script src="~/js/master-detail.js" asp-append-version="true"></script>
+    <script src="~/js/logs-explorer.js" asp-append-version="true"></script>
 }

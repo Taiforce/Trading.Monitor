@@ -24,6 +24,10 @@ public sealed class ConnectionsModel(
 
     public IReadOnlyList<SourceHealthReportRow> FilteredSources { get; private set; } = [];
 
+    public IReadOnlyList<ConnectionCatalogItem> FilteredCatalog { get; private set; } = [];
+
+    public IReadOnlyList<ConnectionConceptGroup> ConnectionGroups { get; private set; } = [];
+
     public IReadOnlyList<DataSourceKind> AvailableKinds { get; private set; } = [];
 
     public IReadOnlyList<ConnectionCatalogItem> Catalog { get; } =
@@ -49,7 +53,12 @@ public sealed class ConnectionsModel(
         new("Acciones", "Alpaca Market Data", "Candidato", "Datos y noticias para acciones USA y paper trading.", "Requiere llave.", "https://docs.alpaca.markets/"),
         new("Sentimiento", "LunarCrush", "Candidato", "Social trend, engagement y sentimiento crypto.", "Requiere llave/plan.", "https://lunarcrush.com/developers"),
         new("Derivados", "CoinGlass", "Candidato", "Liquidaciones, funding, open interest y long/short ratios.", "Requiere plan/API.", "https://www.coinglass.com/api"),
-        new("On-chain", "Glassnode/Santiment", "Candidato", "Flujos on-chain, exchanges, holders, realizacion y actividad de red.", "Requiere plan.", "https://docs.glassnode.com/")
+        new("On-chain", "Glassnode/Santiment", "Candidato", "Flujos on-chain, exchanges, holders, realizacion y actividad de red.", "Requiere plan.", "https://docs.glassnode.com/"),
+        new("Traders", "eToro Popular Investor", "Candidato", "Ranking publico de copy trading para estudiar consistencia, drawdown y activos.", "Requiere revisar terminos, costos y disponibilidad por pais.", "https://www.etoro.com/copytrader/"),
+        new("Traders", "ZuluTrade", "Candidato", "Copy trading multi-activo con historiales publicos de proveedores.", "Requiere cuenta compatible y validacion de riesgo.", "https://www.zulutrade.com/"),
+        new("Traders", "Axi Copy Trading", "Candidato", "Perfiles de traders forex para copiar o estudiar manualmente.", "Requiere cuenta Axi y validacion regulatoria.", "https://www.axi.com/int/copy-trading"),
+        new("Traders", "TradingView Ideas", "En uso", "Ideas publicas de traders para crypto y forex, utiles como investigacion externa.", "Sin llave para lectura manual; scraping/API depende de permisos.", "https://www.tradingview.com/ideas/"),
+        new("Traders", "Myfxbook Systems", "Candidato", "Sistemas forex con metricas historicas y drawdown verificable cuando el perfil lo permite.", "Requiere acceso de fuente y reglas de uso.", "https://www.myfxbook.com/")
     ];
 
     public int CatalogInUseCount => Catalog.Count(item => item.Status == "En uso");
@@ -65,6 +74,9 @@ public sealed class ConnectionsModel(
     [BindProperty(SupportsGet = true)]
     public string Buscar { get; set; } = "";
 
+    [BindProperty(SupportsGet = true)]
+    public string Ambito { get; set; } = "todo";
+
     public async Task OnGetAsync(CancellationToken cancellationToken)
     {
         logger.LogInformation("Loading connections page.");
@@ -72,9 +84,12 @@ public sealed class ConnectionsModel(
         ExchangeStatus = await exchangeConnectionStatusService.GetAsync(cancellationToken);
         RecentExecutions = await tradeExecutionRepository.GetRecentAsync(40, cancellationToken);
 
+        Ambito = NormalizeScope(Ambito);
         AvailableKinds = Report.SourceHealth.Select(row => row.Kind).Distinct().OrderBy(row => row).ToArray();
         FilteredSources = ApplyFilters(Report.SourceHealth);
+        FilteredCatalog = ApplyCatalogFilters(Catalog);
         SourcesByKind = FilteredSources.GroupBy(row => row.Kind).OrderBy(group => group.Key).ToArray();
+        ConnectionGroups = BuildConnectionGroups();
     }
 
     private IReadOnlyList<SourceHealthReportRow> ApplyFilters(IEnumerable<SourceHealthReportRow> sources)
@@ -98,7 +113,111 @@ public sealed class ConnectionsModel(
             _ => sources
         };
 
-        return sources.OrderBy(source => source.Kind).ThenBy(source => source.Status).ThenBy(source => source.SourceName).ToArray();
+        sources = sources.Where(MatchesScope);
+
+        return sources.OrderBy(source => ConceptFor(source.Kind, source.SourceName))
+            .ThenBy(source => source.Status)
+            .ThenBy(source => source.SourceName)
+            .ToArray();
+    }
+
+    private IReadOnlyList<ConnectionCatalogItem> ApplyCatalogFilters(IEnumerable<ConnectionCatalogItem> catalog)
+    {
+        if (!string.IsNullOrWhiteSpace(Buscar))
+        {
+            catalog = catalog.Where(item =>
+                item.Name.Contains(Buscar, StringComparison.OrdinalIgnoreCase) ||
+                item.Group.Contains(Buscar, StringComparison.OrdinalIgnoreCase) ||
+                item.Use.Contains(Buscar, StringComparison.OrdinalIgnoreCase) ||
+                item.Requirement.Contains(Buscar, StringComparison.OrdinalIgnoreCase) ||
+                item.Url.Contains(Buscar, StringComparison.OrdinalIgnoreCase));
+        }
+
+        catalog = Estado?.Trim().ToLowerInvariant() switch
+        {
+            "sanas" => catalog.Where(item => item.Status == "En uso"),
+            "degradadas" => catalog.Where(item => item.Status is "Opcional" or "Candidato"),
+            "fallidas" => [],
+            _ => catalog
+        };
+
+        if (Enum.TryParse<DataSourceKind>(Tipo, true, out var kind))
+        {
+            var concept = ConceptFor(kind, "");
+            catalog = catalog.Where(item => ConceptFor(item.Group, item.Name) == concept);
+        }
+
+        catalog = catalog.Where(MatchesScope);
+
+        return catalog.OrderBy(item => ConceptFor(item.Group, item.Name)).ThenBy(item => item.Name).ToArray();
+    }
+
+    private IReadOnlyList<ConnectionConceptGroup> BuildConnectionGroups()
+    {
+        var concepts = new[] { "Market", "Noticias", "IA", "Traders" };
+        return concepts
+            .Select(concept => new ConnectionConceptGroup(
+                concept,
+                FilteredSources.Where(source => ConceptFor(source.Kind, source.SourceName) == concept).ToArray(),
+                FilteredCatalog.Where(item => ConceptFor(item.Group, item.Name) == concept).ToArray()))
+            .Where(group => group.Sources.Count > 0 || group.Catalog.Count > 0)
+            .ToArray();
+    }
+
+    private bool MatchesScope(SourceHealthReportRow source)
+    {
+        return MatchesScope($"{source.SourceName} {source.Kind} {source.LastMessage} {source.Url}");
+    }
+
+    private bool MatchesScope(ConnectionCatalogItem item)
+    {
+        return MatchesScope($"{item.Group} {item.Name} {item.Use} {item.Requirement} {item.Url}");
+    }
+
+    private bool MatchesScope(string text)
+    {
+        return Ambito switch
+        {
+            "crypto" => ContainsAny(text, "crypto", "cripto", "BTC", "ETH", "SOL", "XRP", "ADA", "USDT", "Binance", "Coinbase", "Kraken", "CoinGecko", "CoinGlass", "LunarCrush", "Glassnode", "Santiment", "CryptoPanic", "Fear"),
+            "forex" => ContainsAny(text, "forex", "FX", "EURUSD", "GBPUSD", "USDJPY", "USDCHF", "AUDUSD", "USDCAD", "NZDUSD", "USDMXN", "OANDA", "Yahoo Finance FX", "Alpha Vantage FX", "Myfxbook", "Bancos centrales", "Fed", "ECB", "Banxico"),
+            "traders" => ContainsAny(text, "trader", "copy", "eToro", "ZuluTrade", "Axi", "TradingView", "Myfxbook", "historial", "perfil"),
+            _ => true
+        };
+    }
+
+    public string ScopeLabel()
+    {
+        return Ambito switch
+        {
+            "crypto" => "Crypto",
+            "forex" => "Forex",
+            "traders" => "Traders",
+            _ => "Todo"
+        };
+    }
+
+    public string ConceptDescription(string concept)
+    {
+        return concept switch
+        {
+            "Market" => "Precios, velas, brokers y datos directos de mercado.",
+            "Noticias" => "Noticias, macro, sentimiento y eventos que pueden mover el precio.",
+            "IA" => "Modelos y análisis automatizado que resumen o califican oportunidades.",
+            "Traders" => "Fuentes para estudiar traders, copy trading e historiales públicos.",
+            _ => "Fuentes operativas del sistema."
+        };
+    }
+
+    public string ConceptClass(string concept)
+    {
+        return concept switch
+        {
+            "Market" => "status-open",
+            "Noticias" => "status-muted",
+            "IA" => "status-win",
+            "Traders" => "status-open",
+            _ => "status-muted"
+        };
     }
 
     public string CatalogStatusClass(string status)
@@ -144,6 +263,58 @@ public sealed class ConnectionsModel(
             _ => mode.ToString()
         };
     }
+
+    private static string NormalizeScope(string? value)
+    {
+        return value?.Trim().ToLowerInvariant() switch
+        {
+            "crypto" => "crypto",
+            "forex" => "forex",
+            "traders" => "traders",
+            _ => "todo"
+        };
+    }
+
+    private static string ConceptFor(DataSourceKind kind, string sourceName)
+    {
+        return kind switch
+        {
+            DataSourceKind.MarketData => "Market",
+            DataSourceKind.AiAnalysis => "IA",
+            DataSourceKind.Research when ContainsAny(sourceName, "trader", "copy", "TradingView", "Myfxbook", "eToro", "Axi", "Zulu") => "Traders",
+            DataSourceKind.News or DataSourceKind.MacroReport or DataSourceKind.SocialSentiment or DataSourceKind.Research => "Noticias",
+            _ => "Market"
+        };
+    }
+
+    private static string ConceptFor(string group, string name)
+    {
+        var text = $"{group} {name}";
+        if (ContainsAny(text, "IA", "AI", "OpenAI", "Kensho", "Tickeron", "TrendSpider"))
+            return "IA";
+
+        if (ContainsAny(text, "Trader", "Copy", "eToro", "Zulu", "Axi", "TradingView", "Myfxbook"))
+            return "Traders";
+
+        if (ContainsAny(text, "Noticias", "News", "Macro", "Sentimiento", "Eventos", "Bancos", "RSS", "FRED", "Fear"))
+            return "Noticias";
+
+        return "Market";
+    }
+
+    private static bool ContainsAny(string value, params string[] patterns)
+    {
+        return patterns.Any(pattern => value.Contains(pattern, StringComparison.OrdinalIgnoreCase));
+    }
 }
 
 public sealed record ConnectionCatalogItem(string Group, string Name, string Status, string Use, string Requirement, string Url);
+
+public sealed record ConnectionConceptGroup(string Name, IReadOnlyList<SourceHealthReportRow> Sources, IReadOnlyList<ConnectionCatalogItem> Catalog)
+{
+    public int Total => Sources.Count + Catalog.Count;
+
+    public int Healthy => Sources.Count(source => source.Status == DataSourceStatus.Healthy) + Catalog.Count(item => item.Status == "En uso");
+
+    public int Failed => Sources.Count(source => source.Status == DataSourceStatus.Failed);
+}

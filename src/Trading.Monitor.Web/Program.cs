@@ -33,6 +33,7 @@ try
     builder.Services.AddSingleton<VirtualPortfolioSimulator>();
     builder.Services.AddSingleton<TraderFollowSimulator>();
     builder.Services.AddSingleton<OperationalLogReader>();
+    builder.Services.AddSingleton<OperationalLogInterpreter>();
     builder.Services.AddScoped<LiveOperationsSnapshotService>();
     builder.Services.AddHttpClient<LiveChartSnapshotService>(client =>
     {
@@ -134,6 +135,41 @@ try
     app.MapGet("/api/exchange/status", async (ExchangeConnectionStatusService statusService, CancellationToken cancellationToken) =>
     {
         return Results.Json(await statusService.GetAsync(cancellationToken));
+    });
+    app.MapGet("/api/logs", (string? logFile, int? lines, string? nivel, string? evento, string? buscar, string? ambito,
+        OperationalLogReader logReader, OperationalLogInterpreter logInterpreter) =>
+    {
+        var lineLimit = Math.Clamp(lines ?? 250, 50, 1000);
+        var files = logReader.ListFiles();
+        var snapshot = logReader.Read(logFile, lineLimit);
+        var entries = logInterpreter.Interpret(snapshot);
+        var filtered = logInterpreter.ApplyFilters(entries, nivel, evento, buscar, ambito);
+        var buckets = logInterpreter.BuildBuckets(filtered);
+        var maxBucket = buckets.Select(bucket => bucket.Count).DefaultIfEmpty(0).Max();
+
+        return Results.Json(new
+        {
+            files,
+            file = snapshot.File,
+            snapshot.RootPath,
+            snapshot.ErrorMessage,
+            lines = snapshot.Lines,
+            entries = filtered,
+            buckets = buckets.Select(bucket => new
+            {
+                bucket.Hour,
+                bucket.Count,
+                Width = maxBucket <= 0 ? 0m : Math.Clamp((decimal)bucket.Count / maxBucket * 100m, 4m, 100m)
+            }),
+            availableLevels = entries.Select(entry => entry.Level).Where(level => level != "-").Distinct(StringComparer.OrdinalIgnoreCase).OrderBy(level => level),
+            availableEvents = entries.Select(entry => entry.EventType).Distinct(StringComparer.OrdinalIgnoreCase).OrderBy(type => type),
+            errorCount = entries.Count(entry => entry.Level is "ERR" or "FTL"),
+            warningCount = entries.Count(entry => entry.Level == "WRN"),
+            signalCount = entries.Count(entry => entry.EventType == "Señal"),
+            scanCount = entries.Count(entry => entry.EventType == "Barrido"),
+            filteredCount = filtered.Count,
+            scope = OperationalLogInterpreter.NormalizeScope(ambito)
+        });
     });
     app.MapRazorPages().WithStaticAssets();
     app.Run();

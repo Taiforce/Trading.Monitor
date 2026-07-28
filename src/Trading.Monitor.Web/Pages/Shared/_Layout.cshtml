@@ -31,8 +31,8 @@
     var currentPage = ViewContext.RouteData.Values["page"]?.ToString() ?? "/Index";
     var currentMarket = Context.Request.Query["Mercado"].ToString();
     string Active(string page) => string.Equals(currentPage, page, StringComparison.OrdinalIgnoreCase) ? "active" : "";
-    bool IsTradingPage() => string.Equals(currentPage, "/Actions", StringComparison.OrdinalIgnoreCase) || string.Equals(currentPage, "/ManagedPositions", StringComparison.OrdinalIgnoreCase);
-    bool IsMarket(string market) => string.Equals(currentMarket, market, StringComparison.OrdinalIgnoreCase);
+    bool IsPage(params string[] pages) => pages.Any(page => string.Equals(currentPage, page, StringComparison.OrdinalIgnoreCase));
+    string ActiveGroup(params string[] pages) => IsPage(pages) ? "active" : "";
 }
 <header class="topbar">
     <nav class="container-fluid app-nav">
@@ -40,48 +40,93 @@
             <span class="brand-mark">TM</span>
             <span>Trading Monitor</span>
         </a>
-        <div class="nav-links">
-            <a class="@Active("/Index")" asp-page="/Index">Resumen</a>
-            <div class="nav-group">
-                <button type="button" class="@(IsTradingPage() && !IsMarket("forex") ? "active" : "")">Crypto</button>
-                <div class="nav-submenu">
-                    <a asp-page="/Actions" asp-route-Mercado="crypto">Operaciones</a>
-                    <a asp-page="/ManagedPositions" asp-route-Mercado="crypto">Seguimiento</a>
+        <div class="nav-links primary-nav">
+            <div class="nav-group nav-mega">
+                <a class="nav-root @Active("/Index")" asp-page="/Index">Resumen</a>
+                <div class="nav-submenu nav-mega-panel">
+                    <section>
+                        <strong>Crypto</strong>
+                        <a asp-page="/Reports" asp-route-Mercado="crypto" asp-route-VistaReporte="ia">Operaciones otras IAs</a>
+                        <a asp-page="/Reports" asp-route-Mercado="crypto" asp-route-VistaReporte="propio">Operaciones IA propia</a>
+                        <a asp-page="/Traders" asp-route-Mercado="crypto">Operaciones traders</a>
+                    </section>
+                    <section>
+                        <strong>Forex</strong>
+                        <a asp-page="/Reports" asp-route-Mercado="forex" asp-route-VistaReporte="ia">Operaciones otras IAs</a>
+                        <a asp-page="/Reports" asp-route-Mercado="forex" asp-route-VistaReporte="propio">Operaciones IA propia</a>
+                        <a asp-page="/Traders" asp-route-Mercado="forex">Operaciones traders</a>
+                    </section>
+                </div>
+            </div>
+            <div class="nav-group nav-mega">
+                <span class="nav-root @ActiveGroup("/Actions", "/ManagedPositions", "/Traders")" tabindex="0">Mercado en vivo</span>
+                <div class="nav-submenu nav-mega-panel">
+                    <section>
+                        <strong>Crypto</strong>
+                        <a asp-page="/Actions" asp-route-Mercado="crypto">Operaciones fijas</a>
+                        <a asp-page="/ManagedPositions" asp-route-Mercado="crypto">Seguimiento vivo</a>
+                        <a asp-page="/Traders" asp-route-Mercado="crypto">Traders crypto</a>
+                    </section>
+                    <section>
+                        <strong>Forex</strong>
+                        <a asp-page="/Actions" asp-route-Mercado="forex">Operaciones fijas</a>
+                        <a asp-page="/ManagedPositions" asp-route-Mercado="forex">Seguimiento vivo</a>
+                        <a asp-page="/Traders" asp-route-Mercado="forex">Traders forex</a>
+                    </section>
+                </div>
+            </div>
+            <div class="nav-group nav-mega wide">
+                <span class="nav-root @ActiveGroup("/Reports", "/Portfolio")" tabindex="0">Análisis</span>
+                <div class="nav-submenu nav-mega-panel nav-analysis-panel">
+                    <section>
+                        <strong>Crypto reportes</strong>
+                        <a asp-page="/Reports" asp-route-Mercado="crypto" asp-route-VistaReporte="ia">IA ajena</a>
+                        <a asp-page="/Reports" asp-route-Mercado="crypto" asp-route-VistaReporte="propio">IA propia</a>
+                        <a asp-page="/Traders" asp-route-Mercado="crypto">Operaciones traders</a>
+                    </section>
+                    <section>
+                        <strong>Crypto simulador</strong>
+                        <a asp-page="/Portfolio" asp-route-Mercado="crypto" asp-route-VistaSimulador="ia">Operación ajena</a>
+                        <a asp-page="/Portfolio" asp-route-Mercado="crypto" asp-route-VistaSimulador="propio">Operación propia</a>
+                        <a asp-page="/Portfolio" asp-route-Mercado="crypto" asp-route-VistaSimulador="traders">Operaciones traders</a>
+                    </section>
+                    <section>
+                        <strong>Forex reportes</strong>
+                        <a asp-page="/Reports" asp-route-Mercado="forex" asp-route-VistaReporte="ia">IA ajena</a>
+                        <a asp-page="/Reports" asp-route-Mercado="forex" asp-route-VistaReporte="propio">IA propia</a>
+                        <a asp-page="/Traders" asp-route-Mercado="forex">Operaciones traders</a>
+                    </section>
+                    <section>
+                        <strong>Forex simulador</strong>
+                        <a asp-page="/Portfolio" asp-route-Mercado="forex" asp-route-VistaSimulador="ia">Operación ajena</a>
+                        <a asp-page="/Portfolio" asp-route-Mercado="forex" asp-route-VistaSimulador="propio">Operación propia</a>
+                        <a asp-page="/Portfolio" asp-route-Mercado="forex" asp-route-VistaSimulador="traders">Operaciones traders</a>
+                    </section>
                 </div>
             </div>
             <div class="nav-group">
-                <button type="button" class="@(IsTradingPage() && IsMarket("forex") ? "active" : "")">Forex</button>
+                <span class="nav-root @Active("/Wallet")" tabindex="0">Wallet</span>
                 <div class="nav-submenu">
-                    <a asp-page="/Actions" asp-route-Mercado="forex">Operaciones</a>
-                    <a asp-page="/ManagedPositions" asp-route-Mercado="forex">Seguimiento</a>
+                    <a asp-page="/Wallet" asp-route-Mercado="crypto">Crypto</a>
+                    <a asp-page="/Wallet" asp-route-Mercado="forex">Forex</a>
                 </div>
             </div>
             <div class="nav-group">
-                <button type="button" class="@Active("/Reports")">Reportes</button>
+                <span class="nav-root @Active("/Connections")" tabindex="0">Conexiones</span>
                 <div class="nav-submenu">
-                    <a asp-page="/Reports" asp-route-Mercado="crypto" asp-route-VistaReporte="ia">IA Crypto</a>
-                    <a asp-page="/Reports" asp-route-Mercado="crypto" asp-route-VistaReporte="propio">Sistema Crypto</a>
-                    <a asp-page="/Reports" asp-route-Mercado="forex" asp-route-VistaReporte="ia">IA Forex</a>
-                    <a asp-page="/Reports" asp-route-Mercado="forex" asp-route-VistaReporte="propio">Sistema Forex</a>
+                    <a asp-page="/Connections" asp-route-Ambito="crypto">Crypto</a>
+                    <a asp-page="/Connections" asp-route-Ambito="forex">Forex</a>
+                    <a asp-page="/Connections" asp-route-Ambito="traders">Traders</a>
                 </div>
             </div>
             <div class="nav-group">
-                <button type="button" class="@Active("/Portfolio")">Simulador</button>
+                <span class="nav-root @Active("/Logs")" tabindex="0">Logs</span>
                 <div class="nav-submenu">
-                    <a asp-page="/Portfolio" asp-route-Mercado="crypto">Crypto</a>
-                    <a asp-page="/Portfolio" asp-route-Mercado="forex">Forex</a>
+                    <a asp-page="/Logs" asp-route-Ambito="crypto">Crypto</a>
+                    <a asp-page="/Logs" asp-route-Ambito="forex">Forex</a>
+                    <a asp-page="/Logs" asp-route-Ambito="traders">Traders</a>
                 </div>
             </div>
-            <div class="nav-group">
-                <button type="button" class="@Active("/Traders")">Traders</button>
-                <div class="nav-submenu">
-                    <a asp-page="/Traders" asp-route-Mercado="crypto">Crypto</a>
-                    <a asp-page="/Traders" asp-route-Mercado="forex">Forex</a>
-                </div>
-            </div>
-            <a class="@Active("/Wallet")" asp-page="/Wallet">Wallet</a>
-            <a class="@Active("/Connections")" asp-page="/Connections">Conexiones</a>
-            <a class="@Active("/Logs")" asp-page="/Logs">Logs</a>
         </div>
         <label class="theme-toggle" title="Cambiar modo">
             <input id="themeToggle" type="checkbox" aria-label="Modo oscuro"/>

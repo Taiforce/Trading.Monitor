@@ -162,6 +162,7 @@
 
     function drawReplay(host, panel, snapshot) {
         const lwc = window.LightweightCharts;
+        const isForex = (panel.dataset.market || inferMarket(panel.dataset.symbol)) === "forex";
         const candles = (snapshot.candles || []).map(toCandle).filter(item => Number.isFinite(item.time));
 
         if (candles.length === 0) {
@@ -204,16 +205,23 @@
             }
         });
 
-        const candleSeries = addSeries(lwc, chart, "candlestick", {
-            upColor: "#0ecb81",
-            downColor: "#f6465d",
-            borderUpColor: "#0ecb81",
-            borderDownColor: "#f6465d",
-            wickUpColor: "#0ecb81",
-            wickDownColor: "#f6465d",
-            lastValueVisible: true
-        });
-        candleSeries.setData(candles);
+        const candleSeries = isForex
+            ? addSeries(lwc, chart, "line", {
+                color: "#2ab5f6",
+                lineWidth: 3,
+                crosshairMarkerVisible: true,
+                lastValueVisible: true
+            })
+            : addSeries(lwc, chart, "candlestick", {
+                upColor: "#0ecb81",
+                downColor: "#f6465d",
+                borderUpColor: "#0ecb81",
+                borderDownColor: "#f6465d",
+                wickUpColor: "#0ecb81",
+                wickDownColor: "#f6465d",
+                lastValueVisible: true
+            });
+        candleSeries.setData(isForex ? candles.map(candle => ({ time: candle.time, value: candle.close })) : candles);
         const hover = createHoverCard(host);
 
         const route = buildRoute(panel, candles);
@@ -239,7 +247,7 @@
             candleSeries.setMarkers(markers);
         }
 
-        chart.subscribeCrosshairMove(param => showHoverInfo(host, hover, candleSeries, param));
+        chart.subscribeCrosshairMove(param => showHoverInfo(host, hover, candleSeries, param, candles, isForex));
         chart.timeScale().fitContent();
         new ResizeObserver(() => {
             chart.applyOptions({ width: host.clientWidth, height: host.clientWidth < 760 ? 320 : 380 });
@@ -371,6 +379,10 @@
             return Number.NaN;
         }
 
+        if (typeof value === "number") {
+            return Math.floor(value);
+        }
+
         return Math.floor(new Date(value).getTime() / 1000);
     }
 
@@ -382,7 +394,7 @@
         return hover;
     }
 
-    function showHoverInfo(host, hover, candleSeries, param) {
+    function showHoverInfo(host, hover, candleSeries, param, candles, isForex) {
         if (!hover || !param?.time || !param.point || param.point.x < 0 || param.point.y < 0) {
             if (hover) {
                 hover.hidden = true;
@@ -390,7 +402,8 @@
             return;
         }
 
-        const candle = param.seriesData.get(candleSeries);
+        const seriesValue = param.seriesData.get(candleSeries);
+        const candle = isForex ? candles.find(item => item.time === toUnix(param.time)) : seriesValue;
         if (!candle) {
             hover.hidden = true;
             return;
@@ -401,10 +414,10 @@
         hover.innerHTML = `
             <strong>${escapeHtml(formatChartDateTime(param.time))}</strong>
             <dl>
-                <div><dt>Abrio</dt><dd>${formatPrice(candle.open)}</dd></div>
+                <div><dt>Abrió</dt><dd>${formatPrice(candle.open)}</dd></div>
                 <div><dt>Alto</dt><dd>${formatPrice(candle.high)}</dd></div>
                 <div><dt>Bajo</dt><dd>${formatPrice(candle.low)}</dd></div>
-                <div><dt>Cerro</dt><dd class="${change >= 0 ? "gain" : "loss"}">${formatPrice(candle.close)} (${changePercent.toFixed(2)}%)</dd></div>
+                <div><dt>Cerró</dt><dd class="${change >= 0 ? "gain" : "loss"}">${formatPrice(candle.close)} (${changePercent.toFixed(2)}%)</dd></div>
             </dl>`;
         hover.hidden = false;
 

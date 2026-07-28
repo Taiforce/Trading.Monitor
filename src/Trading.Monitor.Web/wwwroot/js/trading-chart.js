@@ -41,6 +41,7 @@
     const capital = board.dataset.liveCapital || "1000";
     const estado = board.dataset.liveEstado || "abiertas";
     const mercado = board.dataset.liveMarket || "crypto";
+    const isForexMarket = mercado === "forex";
     const symbolFilter = board.dataset.liveSymbol || "";
     const tipoSenal = board.dataset.liveTipoSenal || "";
     const liveMode = board.dataset.liveMode || "managed";
@@ -155,27 +156,38 @@
             }
         });
 
-        candleSeries = addSeries("candlestick", {
-            upColor: colors.green,
-            downColor: colors.red,
-            borderUpColor: colors.green,
-            borderDownColor: colors.red,
-            wickUpColor: colors.green,
-            wickDownColor: colors.red,
-            priceLineColor: colors.yellow,
-            priceLineWidth: 1,
-            lastValueVisible: true
-        });
+        if (isForexMarket) {
+            candleSeries = addSeries("line", {
+                color: colors.blue,
+                lineWidth: 3,
+                priceLineColor: colors.yellow,
+                priceLineWidth: 1,
+                crosshairMarkerVisible: true,
+                lastValueVisible: true
+            });
+        } else {
+            candleSeries = addSeries("candlestick", {
+                upColor: colors.green,
+                downColor: colors.red,
+                borderUpColor: colors.green,
+                borderDownColor: colors.red,
+                wickUpColor: colors.green,
+                wickDownColor: colors.red,
+                priceLineColor: colors.yellow,
+                priceLineWidth: 1,
+                lastValueVisible: true
+            });
 
-        volumeSeries = addSeries("histogram", {
-            priceFormat: { type: "volume" },
-            priceScaleId: "",
-            lastValueVisible: false,
-            priceLineVisible: false
-        });
-        chart.priceScale("").applyOptions({
-            scaleMargins: { top: 0.78, bottom: 0 }
-        });
+            volumeSeries = addSeries("histogram", {
+                priceFormat: { type: "volume" },
+                priceScaleId: "",
+                lastValueVisible: false,
+                priceLineVisible: false
+            });
+            chart.priceScale("").applyOptions({
+                scaleMargins: { top: 0.78, bottom: 0 }
+            });
+        }
 
         chart.subscribeCrosshairMove(showHoverInfo);
         chart.timeScale().subscribeVisibleLogicalRangeChange(range => {
@@ -728,7 +740,8 @@
             return;
         }
 
-        const candle = param.seriesData.get(candleSeries);
+        const seriesValue = param.seriesData.get(candleSeries);
+        const candle = isForexMarket ? findCandleAtTime(param.time) : seriesValue;
         if (!candle) {
             hoverCard.hidden = true;
             return;
@@ -862,13 +875,16 @@
         const sameWindow = dataKey === lastDataKey
             && lastCandleData.length === candleData.length
             && lastCandleData[0]?.time === candleData[0]?.time;
+        const marketData = isForexMarket
+            ? candleData.map(candle => ({ time: candle.time, value: candle.close }))
+            : candleData;
 
         if (sameWindow && candleData.length > 0) {
-            candleSeries.update(candleData.at(-1));
-            volumeSeries.update(volumeData.at(-1));
+            candleSeries.update(marketData.at(-1));
+            volumeSeries?.update(volumeData.at(-1));
         } else {
-            candleSeries.setData(candleData);
-            volumeSeries.setData(volumeData);
+            candleSeries.setData(marketData);
+            volumeSeries?.setData(volumeData);
         }
 
         lastDataKey = dataKey;
@@ -1315,6 +1331,15 @@
         }
 
         return Math.floor(new Date(value).getTime() / 1000);
+    }
+
+    function findCandleAtTime(value) {
+        const time = toUnixTime(value);
+        if (!Number.isFinite(time)) {
+            return null;
+        }
+
+        return lastCandleData.find(candle => candle.time === time) || null;
     }
 
     function nearestTime(target, candleData) {

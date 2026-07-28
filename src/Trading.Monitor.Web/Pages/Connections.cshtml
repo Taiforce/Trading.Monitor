@@ -7,143 +7,248 @@
 <section class="dashboard">
     <div class="page-head">
         <div>
-            <p class="eyebrow">Mercado, noticias e IA</p>
+            <p class="eyebrow">@Model.ScopeLabel() | mercado, noticias, IA y traders</p>
             <h1>Conexiones</h1>
         </div>
-        <form method="get" class="filter-bar connections-filter">
-            <label>
-                <span>Buscar</span>
-                <input asp-for="Buscar" type="search" placeholder="fuente, url o mensaje"/>
-            </label>
-            <label>
-                <span>Estado</span>
-                <select asp-for="Estado">
-                    <option value="todas">Todas</option>
-                    <option value="sanas">Sanas</option>
-                    <option value="degradadas">Degradadas</option>
-                    <option value="fallidas">Fallidas</option>
-                </select>
-            </label>
-            <label>
-                <span>Tipo</span>
-                <select asp-for="Tipo">
-                    <option value="">Todos</option>
-                    @foreach (var kind in Model.AvailableKinds)
-                    {
-                        <option value="@kind">@kind</option>
-                    }
-                </select>
-            </label>
-            <button type="submit">Filtrar</button>
-        </form>
+        <div class="market-subnav" aria-label="Cambiar ámbito">
+            <a class="@(Model.Ambito == "crypto" ? "active" : "")" asp-page="/Connections" asp-route-Ambito="crypto">Crypto</a>
+            <a class="@(Model.Ambito == "forex" ? "active" : "")" asp-page="/Connections" asp-route-Ambito="forex">Forex</a>
+            <a class="@(Model.Ambito == "traders" ? "active" : "")" asp-page="/Connections" asp-route-Ambito="traders">Traders</a>
+            <a class="@(Model.Ambito == "todo" ? "active" : "")" asp-page="/Connections">Todo</a>
+        </div>
     </div>
 
     <section class="metrics-grid metrics-grid-four" aria-label="Resumen de conexiones">
         <article class="metric">
-            <span>Fuentes</span>
-            <strong>@Model.Report.SourceHealth.Count</strong>
-            <small>registradas por telemetria</small>
+            <span>Fuentes visibles</span>
+            <strong>@(Model.FilteredSources.Count + Model.FilteredCatalog.Count)</strong>
+            <small>@Model.FilteredSources.Count activas, @Model.FilteredCatalog.Count mapeadas</small>
         </article>
         <article class="metric">
             <span>Sanas</span>
-            <strong>@Model.Report.SourceHealth.Count(row => row.Status == Trading.Monitor.Domain.DataSourceStatus.Healthy)</strong>
+            <strong class="gain">@Model.FilteredSources.Count(row => row.Status == Trading.Monitor.Domain.DataSourceStatus.Healthy)</strong>
             <small>responden correctamente</small>
         </article>
         <article class="metric">
             <span>Degradadas</span>
-            <strong>@Model.Report.SourceHealth.Count(row => row.Status == Trading.Monitor.Domain.DataSourceStatus.Degraded)</strong>
-            <small>sin datos utiles o parciales</small>
+            <strong>@Model.FilteredSources.Count(row => row.Status == Trading.Monitor.Domain.DataSourceStatus.Degraded)</strong>
+            <small>datos parciales o sin utilidad</small>
         </article>
         <article class="metric">
             <span>Fallidas</span>
-            <strong>@Model.Report.SourceHealth.Count(row => row.Status == Trading.Monitor.Domain.DataSourceStatus.Failed)</strong>
+            <strong class="loss">@Model.FilteredSources.Count(row => row.Status == Trading.Monitor.Domain.DataSourceStatus.Failed)</strong>
             <small>no detienen el servicio</small>
         </article>
     </section>
 
-    <section class="metrics-grid metrics-grid-four" aria-label="Mapa de fuentes">
-        <article class="metric metric-soft">
-            <span>Conectadas hoy</span>
-            <strong class="gain">@Model.CatalogInUseCount</strong>
-            <small>ya participan o están listas</small>
-        </article>
-        <article class="metric metric-soft">
-            <span>Por conectar</span>
-            <strong>@Model.CatalogCandidateCount</strong>
-            <small>requieren llave, plan o reglas</small>
-        </article>
-        <article class="metric metric-soft">
-            <span>Tipos cubiertos</span>
-            <strong>@Model.Catalog.Select(item => item.Group).Distinct().Count()</strong>
-            <small>mercado, noticias, macro, IA</small>
-        </article>
-        <article class="metric metric-soft">
-            <span>Modo seguro</span>
-            <strong class="gain">Paper</strong>
-            <small>sin ordenes reales automaticas</small>
-        </article>
-    </section>
-
-    @if (Model.ExchangeStatus is not null)
+    @if (Model.ExchangeStatus is not null && Model.Ambito != "traders")
     {
-        <details class="report-section fold-panel" open>
+        <details class="report-section fold-panel">
             <summary>
-                <h2>Exchange</h2>
-                <span>@Model.ExchangeStatus.Provider</span>
+                <h2>Exchange automático</h2>
+                <span>@Model.ExchangeStatus.Provider | @Model.ExchangeStatus.Mode</span>
             </summary>
             <div class="fold-body">
                 <div class="exchange-status-grid">
-                    <article>
-                        <span>API publica</span>
-                        <strong class="@(Model.ExchangeStatus.PublicApiHealthy ? "gain" : "loss")">@(Model.ExchangeStatus.PublicApiHealthy ? "OK" : "Falla")</strong>
-                    </article>
-                    <article>
-                        <span>Modo</span>
-                        <strong>@Model.ExchangeStatus.Mode</strong>
-                    </article>
-                    <article>
-                        <span>Llaves</span>
-                        <strong class="@(Model.ExchangeStatus.ApiKeyConfigured && Model.ExchangeStatus.ApiSecretConfigured ? "gain" : "loss")">
-                            @(Model.ExchangeStatus.ApiKeyConfigured && Model.ExchangeStatus.ApiSecretConfigured ? "Configuradas" : "Faltan")
-                        </strong>
-                    </article>
-                    <article>
-                        <span>Ordenes reales</span>
-                        <strong class="@(Model.ExchangeStatus.LiveTradingAllowed ? "loss" : "gain")">@(Model.ExchangeStatus.LiveTradingAllowed ? "Habilitadas" : "Bloqueadas")</strong>
-                    </article>
-                    <article>
-                        <span>Score mínimo auto</span>
-                        <strong>@Model.ExchangeStatus.MinimumScoreToExecute/100</strong>
-                    </article>
-                    <article>
-                        <span>Ganancia neta minima</span>
-                        <strong>@Model.ExchangeStatus.MinimumExpectedNetProfitPercentAfterCosts.ToString("N2")%</strong>
-                    </article>
-                    <article>
-                        <span>Capital maximo</span>
-                        <strong>@Model.ExchangeStatus.MaxCapitalPerTrade.ToString("C2")</strong>
-                    </article>
-                    <article>
-                        <span>Pérdida 24h máxima</span>
-                        <strong>@Model.ExchangeStatus.DailyLossLimit.ToString("C2")</strong>
-                    </article>
-                    <article>
-                        <span>Venta en corto</span>
-                        <strong class="@(Model.ExchangeStatus.AllowShortSelling ? "status-open" : "status-muted")">@(Model.ExchangeStatus.AllowShortSelling ? "Permitida" : "Bloqueada")</strong>
-                    </article>
-                    <article>
-                        <span>Simbolos</span>
-                        <strong>@string.Join(", ", Model.ExchangeStatus.AllowedSymbols)</strong>
-                    </article>
+                    <article><span>API pública</span><strong class="@(Model.ExchangeStatus.PublicApiHealthy ? "gain" : "loss")">@(Model.ExchangeStatus.PublicApiHealthy ? "OK" : "Falla")</strong></article>
+                    <article><span>Llaves</span><strong class="@(Model.ExchangeStatus.ApiKeyConfigured && Model.ExchangeStatus.ApiSecretConfigured ? "gain" : "loss")">@(Model.ExchangeStatus.ApiKeyConfigured && Model.ExchangeStatus.ApiSecretConfigured ? "Configuradas" : "Faltan")</strong></article>
+                    <article><span>Órdenes reales</span><strong class="@(Model.ExchangeStatus.LiveTradingAllowed ? "loss" : "gain")">@(Model.ExchangeStatus.LiveTradingAllowed ? "Habilitadas" : "Bloqueadas")</strong></article>
+                    <article><span>Ganancia neta mínima</span><strong>@Model.ExchangeStatus.MinimumExpectedNetProfitPercentAfterCosts.ToString("N2")%</strong></article>
+                    <article><span>Score mínimo auto</span><strong>@Model.ExchangeStatus.MinimumScoreToExecute/100</strong></article>
+                    <article><span>Capital máximo</span><strong>@Model.ExchangeStatus.MaxCapitalPerTrade.ToString("C2")</strong></article>
+                    <article><span>Pérdida 24h máxima</span><strong>@Model.ExchangeStatus.DailyLossLimit.ToString("C2")</strong></article>
+                    <article><span>Símbolos</span><strong>@string.Join(", ", Model.ExchangeStatus.AllowedSymbols)</strong></article>
                 </div>
                 <p class="exchange-status-note">@Model.ExchangeStatus.Message @Model.ExchangeStatus.Safety</p>
             </div>
         </details>
     }
 
-    <details class="report-section fold-panel" open>
+    <section class="report-section">
+        <div class="section-title">
+            <h2>Mapa navegable de fuentes</h2>
+            <span>elige concepto y luego fuente</span>
+        </div>
+
+        <div class="master-detail connections-workbench" data-master-detail>
+            <form method="get" class="connection-filter-card">
+                <input asp-for="Ambito" type="hidden"/>
+                <label>
+                    <span>Buscar</span>
+                    <input asp-for="Buscar" type="search" placeholder="fuente, url o mensaje"/>
+                </label>
+                <label>
+                    <span>Estado</span>
+                    <select asp-for="Estado">
+                        <option value="todas">Todas</option>
+                        <option value="sanas">Sanas</option>
+                        <option value="degradadas">Degradadas</option>
+                        <option value="fallidas">Fallidas</option>
+                    </select>
+                </label>
+                <label>
+                    <span>Tipo técnico</span>
+                    <select asp-for="Tipo">
+                        <option value="">Todos</option>
+                        @foreach (var kind in Model.AvailableKinds)
+                        {
+                            <option value="@kind">@kind</option>
+                        }
+                    </select>
+                </label>
+                <button type="submit">Filtrar</button>
+            </form>
+
+            @if (Model.ConnectionGroups.Count == 0)
+            {
+                <div class="master-list">
+                    <div class="empty-state">
+                        <strong>No hay conexiones para ese filtro.</strong>
+                        <span>Prueba cambiando búsqueda, estado o ámbito.</span>
+                    </div>
+                </div>
+                <div class="detail-stack">
+                    <article class="detail-panel active">
+                        <div class="empty-state">
+                            <strong>Sin detalle.</strong>
+                            <span>No hay una fuente seleccionable todavía.</span>
+                        </div>
+                    </article>
+                </div>
+            }
+            else
+            {
+                <div class="master-list" aria-label="Conceptos de conexión">
+                    @for (var groupIndex = 0; groupIndex < Model.ConnectionGroups.Count; groupIndex++)
+                    {
+                        var group = Model.ConnectionGroups[groupIndex];
+                        var key = $"concept-{groupIndex}";
+                        <button type="button"
+                                class="master-item @(groupIndex == 0 ? "active" : "")"
+                                data-detail-key="@key"
+                                data-filter-text="@($"{group.Name} {Model.ConceptDescription(group.Name)}")"
+                                data-filter-status="@(group.Failed > 0 ? "Con fallas" : "Sin fallas")"
+                                data-filter-type="@group.Name">
+                            <span class="master-kicker">@group.Name</span>
+                            <strong>@Model.ConceptDescription(group.Name)</strong>
+                            <span class="status @Model.ConceptClass(group.Name)">@group.Total fuentes</span>
+                            <div class="master-item-extra">
+                                <span>@group.Healthy sanas/en uso</span>
+                                <span>@group.Failed fallidas</span>
+                            </div>
+                        </button>
+                    }
+                </div>
+
+                <div class="detail-stack">
+                    @for (var groupIndex = 0; groupIndex < Model.ConnectionGroups.Count; groupIndex++)
+                    {
+                        var group = Model.ConnectionGroups[groupIndex];
+                        var key = $"concept-{groupIndex}";
+                        var totalSources = group.Sources.Count + group.Catalog.Count;
+                        <article class="detail-panel @(groupIndex == 0 ? "active" : "")" data-detail-panel="@key">
+                            <div class="section-title">
+                                <h2>@group.Name</h2>
+                                <span>@totalSources fuentes</span>
+                            </div>
+                            <p class="detail-copy">@Model.ConceptDescription(group.Name)</p>
+
+                            <div class="master-detail nested-workbench connection-source-workbench" data-master-detail>
+                                <div class="master-list" aria-label="Fuentes de @group.Name">
+                                    @{
+                                        var localIndex = 0;
+                                    }
+                                    @foreach (var source in group.Sources)
+                                    {
+                                        var sourceKey = $"source-{groupIndex}-{localIndex++}";
+                                        <button type="button"
+                                                class="master-item @(localIndex == 1 ? "active" : "")"
+                                                data-detail-key="@sourceKey"
+                                                data-filter-text="@($"{source.SourceName} {source.Kind} {source.Status} {source.LastMessage} {source.Url}")"
+                                                data-filter-status="@source.Status"
+                                                data-filter-type="@source.Kind">
+                                            <span class="master-kicker">@source.Kind</span>
+                                            <strong>@source.SourceName</strong>
+                                            <span class="status @Model.SourceStatusClass(source.Status)">@source.Status</span>
+                                            <small>@source.LastMessage</small>
+                                        </button>
+                                    }
+                                    @foreach (var item in group.Catalog)
+                                    {
+                                        var sourceKey = $"catalog-{groupIndex}-{localIndex++}";
+                                        <button type="button"
+                                                class="master-item @(localIndex == 1 ? "active" : "")"
+                                                data-detail-key="@sourceKey"
+                                                data-filter-text="@($"{item.Group} {item.Name} {item.Status} {item.Use} {item.Requirement}")"
+                                                data-filter-status="@item.Status"
+                                                data-filter-type="@item.Group">
+                                            <span class="master-kicker">@item.Group</span>
+                                            <strong>@item.Name</strong>
+                                            <span class="status @Model.CatalogStatusClass(item.Status)">@item.Status</span>
+                                            <small>@item.Use</small>
+                                        </button>
+                                    }
+                                </div>
+
+                                <div class="detail-stack">
+                                    @{
+                                        localIndex = 0;
+                                    }
+                                    @foreach (var source in group.Sources)
+                                    {
+                                        var sourceKey = $"source-{groupIndex}-{localIndex++}";
+                                        <article class="detail-panel @(localIndex == 1 ? "active" : "")" data-detail-panel="@sourceKey">
+                                            <div class="section-title">
+                                                <h2>@source.SourceName</h2>
+                                                <span>@source.Kind</span>
+                                            </div>
+                                            <div class="detail-grid">
+                                                <article><span>Estado</span><strong class="@Model.SourceStatusClass(source.Status)">@source.Status</strong><small>telemetría real</small></article>
+                                                <article><span>Último OK</span><strong>@(source.LastSuccessAt?.ToLocalTime().ToString("dd MMM HH:mm") ?? "-")</strong><small>última respuesta útil</small></article>
+                                                <article><span>Última falla</span><strong>@(source.LastFailureAt?.ToLocalTime().ToString("dd MMM HH:mm") ?? "-")</strong><small>@source.FailureCount fallos</small></article>
+                                                <article><span>URL</span><strong>@(source.Url ?? "sin URL")</strong><small>origen monitoreado</small></article>
+                                            </div>
+                                            <p class="detail-copy">@source.LastMessage</p>
+                                            @if (!string.IsNullOrWhiteSpace(source.Url))
+                                            {
+                                                <div class="trade-links">
+                                                    <a href="@source.Url" target="_blank" rel="noopener">Abrir fuente</a>
+                                                </div>
+                                            }
+                                        </article>
+                                    }
+                                    @foreach (var item in group.Catalog)
+                                    {
+                                        var sourceKey = $"catalog-{groupIndex}-{localIndex++}";
+                                        <article class="detail-panel @(localIndex == 1 ? "active" : "")" data-detail-panel="@sourceKey">
+                                            <div class="section-title">
+                                                <h2>@item.Name</h2>
+                                                <span>@item.Group</span>
+                                            </div>
+                                            <div class="detail-grid">
+                                                <article><span>Estado</span><strong class="@Model.CatalogStatusClass(item.Status)">@item.Status</strong><small>mapa de integración</small></article>
+                                                <article><span>Uso</span><strong>@item.Group</strong><small>tipo de información</small></article>
+                                                <article><span>Requisito</span><strong>@item.Requirement</strong><small>llave, plan o regla</small></article>
+                                                <article><span>Alcance</span><strong>@Model.ScopeLabel()</strong><small>filtro actual</small></article>
+                                            </div>
+                                            <p class="detail-copy">@item.Use</p>
+                                            <div class="trade-links">
+                                                <a href="@item.Url" target="_blank" rel="noopener">Abrir fuente</a>
+                                            </div>
+                                        </article>
+                                    }
+                                </div>
+                            </div>
+                        </article>
+                    }
+                </div>
+            }
+        </div>
+    </section>
+
+    <details class="report-section fold-panel">
         <summary>
-            <h2>Ejecucion automatica</h2>
+            <h2>Ejecución automática</h2>
             <span>@Model.RecentExecutions.Count intentos recientes</span>
         </summary>
 
@@ -169,22 +274,10 @@
                                 <span class="status @Model.ExecutionStatusClass(execution.Status)">@execution.Status</span>
                             </summary>
                             <div class="execution-audit-detail">
-                                <article>
-                                    <span>Capital</span>
-                                    <strong>@execution.RequestedCapital.ToString("C2")</strong>
-                                </article>
-                                <article>
-                                    <span>Cantidad</span>
-                                    <strong>@(execution.ExecutedQuantity?.ToString("N8") ?? execution.RequestedQuantity?.ToString("N8") ?? "-")</strong>
-                                </article>
-                                <article>
-                                    <span>Precio</span>
-                                    <strong>@(execution.Price?.ToString("N2") ?? "-")</strong>
-                                </article>
-                                <article>
-                                    <span>Total recibido</span>
-                                    <strong>@(execution.ExecutedQuote?.ToString("C2") ?? "-")</strong>
-                                </article>
+                                <article><span>Capital</span><strong>@execution.RequestedCapital.ToString("C2")</strong></article>
+                                <article><span>Cantidad</span><strong>@(execution.ExecutedQuantity?.ToString("N8") ?? execution.RequestedQuantity?.ToString("N8") ?? "-")</strong></article>
+                                <article><span>Precio</span><strong>@(execution.Price?.ToString("N2") ?? "-")</strong></article>
+                                <article><span>Total recibido</span><strong>@(execution.ExecutedQuote?.ToString("C2") ?? "-")</strong></article>
                                 <p><strong>@execution.Reason</strong> - @execution.Message</p>
                                 @if (!string.IsNullOrWhiteSpace(execution.ExchangeOrderId))
                                 {
@@ -198,80 +291,9 @@
         </div>
     </details>
 
-    @if (Model.FilteredSources.Count == 0)
-    {
-        <div class="empty-state">
-            <strong>No hay conexiones para ese filtro.</strong>
-            <span>Prueba cambiando estado, tipo o texto de búsqueda.</span>
-        </div>
-    }
-    else
-    {
-        var sourceGroupIndex = 0;
-        @foreach (var group in Model.SourcesByKind)
-        {
-            var isFirstGroup = sourceGroupIndex++ == 0;
-            <details class="report-section fold-panel" open="@isFirstGroup">
-                <summary>
-                    <h2>@group.Key</h2>
-                    <span>@group.Count() fuentes</span>
-                </summary>
-
-                <div class="fold-body">
-                    <div class="source-grid">
-                        @foreach (var source in group)
-                        {
-                            <article class="source-row">
-                                <div>
-                                    <strong>@source.SourceName</strong>
-                                    <span>@(source.Url ?? "sin URL")</span>
-                                </div>
-                                <span class="status @Model.SourceStatusClass(source.Status)">@source.Status</span>
-                                <div>
-                                    <small>Ultimo ok</small>
-                                    <strong>@(source.LastSuccessAt?.ToLocalTime().ToString("dd MMM HH:mm") ?? "-")</strong>
-                                </div>
-                                <div>
-                                    <small>Fallos</small>
-                                    <strong>@source.FailureCount</strong>
-                                </div>
-                                <p>@source.LastMessage</p>
-                            </article>
-                        }
-                    </div>
-                </div>
-            </details>
-        }
-    }
-
     <details class="report-section fold-panel">
         <summary>
-            <h2>Mapa de fuentes</h2>
-            <span>conectadas y candidatas</span>
-        </summary>
-
-        <div class="fold-body">
-            <div class="catalog-grid">
-                @foreach (var item in Model.Catalog)
-                {
-                    <article class="catalog-card">
-                        <div>
-                            <span>@item.Group</span>
-                            <strong>@item.Name</strong>
-                        </div>
-                        <span class="status @Model.CatalogStatusClass(item.Status)">@item.Status</span>
-                        <p>@item.Use</p>
-                        <small>@item.Requirement</small>
-                        <a href="@item.Url" target="_blank" rel="noopener">Ver fuente</a>
-                    </article>
-                }
-            </div>
-        </div>
-    </details>
-
-    <details class="report-section fold-panel">
-        <summary>
-            <h2>Investigacion reciente</h2>
+            <h2>Investigación reciente</h2>
             <span>@Model.Report.RecentResearch.Count items</span>
         </summary>
 
@@ -280,7 +302,7 @@
             {
                 <div class="empty-state">
                     <strong>Aún no hay investigación capturada.</strong>
-                    <span>Las noticias, reportes macro y resumenes de IA apareceran aqui cuando coincidan con los activos monitoreados.</span>
+                    <span>Las noticias, reportes macro y resúmenes de IA aparecerán aquí cuando coincidan con los activos monitoreados.</span>
                 </div>
             }
             else
@@ -311,3 +333,7 @@
         </div>
     </details>
 </section>
+
+@section Scripts {
+    <script src="~/js/master-detail.js" asp-append-version="true"></script>
+}
