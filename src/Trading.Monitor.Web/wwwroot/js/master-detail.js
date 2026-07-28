@@ -68,6 +68,10 @@
     }
 
     function setupInternalFilters(container, items) {
+        if (container.dataset.skipInternalFilter === "true") {
+            return;
+        }
+
         if (items.length < 8 || container.querySelector(":scope > .internal-filter-bar")) {
             return;
         }

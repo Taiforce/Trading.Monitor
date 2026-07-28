@@ -145,7 +145,7 @@
                             }
                             else
                             {
-                                <div class="master-detail nested-workbench connection-source-workbench" data-master-detail>
+                                <div class="master-detail nested-workbench connection-source-workbench" data-master-detail data-skip-internal-filter="true">
                                     <div class="master-list" aria-label="Fuentes de @group.Name">
                                         @{
                                             var localIndex = 0;
@@ -189,45 +189,77 @@
                                         @foreach (var source in group.Sources)
                                         {
                                             var sourceKey = $"source-{groupIndex}-{localIndex++}";
+                                            var insight = Model.SourceInsight(source, group.Name);
                                             <article class="detail-panel @(localIndex == 1 ? "active" : "")" data-detail-panel="@sourceKey">
                                                 <div class="section-title">
                                                     <h2>@source.SourceName</h2>
                                                     <span>@source.Kind</span>
                                                 </div>
                                                 <div class="detail-grid">
-                                                    <article><span>Estado</span><strong class="@Model.SourceStatusClass(source.Status)">@source.Status</strong><small>telemetría real</small></article>
+                                                    <article><span>Estado</span><strong class="@Model.SourceStatusClass(source.Status)" data-source-status-output>@source.Status</strong><small>telemetría real</small></article>
                                                     <article><span>Último OK</span><strong>@(source.LastSuccessAt?.ToLocalTime().ToString("dd MMM HH:mm") ?? "-")</strong><small>última respuesta útil</small></article>
                                                     <article><span>Última falla</span><strong>@(source.LastFailureAt?.ToLocalTime().ToString("dd MMM HH:mm") ?? "-")</strong><small>@source.FailureCount fallos</small></article>
                                                     <article><span>URL</span><strong>@(source.Url ?? "sin URL")</strong><small>origen monitoreado</small></article>
                                                 </div>
-                                                <p class="detail-copy"><strong>Qué busca:</strong> @Model.ConceptSearchSummary(group.Name)</p>
-                                                <p class="detail-copy"><strong>Consulta/error:</strong> @Model.SourceQueryDetail(source)</p>
-                                                @if (!string.IsNullOrWhiteSpace(source.Url))
-                                                {
-                                                    <div class="trade-links">
-                                                        <a href="@source.Url" target="_blank" rel="noopener">Abrir fuente</a>
-                                                    </div>
-                                                }
+                                                <div class="source-retry-row">
+                                                    <button type="button"
+                                                            class="primary-action"
+                                                            data-source-retry
+                                                            data-source-name="@source.SourceName"
+                                                            data-source-kind="@source.Kind"
+                                                            data-source-url="@source.Url"
+                                                            data-source-scope="@Model.Ambito">Reintentar conexión</button>
+                                                    @if (!string.IsNullOrWhiteSpace(source.Url))
+                                                    {
+                                                        <a class="ghost-action" href="@source.Url" target="_blank" rel="noopener">Abrir fuente</a>
+                                                    }
+                                                    <span class="source-retry-result" data-source-retry-result data-source-message-output>@Model.SourceQueryDetail(source)</span>
+                                                </div>
+                                                <div class="source-intel-grid">
+                                                    <article><span>Qué saqué</span><p>@insight.Extracted</p></article>
+                                                    <article><span>Para qué sirvió</span><p>@insight.UsedFor</p></article>
+                                                    <article><span>Qué obtuve</span><p>@insight.Obtained</p></article>
+                                                    <article><span>Cómo lo uso</span><p>@insight.HowToUse</p></article>
+                                                    <article><span>Bueno</span><p>@insight.Good</p></article>
+                                                    <article><span>Malo o preocupante</span><p>@insight.Risk</p></article>
+                                                    <article class="source-intel-wide"><span>Decisión</span><p>@insight.Decision</p></article>
+                                                </div>
                                             </article>
                                         }
                                         @foreach (var item in group.Catalog)
                                         {
                                             var sourceKey = $"catalog-{groupIndex}-{localIndex++}";
+                                            var insight = Model.CatalogInsight(item, group.Name);
                                             <article class="detail-panel @(localIndex == 1 ? "active" : "")" data-detail-panel="@sourceKey">
                                                 <div class="section-title">
                                                     <h2>@item.Name</h2>
                                                     <span>@item.Group</span>
                                                 </div>
                                                 <div class="detail-grid">
-                                                    <article><span>Estado</span><strong class="@Model.CatalogStatusClass(item.Status)">@item.Status</strong><small>mapa de integración</small></article>
+                                                    <article><span>Estado</span><strong class="@Model.CatalogStatusClass(item.Status)" data-source-status-output>@item.Status</strong><small>mapa de integración</small></article>
                                                     <article><span>Uso</span><strong>@item.Group</strong><small>tipo de información</small></article>
                                                     <article><span>Requisito</span><strong>@item.Requirement</strong><small>llave, plan o regla</small></article>
                                                     <article><span>Alcance</span><strong>@Model.ScopeLabel()</strong><small>filtro actual</small></article>
                                                 </div>
-                                                <p class="detail-copy"><strong>Qué aporta:</strong> @item.Use</p>
-                                                <p class="detail-copy"><strong>Detalle de integración:</strong> @Model.CatalogQueryDetail(item)</p>
-                                                <div class="trade-links">
-                                                    <a href="@item.Url" target="_blank" rel="noopener">Abrir fuente</a>
+                                                <div class="source-retry-row">
+                                                    <button type="button"
+                                                            class="primary-action"
+                                                            data-source-retry
+                                                            data-source-name="@item.Name"
+                                                            data-source-kind="@item.Group"
+                                                            data-source-url="@item.Url"
+                                                            data-source-scope="@Model.Ambito">Reintentar conexión</button>
+                                                    <a class="ghost-action" href="@item.Url" target="_blank" rel="noopener">Abrir fuente</a>
+                                                    <span class="source-retry-result" data-source-retry-result data-source-message-output>@Model.CatalogQueryDetail(item)</span>
+                                                </div>
+                                                <div class="source-intel-grid">
+                                                    <article><span>Qué buscaría</span><p>@insight.Extracted</p></article>
+                                                    <article><span>Para qué serviría</span><p>@insight.UsedFor</p></article>
+                                                    <article><span>Qué aporta</span><p>@insight.Obtained</p></article>
+                                                    <article><span>Cómo lo usaría</span><p>@insight.HowToUse</p></article>
+                                                    <article><span>Bueno</span><p>@insight.Good</p></article>
+                                                    <article><span>Malo o preocupante</span><p>@insight.Risk</p></article>
+                                                    <article class="source-intel-wide"><span>Decisión</span><p>@insight.Decision</p></article>
                                                 </div>
                                             </article>
                                         }
@@ -331,4 +363,5 @@
 
 @section Scripts {
     <script src="~/js/master-detail.js" asp-append-version="true"></script>
+    <script src="~/js/connections.js" asp-append-version="true"></script>
 }

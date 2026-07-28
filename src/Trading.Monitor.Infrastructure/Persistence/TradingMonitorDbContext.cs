@@ -26,6 +26,8 @@ public sealed class TradingMonitorDbContext : DbContext
 
     public DbSet<WalletAssetEntity> WalletAssets => Set<WalletAssetEntity>();
 
+    public DbSet<HistoricalMarketCandleEntity> HistoricalMarketCandles => Set<HistoricalMarketCandleEntity>();
+
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
         var opportunity = modelBuilder.Entity<TradingOpportunityEntity>();
@@ -184,5 +186,21 @@ public sealed class TradingMonitorDbContext : DbContext
         walletAsset.Property(entity => entity.Symbol).HasMaxLength(32);
         walletAsset.Property(entity => entity.Asset).HasMaxLength(16);
         walletAsset.Property(entity => entity.CoinQuantity).HasColumnType("decimal(18,8)");
+
+        var historicalCandle = modelBuilder.Entity<HistoricalMarketCandleEntity>();
+        historicalCandle.ToTable("historical_market_candles");
+        historicalCandle.HasKey(entity => entity.Id);
+        historicalCandle.HasIndex(entity => new { entity.Symbol, entity.Interval, entity.OpenTime }).IsUnique();
+        historicalCandle.HasIndex(entity => new { entity.Market, entity.Symbol, entity.Interval });
+        historicalCandle.Property(entity => entity.Market).HasMaxLength(16);
+        historicalCandle.Property(entity => entity.Source).HasMaxLength(128);
+        historicalCandle.Property(entity => entity.Symbol).HasMaxLength(32);
+        historicalCandle.Property(entity => entity.Interval).HasMaxLength(8);
+        historicalCandle.Property(entity => entity.Open).HasColumnType("decimal(18,8)");
+        historicalCandle.Property(entity => entity.High).HasColumnType("decimal(18,8)");
+        historicalCandle.Property(entity => entity.Low).HasColumnType("decimal(18,8)");
+        historicalCandle.Property(entity => entity.Close).HasColumnType("decimal(18,8)");
+        historicalCandle.Property(entity => entity.Volume).HasColumnType("decimal(28,8)");
+        historicalCandle.Property(entity => entity.QuoteVolume).HasColumnType("decimal(28,8)");
     }
 }

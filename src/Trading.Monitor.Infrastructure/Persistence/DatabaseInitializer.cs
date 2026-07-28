@@ -35,6 +35,7 @@ public static class DatabaseInitializer
             await EnsureTraderResearchSchemaAsync(dbContext, cancellationToken);
             await EnsureTradeExecutionSchemaAsync(dbContext, cancellationToken);
             await EnsureWalletSchemaAsync(dbContext, cancellationToken);
+            await EnsureHistoricalMarketCandleSchemaAsync(dbContext, cancellationToken);
 
             try
             {
@@ -50,6 +51,48 @@ public static class DatabaseInitializer
         {
             await dbContext.Database.ExecuteSqlRawAsync("EXEC sp_releaseapplock @Resource = N'TradingMonitorTraderResearchSeed', @LockOwner = N'Session';", cancellationToken);
             await dbContext.Database.CloseConnectionAsync();
+        }
+    }
+
+    private static async Task EnsureHistoricalMarketCandleSchemaAsync(TradingMonitorDbContext dbContext, CancellationToken cancellationToken)
+    {
+        try
+        {
+            await dbContext.Database.ExecuteSqlRawAsync(
+                """
+                IF OBJECT_ID(N'dbo.historical_market_candles', N'U') IS NULL
+                BEGIN
+                    CREATE TABLE dbo.historical_market_candles
+                    (
+                        Id uniqueidentifier NOT NULL CONSTRAINT PK_historical_market_candles PRIMARY KEY,
+                        Market nvarchar(16) NOT NULL,
+                        Source nvarchar(128) NOT NULL,
+                        Symbol nvarchar(32) NOT NULL,
+                        Interval nvarchar(8) NOT NULL,
+                        OpenTime datetimeoffset NOT NULL,
+                        CloseTime datetimeoffset NOT NULL,
+                        [Open] decimal(18,8) NOT NULL,
+                        High decimal(18,8) NOT NULL,
+                        Low decimal(18,8) NOT NULL,
+                        [Close] decimal(18,8) NOT NULL,
+                        Volume decimal(28,8) NOT NULL,
+                        QuoteVolume decimal(28,8) NOT NULL,
+                        CreatedAt datetimeoffset NOT NULL,
+                        UpdatedAt datetimeoffset NOT NULL
+                    );
+
+                    CREATE UNIQUE INDEX IX_historical_market_candles_Symbol_Interval_OpenTime
+                        ON dbo.historical_market_candles(Symbol, Interval, OpenTime);
+
+                    CREATE INDEX IX_historical_market_candles_Market_Symbol_Interval
+                        ON dbo.historical_market_candles(Market, Symbol, Interval);
+                END;
+                """,
+                cancellationToken);
+        }
+        catch (SqlException exception) when (exception.Number is 2714 or 1913)
+        {
+            await Task.Delay(TimeSpan.FromSeconds(1), cancellationToken);
         }
     }
 

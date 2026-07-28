@@ -47,6 +47,11 @@ try
         client.Timeout = TimeSpan.FromSeconds(10);
         client.DefaultRequestHeaders.UserAgent.ParseAdd("Trading.Monitor/1.0");
     });
+    builder.Services.AddHttpClient<ConnectionRetryService>(client =>
+    {
+        client.Timeout = TimeSpan.FromSeconds(12);
+        client.DefaultRequestHeaders.UserAgent.ParseAdd("Trading.Monitor/1.0");
+    });
     builder.Services.AddTradingMonitorDatabase(builder.Configuration, builder.Environment.ContentRootPath);
     builder.Services.AddRazorPages();
 
@@ -135,6 +140,10 @@ try
     app.MapGet("/api/exchange/status", async (ExchangeConnectionStatusService statusService, CancellationToken cancellationToken) =>
     {
         return Results.Json(await statusService.GetAsync(cancellationToken));
+    });
+    app.MapPost("/api/conexiones/reintentar", async (ConnectionRetryRequest request, ConnectionRetryService retryService, CancellationToken cancellationToken) =>
+    {
+        return Results.Json(await retryService.RetryAsync(request, cancellationToken));
     });
     app.MapGet("/api/logs", (string? logFile, int? lines, string? nivel, string? evento, string? buscar, string? ambito,
         OperationalLogReader logReader, OperationalLogInterpreter logInterpreter) =>

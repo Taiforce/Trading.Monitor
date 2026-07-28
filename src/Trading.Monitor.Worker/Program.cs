@@ -141,6 +141,7 @@ try
             serviceProvider.GetRequiredService<TradeInstructionService>(), serviceProvider.GetRequiredService<IOptionsMonitor<ReportingOptions>>());
     });
 
+    builder.Services.AddHostedService<HistoricalMarketBackfillWorker>();
     builder.Services.AddHostedService<MarketMonitorWorker>();
 
     var host = builder.Build();

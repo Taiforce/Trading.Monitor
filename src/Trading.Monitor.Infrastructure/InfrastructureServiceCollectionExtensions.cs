@@ -24,6 +24,7 @@ public static class InfrastructureServiceCollectionExtensions
         services.AddScoped<ITraderResearchRepository, EfTraderResearchRepository>();
         services.AddScoped<ITradeExecutionRepository, EfTradeExecutionRepository>();
         services.AddScoped<IWalletRepository, EfWalletRepository>();
+        services.AddScoped<IHistoricalCandleRepository, EfHistoricalCandleRepository>();
         services.AddScoped<ISignalStore>(provider => provider.GetRequiredService<IOpportunityRepository>());
         services.AddSingleton<ISourceTelemetryRecorder, SourceTelemetryRecorder>();
 

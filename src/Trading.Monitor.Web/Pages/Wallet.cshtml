@@ -23,24 +23,24 @@
 
     <section class="metrics-grid metrics-grid-four" aria-label="Resumen wallet">
         <article class="metric">
-            <span>Capital</span>
+            <span>Capital configurado</span>
             <strong>@Model.Input.CashCapital.ToString("C2")</strong>
             <small>disponible para compras</small>
         </article>
         <article class="metric">
-            <span>Activos con saldo</span>
-            <strong>@Model.Input.Assets.Count(asset => asset.CoinQuantity > 0m)</strong>
-            <small>pueden venderse primero</small>
+            <span>Capital libre simulado</span>
+            <strong>@Model.UsageSummary.FreeCapital.ToString("C2")</strong>
+            <small>después de cierres y abiertas</small>
         </article>
         <article class="metric">
-            <span>Automático</span>
-            <strong class="@(Model.Input.AutoTradingEnabled ? "status-open" : "status-muted")">@(Model.Input.AutoTradingEnabled ? "Autorizado" : "Apagado")</strong>
-            <small>además requiere protección del exchange/broker</small>
+            <span>Capital en uso</span>
+            <strong>@Model.UsageSummary.CapitalInUse.ToString("C2")</strong>
+            <small>@Model.UsageSummary.OpenOperations operaciones abiertas</small>
         </article>
         <article class="metric">
-            <span>Exchange/Broker</span>
-            <strong class="@(Model.LiveOrdersReady ? "status-win" : "status-muted")">@(Model.LiveOrdersReady ? "Live" : "Protegido")</strong>
-            <small>@Model.BinanceSafetyText()</small>
+            <span>Resultado simulado</span>
+            <strong class="@Model.SignedClass(Model.UsageSummary.ClosedNet)">@Model.UsageSummary.ClosedNet.ToString("C2")</strong>
+            <small>@Model.UsageSummary.ClosedOperations cierres medidos</small>
         </article>
     </section>
 
@@ -59,7 +59,7 @@
                 <input asp-for="Input.AutoTradingEnabled" type="checkbox"/>
                 <span>Permitir automático desde esta wallet</span>
             </label>
-            <p class="wallet-note">Este check solo autoriza al motor a ejecutar señales permitidas. No mueve dinero real mientras el modo real esté bloqueado.</p>
+            <p class="wallet-note">Este check solo permite que el motor intente operar señales permitidas. No mueve dinero real mientras el exchange/broker esté protegido.</p>
         </section>
 
         <section class="report-section wallet-panel wallet-assets">
@@ -86,8 +86,8 @@
                         <input asp-for="Input.Assets[i].AllowSellHighBuyLow" type="checkbox" disabled="@(Model.Input.Assets[i].CoinQuantity <= 0m ? "disabled" : null)" data-wallet-sell-high-toggle="@i"/>
                         <span>Vender alto - comprar bajo</span>
                     </label>
-                    <label class="wallet-toggle compact">
-                        <input asp-for="Input.Assets[i].AutoTradingEnabled" type="checkbox"/>
+                    <label class="wallet-toggle compact @(Model.Input.Assets[i].CoinQuantity <= 0m ? "disabled" : "")">
+                        <input asp-for="Input.Assets[i].AutoTradingEnabled" type="checkbox" disabled="@(Model.Input.Assets[i].CoinQuantity <= 0m ? "disabled" : null)" data-wallet-auto-toggle="@i"/>
                         <span>Automático</span>
                     </label>
                     <em class="@(Model.Input.Assets[i].CoinQuantity > 0m && Model.Input.Assets[i].AllowSellHighBuyLow ? "gain" : "flat")">@Model.SellHighStatus(Model.Input.Assets[i])</em>
@@ -131,7 +131,7 @@
                     <strong>Para conectar Forex real necesito:</strong>
                     <span>Elegir broker soportado, idealmente OANDA por API.</span>
                     <span>Token de broker sin permisos de retiro y con límites de riesgo.</span>
-                    <span>Primero ejecutar en simulación hasta validar cierres y comisiones.</span>
+                    <span>Primero ejecutar en simulación hasta validar cierres, spread y comisiones.</span>
                 }
                 else
                 {
@@ -144,22 +144,138 @@
             </div>
         </section>
     </form>
+
+    <section class="report-section">
+        <div class="section-title">
+            <h2>Uso simulado de wallet</h2>
+            <span>qué habría hecho el motor con estas señales</span>
+        </div>
+        <div class="wallet-exposure-grid">
+            @foreach (var asset in Model.AssetUsage)
+            {
+                <article>
+                    <span>@asset.Symbol</span>
+                    <strong>@asset.Asset</strong>
+                    <small>Wallet: @Model.QuantityText(asset.WalletQuantity, asset.Asset)</small>
+                    <small>En uso: @Model.QuantityText(asset.QuantityInUse, asset.Asset)</small>
+                    <small>Capital usado: @asset.CapitalInUse.ToString("C2")</small>
+                    <small>Libre para vender primero: @Model.QuantityText(asset.QuantityFree, asset.Asset)</small>
+                </article>
+            }
+        </div>
+
+        @if (Model.WalletOperations.Count == 0)
+        {
+            <div class="empty-state">
+                <strong>No hay señales recientes para simular.</strong>
+                <span>Cuando el worker registre operaciones, aquí verás cómo habrían afectado tu wallet.</span>
+            </div>
+        }
+        else
+        {
+            <div class="master-detail wallet-operation-workbench" data-master-detail>
+                <div class="master-list" aria-label="Operaciones de wallet">
+                    @for (var i = 0; i < Model.WalletOperations.Count; i++)
+                    {
+                        var operation = Model.WalletOperations[i];
+                        var key = $"wallet-operation-{i}";
+                        <button type="button"
+                                class="master-item @Model.OperationClass(operation) @(i == 0 ? "active" : "")"
+                                data-detail-key="@key"
+                                data-filter-text="@($"{operation.Symbol} {operation.ActionLabel} {operation.AutoStatus} {operation.ExecutionStatus}")"
+                                data-filter-status="@(operation.IsOpen ? "Abierta" : "Cerrada")"
+                                data-filter-type="@operation.ActionLabel"
+                                data-filter-mode="@(operation.CanOperate ? "Operable" : "Bloqueada")">
+                            <span class="master-kicker">@operation.SignalTime.ToLocalTime().ToString("dd MMM HH:mm")</span>
+                            <strong>@operation.Symbol - @operation.ActionLabel</strong>
+                            <span class="status @Model.OperationClass(operation)">@(operation.CanOperate ? (operation.IsOpen ? "En uso/paper" : "Cerrada") : "Bloqueada")</span>
+                            <small>@operation.AutoStatus</small>
+                            <small class="@Model.SignedClass(operation.NetBenefit)">@operation.NetBenefit.ToString("C2") neto</small>
+                        </button>
+                    }
+                </div>
+                <div class="detail-stack">
+                    @for (var i = 0; i < Model.WalletOperations.Count; i++)
+                    {
+                        var operation = Model.WalletOperations[i];
+                        var key = $"wallet-operation-{i}";
+                        <article class="detail-panel @(i == 0 ? "active" : "")" data-detail-panel="@key">
+                            <div class="section-title">
+                                <h2>@operation.Symbol</h2>
+                                <span>@operation.ActionLabel</span>
+                            </div>
+                            <div class="money-scenario signal-detail-fields">
+                                <div>
+                                    <span>Cantidad entrada</span>
+                                    <strong>@operation.Investment.ToString("C2")</strong>
+                                    <small>@operation.AutoStatus</small>
+                                </div>
+                                <div>
+                                    <span>Costo unidad</span>
+                                    <strong>@Model.Price(operation.EntryPrice)</strong>
+                                    <small>precio de entrada</small>
+                                </div>
+                                <div>
+                                    <span>@operation.Asset obtenido/usado</span>
+                                    <strong>@Model.QuantityText(operation.Quantity, operation.Asset)</strong>
+                                    <small>cantidad simulada</small>
+                                </div>
+                                <div>
+                                    <span>Comisión entrada</span>
+                                    <strong>@Model.EstimatedFeePercentPerSide.ToString("N2")%</strong>
+                                    <small>@operation.EntryFee.ToString("C2")</small>
+                                </div>
+                                <div>
+                                    <span>Mercado actual/salida</span>
+                                    <strong>@Model.Price(operation.ExitPrice ?? operation.CurrentPrice)</strong>
+                                    <small>@(operation.ExitPrice.HasValue ? "precio de cierre" : "precio vivo actual")</small>
+                                </div>
+                                <div>
+                                    <span>Beneficio</span>
+                                    <strong class="@Model.SignedClass(operation.NetBenefit)">@operation.NetBenefit.ToString("C2")</strong>
+                                    <small>después de comisiones</small>
+                                </div>
+                                <div>
+                                    <span>Comisión salida</span>
+                                    <strong>@Model.EstimatedFeePercentPerSide.ToString("N2")%</strong>
+                                    <small>@operation.ExitFee.ToString("C2")</small>
+                                </div>
+                                <div>
+                                    <span>Total obtenido</span>
+                                    <strong class="@Model.SignedClass(operation.NetBenefit)">@operation.TotalObtained.ToString("C2")</strong>
+                                    <small>@(operation.IsOpen ? "si cerrara al precio actual" : "al cierre registrado")</small>
+                                </div>
+                            </div>
+                            <div class="wallet-operation-note">
+                                <strong>@(operation.CanOperate ? "Operación usable para simulación" : "Operación bloqueada por tu wallet")</strong>
+                                <span>@operation.ExecutionStatus</span>
+                            </div>
+                        </article>
+                    }
+                </div>
+            </div>
+        }
+    </section>
 </section>
 
 @section Scripts {
+    <script src="~/js/master-detail.js" asp-append-version="true"></script>
     <script>
         (() => {
             document.querySelectorAll("[data-wallet-coin-quantity]").forEach(input => {
                 const index = input.getAttribute("data-wallet-coin-quantity");
-                const toggle = document.querySelector(`[data-wallet-sell-high-toggle="${index}"]`);
-                const label = toggle?.closest(".wallet-toggle");
+                const sellToggle = document.querySelector(`[data-wallet-sell-high-toggle="${index}"]`);
+                const autoToggle = document.querySelector(`[data-wallet-auto-toggle="${index}"]`);
+                const labels = [sellToggle?.closest(".wallet-toggle"), autoToggle?.closest(".wallet-toggle")];
 
                 const sync = () => {
                     const enabled = Number(input.value || 0) > 0;
-                    if (!toggle) return;
-                    toggle.disabled = !enabled;
-                    if (!enabled) toggle.checked = false;
-                    label?.classList.toggle("disabled", !enabled);
+                    [sellToggle, autoToggle].forEach(toggle => {
+                        if (!toggle) return;
+                        toggle.disabled = !enabled;
+                        if (!enabled) toggle.checked = false;
+                    });
+                    labels.forEach(label => label?.classList.toggle("disabled", !enabled));
                 };
 
                 input.addEventListener("input", sync);

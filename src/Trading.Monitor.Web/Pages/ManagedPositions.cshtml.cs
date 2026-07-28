@@ -38,6 +38,8 @@ public sealed class ManagedPositionsModel : TradingPageModel
 
     public IReadOnlyList<string> Symbols { get; private set; } = [];
 
+    public IReadOnlyDictionary<string, int> OpenCountBySymbol { get; private set; } = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase);
+
     [BindProperty(SupportsGet = true)]
     public string Estado { get; set; } = "abiertas";
 
@@ -130,6 +132,14 @@ public sealed class ManagedPositionsModel : TradingPageModel
         Rows = ApplyFilters(Report.RecentSignals)
             .Where(row => WalletSignalPolicy.CanShowSignal(row, wallet))
             .ToArray();
+        OpenCountBySymbol = Rows
+            .GroupBy(row => row.Symbol, StringComparer.OrdinalIgnoreCase)
+            .ToDictionary(group => group.Key, group => group.Count(), StringComparer.OrdinalIgnoreCase);
+    }
+
+    public int OpenCountFor(string symbol)
+    {
+        return OpenCountBySymbol.TryGetValue(symbol, out var count) ? count : 0;
     }
 
     private IReadOnlyList<OpportunityReportRow> ApplyFilters(IEnumerable<OpportunityReportRow> rows)

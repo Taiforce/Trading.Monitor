@@ -66,7 +66,7 @@
                 <span>Activo</span>
                 @foreach (var symbol in Model.Symbols)
                 {
-                    <button type="button" data-chart-symbol-button="@symbol">@Model.SymbolButtonLabel(symbol)</button>
+                    <button type="button" data-chart-symbol-button="@symbol">@Model.SymbolButtonLabel(symbol) (@Model.OpenCountFor(symbol))</button>
                 }
             </div>
             <div>

@@ -722,6 +722,60 @@ td small,
     line-height: 1.35;
 }
 
+.wallet-exposure-grid {
+    display: grid;
+    grid-template-columns: repeat(5, minmax(170px, 1fr));
+    gap: 10px;
+    margin: 12px 0 16px;
+}
+
+.wallet-exposure-grid article {
+    display: grid;
+    gap: 5px;
+    background: var(--surface-2);
+    border: 1px solid var(--line);
+    border-radius: 6px;
+    padding: 12px;
+}
+
+.wallet-exposure-grid span {
+    color: var(--muted);
+    font-size: 0.72rem;
+    font-weight: 900;
+    text-transform: uppercase;
+}
+
+.wallet-exposure-grid strong {
+    font-size: 1.05rem;
+}
+
+.wallet-exposure-grid small {
+    color: var(--muted);
+    line-height: 1.35;
+}
+
+.wallet-operation-workbench {
+    grid-template-columns: minmax(320px, 0.78fr) minmax(560px, 1.22fr);
+}
+
+.wallet-operation-workbench > .master-list {
+    max-height: min(720px, calc(100vh - 280px));
+}
+
+.wallet-operation-note {
+    display: grid;
+    gap: 5px;
+    background: var(--surface-2);
+    border: 1px solid var(--line);
+    border-radius: 6px;
+    padding: 12px;
+}
+
+.wallet-operation-note span {
+    color: var(--muted);
+    line-height: 1.4;
+}
+
 .quick-links {
     display: grid;
     grid-template-columns: repeat(4, minmax(180px, 1fr));
@@ -2203,6 +2257,73 @@ td small,
     padding-right: 6px;
 }
 
+.source-retry-row {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 8px;
+    border-top: 1px solid var(--line);
+    border-bottom: 1px solid var(--line);
+    padding: 10px 0;
+}
+
+.source-retry-row .primary-action,
+.source-retry-row .ghost-action {
+    min-height: 34px;
+    display: inline-grid;
+    place-items: center;
+    border-radius: 6px;
+    border: 1px solid var(--line);
+    padding: 0 12px;
+    font: inherit;
+    font-weight: 900;
+    cursor: pointer;
+}
+
+.source-retry-row .primary-action:disabled {
+    opacity: 0.65;
+    cursor: wait;
+}
+
+.source-retry-result {
+    flex: 1 1 280px;
+    color: var(--muted);
+    font-size: 0.86rem;
+    line-height: 1.4;
+}
+
+.source-intel-grid {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 10px;
+}
+
+.source-intel-grid article {
+    background: var(--surface-2);
+    border: 1px solid var(--line);
+    border-radius: 6px;
+    padding: 12px;
+}
+
+.source-intel-grid span {
+    display: block;
+    margin-bottom: 6px;
+    color: var(--muted);
+    font-size: 0.72rem;
+    font-weight: 900;
+    text-transform: uppercase;
+}
+
+.source-intel-grid p {
+    margin: 0;
+    color: var(--ink);
+    line-height: 1.45;
+}
+
+.source-intel-wide {
+    grid-column: 1 / -1;
+}
+
 .source-workbench > .detail-stack {
     max-height: min(920px, calc(100vh - 210px));
     overflow-y: auto;
@@ -3385,6 +3506,8 @@ td small,
     .signal-summary-grid,
     .trade-plan-grid,
     .money-scenario,
+    .wallet-exposure-grid,
+    .wallet-operation-workbench,
     .trade-explain,
     .instruction-panel,
     .guide-grid,
@@ -3404,6 +3527,7 @@ td small,
     .signal-fast-grid,
     .signal-money-grid,
     .detail-grid,
+    .source-intel-grid,
     .execution-audit-detail,
     .detail-notes,
     .trader-detail-head,

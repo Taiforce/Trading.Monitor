@@ -23,6 +23,8 @@ public sealed class ActionsModel(IOpportunityRepository opportunityRepository, I
 
     public IReadOnlyList<string> Symbols { get; private set; } = [];
 
+    public IReadOnlyDictionary<string, int> OpenCountBySymbol { get; private set; } = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase);
+
     public decimal FilteredWonAmount { get; private set; }
 
     public decimal FilteredLostAmount { get; private set; }
@@ -52,8 +54,16 @@ public sealed class ActionsModel(IOpportunityRepository opportunityRepository, I
         Rows = ApplyFilters(Report.RecentSignals)
             .Where(row => WalletSignalPolicy.CanShowSignal(row, wallet))
             .ToArray();
+        OpenCountBySymbol = Rows
+            .GroupBy(row => row.Symbol, StringComparer.OrdinalIgnoreCase)
+            .ToDictionary(group => group.Key, group => group.Count(), StringComparer.OrdinalIgnoreCase);
         HighlightedRows = Rows.Where(row => InstructionFor(row).Highlight).Take(6).ToArray();
         CalculateMoneySummary();
+    }
+
+    public int OpenCountFor(string symbol)
+    {
+        return OpenCountBySymbol.TryGetValue(symbol, out var count) ? count : 0;
     }
 
     public TradeInstruction InstructionFor(OpportunityReportRow row)
