@@ -145,6 +145,61 @@
 
     <section class="report-section">
         <div class="section-title">
+            <h2>IA compuesta</h2>
+            <span>consenso inspirado en 14 enfoques</span>
+        </div>
+        <div class="insight-strip compact-insight">
+            <span>Regla principal</span>
+            <strong>No existe 100% garantizado. Aquí se priorizan señales con ventaja neta después de comisiones, varias confirmaciones y riesgo controlado.</strong>
+        </div>
+        @if (Model.AiConsensusRows.Count == 0)
+        {
+            <div class="empty-state">
+                <strong>Sin señales para evaluar.</strong>
+                <span>Aplica menos filtros o espera a que el servicio registre nuevas oportunidades.</span>
+            </div>
+        }
+        else
+        {
+            <div class="ai-consensus-grid">
+                @foreach (var row in Model.AiConsensusRows)
+                {
+                    <article class="ai-consensus-card @Model.ConsensusClass(row)">
+                        <header>
+                            <div>
+                                <span>@row.Symbol</span>
+                                <strong>@row.CompositeScore/100</strong>
+                            </div>
+                            <em>@Model.ConsensusAction(row)</em>
+                        </header>
+                        <h3>@row.ConsensusLabel</h3>
+                        <p>@row.PlainReadout</p>
+                        <div class="ai-chip-row">
+                            @foreach (var modelScore in row.TopModels)
+                            {
+                                <span title="@modelScore.Why">@modelScore.Name @modelScore.Score</span>
+                            }
+                        </div>
+                        @if (row.VetoReasons.Count > 0)
+                        {
+                            <details class="compact-details">
+                                <summary>Ver bloqueos</summary>
+                                <div class="ai-veto-list">
+                                    @foreach (var reason in row.VetoReasons)
+                                    {
+                                        <span>@reason</span>
+                                    }
+                                </div>
+                            </details>
+                        }
+                    </article>
+                }
+            </div>
+        }
+    </section>
+
+    <section class="report-section">
+        <div class="section-title">
             <h2>Aprendizaje propio</h2>
             <span>retroalimentacion real</span>
         </div>

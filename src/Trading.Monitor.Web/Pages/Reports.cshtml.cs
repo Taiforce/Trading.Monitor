@@ -14,17 +14,20 @@ public sealed class ReportsModel : TradingPageModel
 {
     private static readonly CultureInfo NumberCulture = CultureInfo.GetCultureInfo("en-US");
     private readonly IOpportunityRepository _opportunityRepository;
+    private readonly AiConsensusEngine _aiConsensusEngine;
     private readonly TradeInstructionService _tradeInstructionService;
     private readonly ILogger<ReportsModel> _logger;
 
     public ReportsModel(
         IOpportunityRepository opportunityRepository,
         IOptionsMonitor<ReportingOptions> reportingOptions,
+        AiConsensusEngine aiConsensusEngine,
         TradeInstructionService tradeInstructionService,
         ILogger<ReportsModel> logger)
         : base(opportunityRepository, reportingOptions)
     {
         _opportunityRepository = opportunityRepository;
+        _aiConsensusEngine = aiConsensusEngine;
         _tradeInstructionService = tradeInstructionService;
         _logger = logger;
     }
@@ -81,6 +84,8 @@ public sealed class ReportsModel : TradingPageModel
 
     public string LearningReadout { get; private set; } = "";
 
+    public IReadOnlyList<AiConsensusResult> AiConsensusRows { get; private set; } = [];
+
     [BindProperty(SupportsGet = true)]
     public string Estado { get; set; } = "todas";
 
@@ -112,6 +117,7 @@ public sealed class ReportsModel : TradingPageModel
         FilteredRows = ApplyFilters(allSignals).ToArray();
         BuildFilteredMetrics();
         LearningRows = BuildLearningRows(FilteredRows);
+        AiConsensusRows = BuildAiConsensusRows(FilteredRows);
 
         MaxSymbolValue = FilteredSymbolBreakdown
             .Select(row => Math.Max(Math.Abs(row.PotentialNetAtTakeProfit1), Math.Abs(row.PotentialLossAtStop)))
@@ -244,6 +250,19 @@ public sealed class ReportsModel : TradingPageModel
             .OrderBy(row => row.ClassName == "loss" ? 0 : row.ClassName == "gain" ? 2 : 1)
             .ThenByDescending(row => row.TotalSignals)
             .Take(12)
+            .ToArray();
+    }
+
+    private IReadOnlyList<AiConsensusResult> BuildAiConsensusRows(IReadOnlyList<OpportunityReportRow> rows)
+    {
+        if (rows.Count == 0)
+            return [];
+
+        return rows
+            .Select(row => _aiConsensusEngine.Evaluate(row, rows))
+            .OrderBy(row => row.HasVeto ? 1 : 0)
+            .ThenByDescending(row => row.CompositeScore)
+            .Take(8)
             .ToArray();
     }
 
@@ -417,6 +436,28 @@ public sealed class ReportsModel : TradingPageModel
     public string RealTotal(TradeConversionSummary conversion)
     {
         return conversion.FinalTotal.HasValue ? Money(conversion.FinalTotal.Value) : "Pendiente";
+    }
+
+    public string ConsensusClass(AiConsensusResult result)
+    {
+        if (result.HasVeto || result.CompositeScore < 60)
+            return "result-red";
+
+        if (result.CompositeScore >= 75)
+            return "result-green";
+
+        return "result-yellow";
+    }
+
+    public string ConsensusAction(AiConsensusResult result)
+    {
+        if (result.HasVeto || result.CompositeScore < 65)
+            return "Esperar";
+
+        if (result.CompositeScore >= 75)
+            return "Revisar ahora";
+
+        return "Vigilar";
     }
 
     private static bool MatchesOperationMode(OpportunityReportRow row, string? mode)

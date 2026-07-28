@@ -1588,6 +1588,120 @@ td small,
     gap: 10px;
 }
 
+.ai-consensus-grid {
+    display: grid;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: 12px;
+}
+
+.ai-consensus-card {
+    --consensus-color: var(--muted);
+    display: grid;
+    gap: 10px;
+    background: var(--surface-2);
+    border: 1px solid var(--line);
+    border-left: 5px solid var(--consensus-color);
+    border-radius: var(--radius);
+    padding: 12px;
+}
+
+.ai-consensus-card.result-green {
+    --consensus-color: var(--good);
+    background: color-mix(in srgb, var(--good) 7%, var(--surface-2));
+}
+
+.ai-consensus-card.result-yellow {
+    --consensus-color: var(--warn);
+    background: color-mix(in srgb, var(--warn) 8%, var(--surface-2));
+}
+
+.ai-consensus-card.result-red {
+    --consensus-color: var(--bad);
+    background: color-mix(in srgb, var(--bad) 7%, var(--surface-2));
+}
+
+.ai-consensus-card header {
+    display: flex;
+    align-items: start;
+    justify-content: space-between;
+    gap: 10px;
+}
+
+.ai-consensus-card header span,
+.ai-consensus-card p,
+.ai-consensus-card summary {
+    color: var(--muted);
+}
+
+.ai-consensus-card header span {
+    display: block;
+    font-size: 0.76rem;
+    font-weight: 900;
+    text-transform: uppercase;
+}
+
+.ai-consensus-card header strong {
+    display: block;
+    margin-top: 2px;
+    font-size: 1.45rem;
+    line-height: 1;
+}
+
+.ai-consensus-card em {
+    min-height: 28px;
+    display: inline-grid;
+    place-items: center;
+    border: 1px solid color-mix(in srgb, var(--consensus-color) 45%, var(--line));
+    border-radius: 999px;
+    color: var(--consensus-color);
+    font-size: 0.72rem;
+    font-style: normal;
+    font-weight: 900;
+    padding: 0 10px;
+    white-space: nowrap;
+}
+
+.ai-consensus-card h3 {
+    margin: 0;
+    font-size: 1rem;
+    line-height: 1.2;
+}
+
+.ai-consensus-card p {
+    margin: 0;
+    line-height: 1.38;
+}
+
+.ai-chip-row,
+.ai-veto-list {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+}
+
+.ai-chip-row span,
+.ai-veto-list span {
+    min-height: 26px;
+    display: inline-flex;
+    align-items: center;
+    border: 1px solid var(--line);
+    border-radius: 999px;
+    background: var(--surface);
+    color: var(--ink);
+    font-size: 0.72rem;
+    font-weight: 900;
+    padding: 0 9px;
+}
+
+.ai-veto-list {
+    margin-top: 8px;
+}
+
+.ai-veto-list span {
+    border-color: color-mix(in srgb, var(--bad) 35%, var(--line));
+    color: var(--bad);
+}
+
 .learning-card {
     display: grid;
     gap: 10px;
@@ -2900,6 +3014,7 @@ td small,
     .trader-grid,
     .master-detail,
     .learning-grid,
+    .ai-consensus-grid,
     .priority-grid,
     .signal-summary-grid,
     .trade-plan-grid,

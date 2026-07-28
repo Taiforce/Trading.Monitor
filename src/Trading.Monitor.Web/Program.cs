@@ -28,6 +28,7 @@ try
     builder.Services.Configure<RiskOptions>(builder.Configuration.GetSection("Risk"));
     builder.Services.Configure<ExchangeExecutionOptions>(builder.Configuration.GetSection("ExchangeExecution"));
     builder.Services.AddSingleton<OpportunityProjectionService>();
+    builder.Services.AddSingleton<AiConsensusEngine>();
     builder.Services.AddSingleton(serviceProvider => new TradeInstructionService(serviceProvider.GetRequiredService<Microsoft.Extensions.Options.IOptionsMonitor<RiskOptions>>().CurrentValue));
     builder.Services.AddSingleton<VirtualPortfolioSimulator>();
     builder.Services.AddSingleton<TraderFollowSimulator>();
