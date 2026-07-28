@@ -7,12 +7,8 @@
 <section class="dashboard">
     <div class="page-head">
         <div>
-            <p class="eyebrow">@Model.MarketLabel() | simulador compuesto</p>
-            <h1>Cartera virtual</h1>
-        </div>
-        <div class="market-subnav" aria-label="Cambiar simulador">
-            <a class="@(Model.MarketRouteValue() == "crypto" ? "active" : "")" asp-page="/Portfolio" asp-route-Mercado="crypto" asp-route-InitialCapital="@Model.InitialCapital">Crypto</a>
-            <a class="@(Model.MarketRouteValue() == "forex" ? "active" : "")" asp-page="/Portfolio" asp-route-Mercado="forex" asp-route-InitialCapital="@Model.InitialCapital">Forex</a>
+            <p class="eyebrow">@Model.MarketLabel() | @Model.SimulatorTitle()</p>
+            <h1>@Model.SimulatorTitle()</h1>
         </div>
     </div>
 
@@ -23,6 +19,7 @@
         </div>
         <form method="get" class="filter-bar portfolio-filter">
             <input asp-for="Mercado" type="hidden"/>
+            <input asp-for="VistaSimulador" type="hidden"/>
             <label>
                 <span>Monto inicial</span>
                 <input asp-for="InitialCapital" type="number" min="0.01" step="0.01"/>
@@ -57,15 +54,30 @@
                 <span>Score min</span>
                 <input asp-for="ScoreMinimo" type="number" min="0" max="100" step="5"/>
             </label>
+            @if (Model.VistaSimulador == "traders")
+            {
+                <label>
+                    <span>Trader</span>
+                    <select asp-for="TraderId">
+                        <option value="">Selecciona trader</option>
+                        @foreach (var trader in Model.Traders)
+                        {
+                            <option value="@trader.Id">@trader.DisplayName (@trader.Platform)</option>
+                        }
+                    </select>
+                </label>
+            }
             <button type="submit">Simular</button>
         </form>
     </section>
 
     <div class="insight-strip">
         <span>Regla</span>
-        <strong>Usa todo el saldo en cada señal cerrada. Si no tienes el activo, filtra por Compra bajo - vende alto para simular operaciones spot normales.</strong>
+        <strong>@Model.SimulatorHint()</strong>
     </div>
 
+    @if (Model.VistaSimulador != "traders")
+    {
     <section class="metrics-grid metrics-grid-four" aria-label="Resumen cartera virtual">
         <article class="metric">
             <span>Saldo final</span>
@@ -88,7 +100,10 @@
             <small>pico @Model.Money(Model.Simulation.PeakBalance)</small>
         </article>
     </section>
+    }
 
+    @if (Model.VistaSimulador != "traders")
+    {
     <section class="report-section">
         <div class="section-title">
             <h2>Curva de cartera</h2>
@@ -101,7 +116,10 @@
             </svg>
         </div>
     </section>
+    }
 
+    @if (Model.VistaSimulador == "traders")
+    {
     <section class="report-section">
         <div class="section-title">
             <h2>Si hubieras seguido a un trader</h2>
@@ -230,7 +248,10 @@
             </div>
         }
     </section>
+    }
 
+    @if (Model.VistaSimulador != "traders")
+    {
     <section class="report-section">
         <div class="section-title">
             <h2>Secuencia compuesta</h2>
@@ -320,6 +341,7 @@
             </div>
         }
     </section>
+    }
 </section>
 
 @section Scripts {

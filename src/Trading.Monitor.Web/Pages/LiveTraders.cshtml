@@ -1,0 +1,133 @@
+@page "/mercado-traders"
+@model LiveTradersModel
+@{
+    ViewData["Title"] = "Mercado vivo traders";
+    var selected = Model.OpenTrades.FirstOrDefault();
+}
+
+<section class="dashboard">
+    <div class="page-head">
+        <div>
+            <p class="eyebrow">@Model.MarketLabel() | traders en vivo</p>
+            <h1>Operaciones de traders</h1>
+        </div>
+    </div>
+
+    <section class="metrics-grid metrics-grid-four" aria-label="Resumen traders vivo">
+        <article class="metric">
+            <span>Operaciones abiertas</span>
+            <strong>@Model.OpenTrades.Count</strong>
+            <small>de traders monitoreados</small>
+        </article>
+        <article class="metric">
+            <span>Traders con actividad</span>
+            <strong>@Model.OpenTrades.Select(row => row.TraderId).Distinct().Count()</strong>
+            <small>en @Model.MarketLabel()</small>
+        </article>
+        <article class="metric">
+            <span>Fuentes</span>
+            <strong>@Model.Report.TotalSources</strong>
+            <small>plataformas mapeadas</small>
+        </article>
+        <article class="metric">
+            <span>Filtro actual</span>
+            <strong>@(string.IsNullOrWhiteSpace(Model.Platform) ? "Todas" : Model.Platform)</strong>
+            <small>plataforma trader</small>
+        </article>
+    </section>
+
+    <section class="report-section">
+        <div class="section-title">
+            <h2>Operaciones abiertas por traders</h2>
+            <span>elige una para seguirla en el gráfico</span>
+        </div>
+
+        <form method="get" class="filter-bar traders-filter live-trader-filter">
+            <input asp-for="Mercado" type="hidden"/>
+            <label>
+                <span>Fuente</span>
+                <select asp-for="Platform">
+                    <option value="">Todas</option>
+                    @foreach (var platform in Model.Platforms)
+                    {
+                        <option value="@platform">@platform</option>
+                    }
+                </select>
+            </label>
+            <label>
+                <span>Buscar</span>
+                <input asp-for="Search" type="search" placeholder="trader, simbolo, estilo"/>
+            </label>
+            <button type="submit">Filtrar</button>
+        </form>
+
+        @if (Model.OpenTrades.Count == 0)
+        {
+            <div class="empty-state">
+                <strong>No hay operaciones abiertas de traders para este mercado.</strong>
+                <span>Cuando una fuente aporte trades abiertos, aquí verás la lista y su seguimiento vivo.</span>
+            </div>
+        }
+        else
+        {
+            <div class="live-trader-board"
+                 data-live-trader-board
+                 data-market="@Model.MarketRouteValue()"
+                 data-symbol="@(selected?.Symbol ?? "")"
+                 data-interval="@(selected is null ? "1m" : Model.ChartIntervalFor(selected))">
+                <div class="live-trader-list" id="liveTraderList">
+                    @for (var index = 0; index < Model.OpenTrades.Count; index++)
+                    {
+                        var row = Model.OpenTrades[index];
+                        <button type="button"
+                                class="live-card trader-live-item @(index == 0 ? "selected-live-card" : "")"
+                                data-trader-operation
+                                data-symbol="@row.Symbol"
+                                data-trader="@row.TraderName"
+                                data-platform="@row.Platform"
+                                data-side="@row.Side"
+                                data-side-label="@Model.SideLabel(row.Side)"
+                                data-entry-price="@Model.Invariant(row.EntryPrice)"
+                                data-entry-time="@row.OpenedAt.ToString("O")"
+                                data-interval="@Model.ChartIntervalFor(row)"
+                                data-from="@Model.ReplayFrom(row).ToString("O")"
+                                data-source-url="@row.SourceUrl">
+                            <div class="live-card-summary">
+                                <i aria-hidden="true"></i>
+                                <div>
+                                    <span>@row.Platform | @row.OpenedAt.ToLocalTime().ToString("dd MMM HH:mm")</span>
+                                    <strong>@row.Symbol - @row.TraderName</strong>
+                                    <small>@Model.SideLabel(row.Side) | entrada @Model.Price(row.EntryPrice)</small>
+                                </div>
+                                <em>@(index == 0 ? "siguiendo" : "ver")</em>
+                            </div>
+                            <div class="signal-extra-row">
+                                <span>Acción: <strong>@Model.EntryVerb(row.Side)</strong></span>
+                                <span>Cantidad: <strong>@Model.Quantity(row.Quantity)</strong></span>
+                                <span>Apalancamiento: <strong>@(row.Leverage.HasValue ? $"{row.Leverage:N2}x" : "-")</strong></span>
+                            </div>
+                        </button>
+                    }
+                </div>
+
+                <div class="trade-terminal trader-live-terminal">
+                    <div class="terminal-strip" id="traderLiveStrip">
+                        <strong>@(selected?.Symbol ?? "Sin operación")</strong>
+                        <span>cargando mercado...</span>
+                    </div>
+                    <div id="traderLiveChart" class="tradingview-chart" aria-label="Gráfico vivo de operación trader"></div>
+                    <div id="traderLiveHover" class="chart-hover-card" hidden></div>
+                    <div id="traderLiveDetail" class="trader-live-detail">
+                        <strong>@(selected?.TraderName ?? "Selecciona una operación")</strong>
+                        <span>@(selected?.Notes ?? "El gráfico seguirá el precio vivo contra la entrada del trader.")</span>
+                    </div>
+                </div>
+            </div>
+        }
+    </section>
+</section>
+
+@section Scripts {
+    <script src="~/lib/lightweight-charts/lightweight-charts.standalone.production.js"></script>
+    <script src="~/js/trader-live-chart.js" asp-append-version="true"></script>
+}

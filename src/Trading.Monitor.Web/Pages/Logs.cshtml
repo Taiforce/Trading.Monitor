@@ -11,12 +11,6 @@
             <p class="eyebrow">@Model.Ambito | Serilog</p>
             <h1>Logs operativos</h1>
         </div>
-        <div class="market-subnav" aria-label="Cambiar ámbito">
-            <a class="@(Model.Ambito == "crypto" ? "active" : "")" asp-page="/Logs" asp-route-Ambito="crypto">Crypto</a>
-            <a class="@(Model.Ambito == "forex" ? "active" : "")" asp-page="/Logs" asp-route-Ambito="forex">Forex</a>
-            <a class="@(Model.Ambito == "traders" ? "active" : "")" asp-page="/Logs" asp-route-Ambito="traders">Traders</a>
-            <a class="@(Model.Ambito == "todo" ? "active" : "")" asp-page="/Logs">Todo</a>
-        </div>
     </div>
 
     <section class="metrics-grid metrics-grid-four" aria-label="Resumen de logs">

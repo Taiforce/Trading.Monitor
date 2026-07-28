@@ -71,12 +71,16 @@ public sealed class PortfolioModel : TradingPageModel
     [BindProperty(SupportsGet = true)]
     public Guid? TraderId { get; set; }
 
+    [BindProperty(SupportsGet = true)]
+    public string VistaSimulador { get; set; } = "propio";
+
     public async Task OnGetAsync(CancellationToken cancellationToken)
     {
         if (InitialCapital <= 0m)
             InitialCapital = _reportingOptions.CurrentValue.DefaultCapital;
 
         _logger.LogInformation("Loading virtual portfolio for initial capital {InitialCapital}.", InitialCapital);
+        VistaSimulador = NormalizeSimulatorView(VistaSimulador);
         var allSignals = await _opportunityRepository.GetSignalsAsync(InitialCapital, cancellationToken);
         Symbols = BuildSymbolListForMarket(allSignals.Select(row => row.Symbol));
         FilteredSignals = ApplyFilters(allSignals).ToArray();
@@ -208,6 +212,26 @@ public sealed class PortfolioModel : TradingPageModel
         return Traders.FirstOrDefault(row => row.Id == TraderId)?.DisplayName ?? "Selecciona un trader";
     }
 
+    public string SimulatorTitle()
+    {
+        return VistaSimulador switch
+        {
+            "traders" => "Simulador de traders",
+            "ia" => "Simulador de operación ajena",
+            _ => "Simulador de operación propia"
+        };
+    }
+
+    public string SimulatorHint()
+    {
+        return VistaSimulador switch
+        {
+            "traders" => "Usa trades cerrados de un trader y simula qué habría pasado usando todo el saldo en cada operación.",
+            "ia" => "Simula señales cerradas evaluadas con el consenso de IAs y el capital configurado.",
+            _ => "Simula señales cerradas generadas por el análisis propio del sistema."
+        };
+    }
+
     private IEnumerable<OpportunityReportRow> ApplyFilters(IEnumerable<OpportunityReportRow> rows)
     {
         rows = rows.Where(MatchesCurrentMarket);
@@ -228,6 +252,16 @@ public sealed class PortfolioModel : TradingPageModel
             rows = rows.Where(row => row.Score >= ScoreMinimo.Value);
 
         return rows.OrderBy(SignalTypePriority).ThenBy(row => row.ObservedAt);
+    }
+
+    private static string NormalizeSimulatorView(string value)
+    {
+        return value?.Trim().ToLowerInvariant() switch
+        {
+            "ia" => "ia",
+            "traders" => "traders",
+            _ => "propio"
+        };
     }
 
     private bool MatchesTraderMarket(TraderProfileReportRow row)

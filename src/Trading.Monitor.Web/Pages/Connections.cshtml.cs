@@ -28,6 +28,10 @@ public sealed class ConnectionsModel(
 
     public IReadOnlyList<ConnectionConceptGroup> ConnectionGroups { get; private set; } = [];
 
+    public IReadOnlyList<SourceHealthReportRow> ScopedSources { get; private set; } = [];
+
+    public IReadOnlyList<ConnectionCatalogItem> ScopedCatalog { get; private set; } = [];
+
     public IReadOnlyList<DataSourceKind> AvailableKinds { get; private set; } = [];
 
     public IReadOnlyList<ConnectionCatalogItem> Catalog { get; } =
@@ -85,9 +89,11 @@ public sealed class ConnectionsModel(
         RecentExecutions = await tradeExecutionRepository.GetRecentAsync(40, cancellationToken);
 
         Ambito = NormalizeScope(Ambito);
-        AvailableKinds = Report.SourceHealth.Select(row => row.Kind).Distinct().OrderBy(row => row).ToArray();
-        FilteredSources = ApplyFilters(Report.SourceHealth);
-        FilteredCatalog = ApplyCatalogFilters(Catalog);
+        ScopedSources = Report.SourceHealth.Where(MatchesScope).ToArray();
+        ScopedCatalog = Catalog.Where(MatchesScope).ToArray();
+        AvailableKinds = ScopedSources.Select(row => row.Kind).Distinct().OrderBy(row => row).ToArray();
+        FilteredSources = ApplyFilters(ScopedSources);
+        FilteredCatalog = ApplyCatalogFilters(ScopedCatalog);
         SourcesByKind = FilteredSources.GroupBy(row => row.Kind).OrderBy(group => group.Key).ToArray();
         ConnectionGroups = BuildConnectionGroups();
     }
@@ -112,8 +118,6 @@ public sealed class ConnectionsModel(
             "fallidas" => sources.Where(source => source.Status == DataSourceStatus.Failed),
             _ => sources
         };
-
-        sources = sources.Where(MatchesScope);
 
         return sources.OrderBy(source => ConceptFor(source.Kind, source.SourceName))
             .ThenBy(source => source.Status)
@@ -147,8 +151,6 @@ public sealed class ConnectionsModel(
             catalog = catalog.Where(item => ConceptFor(item.Group, item.Name) == concept);
         }
 
-        catalog = catalog.Where(MatchesScope);
-
         return catalog.OrderBy(item => ConceptFor(item.Group, item.Name)).ThenBy(item => item.Name).ToArray();
     }
 
@@ -158,9 +160,11 @@ public sealed class ConnectionsModel(
         return concepts
             .Select(concept => new ConnectionConceptGroup(
                 concept,
+                ScopedSources.Where(source => ConceptFor(source.Kind, source.SourceName) == concept).ToArray(),
+                ScopedCatalog.Where(item => ConceptFor(item.Group, item.Name) == concept).ToArray(),
                 FilteredSources.Where(source => ConceptFor(source.Kind, source.SourceName) == concept).ToArray(),
                 FilteredCatalog.Where(item => ConceptFor(item.Group, item.Name) == concept).ToArray()))
-            .Where(group => group.Sources.Count > 0 || group.Catalog.Count > 0)
+            .Where(group => group.Total > 0)
             .ToArray();
     }
 
@@ -206,6 +210,34 @@ public sealed class ConnectionsModel(
             "Traders" => "Fuentes para estudiar traders, copy trading e historiales públicos.",
             _ => "Fuentes operativas del sistema."
         };
+    }
+
+    public string ConceptSearchSummary(string concept)
+    {
+        return concept switch
+        {
+            "Market" => "Busca precio vivo, velas, volumen, continuidad, latencia y diferencias entre proveedores.",
+            "Noticias" => "Busca titulares, eventos macro, sentimiento, regulaciÃ³n y catalizadores que puedan mover el mercado.",
+            "IA" => "Resume noticias, compara argumentos, detecta vetos y convierte ruido externo en una lectura accionable.",
+            "Traders" => "Busca fuentes de copy trading, perfiles, historiales verificables, trades abiertos y resultados cerrados.",
+            _ => "Busca informaciÃ³n operativa que pueda alimentar el anÃ¡lisis del sistema."
+        };
+    }
+
+    public string SourceQueryDetail(SourceHealthReportRow source)
+    {
+        if (source.Status == DataSourceStatus.Failed)
+            return $"Ultima consulta fallida. {source.LastMessage} Fallos acumulados: {source.FailureCount}.";
+
+        if (source.Status == DataSourceStatus.Degraded)
+            return $"Consulta parcial o degradada. {source.LastMessage}";
+
+        return $"Ultima consulta util: {source.LastMessage}";
+    }
+
+    public string CatalogQueryDetail(ConnectionCatalogItem item)
+    {
+        return $"{item.Use} Requisito operativo: {item.Requirement}.";
     }
 
     public string ConceptClass(string concept)
@@ -310,11 +342,18 @@ public sealed class ConnectionsModel(
 
 public sealed record ConnectionCatalogItem(string Group, string Name, string Status, string Use, string Requirement, string Url);
 
-public sealed record ConnectionConceptGroup(string Name, IReadOnlyList<SourceHealthReportRow> Sources, IReadOnlyList<ConnectionCatalogItem> Catalog)
+public sealed record ConnectionConceptGroup(
+    string Name,
+    IReadOnlyList<SourceHealthReportRow> AllSources,
+    IReadOnlyList<ConnectionCatalogItem> AllCatalog,
+    IReadOnlyList<SourceHealthReportRow> Sources,
+    IReadOnlyList<ConnectionCatalogItem> Catalog)
 {
-    public int Total => Sources.Count + Catalog.Count;
+    public int Total => AllSources.Count + AllCatalog.Count;
 
-    public int Healthy => Sources.Count(source => source.Status == DataSourceStatus.Healthy) + Catalog.Count(item => item.Status == "En uso");
+    public int Visible => Sources.Count + Catalog.Count;
 
-    public int Failed => Sources.Count(source => source.Status == DataSourceStatus.Failed);
+    public int Healthy => AllSources.Count(source => source.Status == DataSourceStatus.Healthy) + AllCatalog.Count(item => item.Status == "En uso");
+
+    public int Failed => AllSources.Count(source => source.Status == DataSourceStatus.Failed);
 }

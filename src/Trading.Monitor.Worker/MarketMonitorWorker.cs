@@ -78,7 +78,10 @@ public sealed class MarketMonitorWorker(ILogger<MarketMonitorWorker> logger, Mar
         using var scope = scopeFactory.CreateScope();
         var repository = scope.ServiceProvider.GetRequiredService<IOpportunityRepository>();
         var walletRepository = scope.ServiceProvider.GetRequiredService<IWalletRepository>();
-        var wallet = await walletRepository.GetSnapshotAsync(cancellationToken);
+        var market = MarketSymbolClassifier.GetMarketKind(opportunity.Symbol) == MarketKind.Forex
+            ? MarketSymbolClassifier.ForexMarket
+            : MarketSymbolClassifier.CryptoMarket;
+        var wallet = await walletRepository.GetSnapshotAsync(market, cancellationToken);
 
         if (!WalletSignalPolicy.CanShowSignal(opportunity.Side, opportunity.Symbol, wallet))
         {

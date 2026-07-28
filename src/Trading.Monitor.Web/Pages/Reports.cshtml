@@ -10,12 +10,6 @@
             <p class="eyebrow">@Model.MarketLabel() | analítica del trader</p>
             <h1>Reportes</h1>
         </div>
-        <div class="market-subnav stacked-subnav" aria-label="Cambiar reporte">
-            <a class="@(Model.MarketRouteValue() == "crypto" ? "active" : "")" asp-page="/Reports" asp-route-Mercado="crypto" asp-route-VistaReporte="@Model.VistaReporte" asp-route-Capital="@Model.Capital">Crypto</a>
-            <a class="@(Model.MarketRouteValue() == "forex" ? "active" : "")" asp-page="/Reports" asp-route-Mercado="forex" asp-route-VistaReporte="@Model.VistaReporte" asp-route-Capital="@Model.Capital">Forex</a>
-            <a class="@(Model.VistaReporte == "ia" ? "active" : "")" asp-page="/Reports" asp-route-Mercado="@Model.MarketRouteValue()" asp-route-VistaReporte="ia" asp-route-Capital="@Model.Capital">Reportes IA</a>
-            <a class="@(Model.VistaReporte == "propio" ? "active" : "")" asp-page="/Reports" asp-route-Mercado="@Model.MarketRouteValue()" asp-route-VistaReporte="propio" asp-route-Capital="@Model.Capital">Reportes propio</a>
-        </div>
     </div>
 
     <div class="insight-strip">

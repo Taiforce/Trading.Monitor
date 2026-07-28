@@ -14,10 +14,6 @@
             <p class="eyebrow">@Model.MarketLabel() | copy trading y traders públicos</p>
             <h1>Traders a seguir</h1>
         </div>
-        <div class="market-subnav" aria-label="Cambiar mercado">
-            <a class="@(Model.MarketRouteValue() == "crypto" ? "active" : "")" asp-page="/Traders" asp-route-Mercado="crypto">Crypto</a>
-            <a class="@(Model.MarketRouteValue() == "forex" ? "active" : "")" asp-page="/Traders" asp-route-Mercado="forex">Forex</a>
-        </div>
     </div>
 
     <section class="report-section">
@@ -224,7 +220,7 @@
                                                 <p class="detail-copy">@trader.Notes</p>
                                                 <div class="trade-links">
                                                     <a href="@trader.ProfileUrl" target="_blank" rel="noopener noreferrer">Perfil</a>
-                                                    <a asp-page="/Portfolio" asp-route-Mercado="@Model.MarketRouteValue()" asp-route-TraderId="@trader.Id">Simular cartera</a>
+                                                    <a asp-page="/Portfolio" asp-route-Mercado="@Model.MarketRouteValue()" asp-route-VistaSimulador="traders" asp-route-TraderId="@trader.Id">Simular cartera</a>
                                                 </div>
 
                                                 @if (traderTrades.Count == 0)

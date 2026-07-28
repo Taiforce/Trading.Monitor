@@ -10,10 +10,6 @@
             <p class="eyebrow">@Model.MarketLabel() | entrada viva, salida por análisis</p>
             <h1>Seguimiento por señal</h1>
         </div>
-        <div class="market-subnav" aria-label="Cambiar mercado">
-            <a class="@(Model.MarketRouteValue() == "crypto" ? "active" : "")" asp-page="/ManagedPositions" asp-route-Mercado="crypto" asp-route-Capital="@Model.Capital">Crypto</a>
-            <a class="@(Model.MarketRouteValue() == "forex" ? "active" : "")" asp-page="/ManagedPositions" asp-route-Mercado="forex" asp-route-Capital="@Model.Capital">Forex</a>
-        </div>
     </div>
 
     <section class="metrics-grid metrics-grid-four" aria-label="Resumen de posiciones vivas">

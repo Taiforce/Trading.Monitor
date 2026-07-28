@@ -1,0 +1,212 @@
+@page "/resumen"
+@model SummaryModel
+@{
+    ViewData["Title"] = "Resumen";
+    var summaryNet = Model.VistaResumen == "traders"
+        ? Model.TraderReport.Traders.Sum(row => row.RealizedNetPnL)
+        : Model.RealizedNet;
+    var qualityText = Model.VistaResumen == "traders"
+        ? $"{Model.TraderReport.Traders.Select(row => row.ReliabilityScore).DefaultIfEmpty(0m).Average():N1}"
+        : $"{Model.AverageScore:N1}";
+}
+
+<section class="dashboard">
+    <div class="page-head">
+        <div>
+            <p class="eyebrow">@Model.MarketLabel() | @Model.RouteLabel</p>
+            <h1>Resumen ejecutivo</h1>
+        </div>
+    </div>
+
+    <div class="insight-strip">
+        <span>Situación</span>
+        <strong>@Model.Headline</strong>
+    </div>
+
+    <section class="metrics-grid metrics-grid-four" aria-label="Resumen ejecutivo">
+        <article class="metric">
+            <span>Operaciones abiertas</span>
+            <strong>@(Model.VistaResumen == "traders" ? Model.TraderReport.OpenTrades : Model.OpenRows.Count)</strong>
+            <small>para revisar en mercado vivo</small>
+        </article>
+        <article class="metric">
+            <span>Cerradas medidas</span>
+            <strong>@(Model.VistaResumen == "traders" ? Model.TraderReport.ClosedTrades : Model.ClosedRows.Count)</strong>
+            <small>base real del resumen</small>
+        </article>
+        <article class="metric">
+            <span>Resultado neto</span>
+            <strong class="@Model.SignedClass(summaryNet)">
+                @Model.Money(summaryNet)
+            </strong>
+            <small>después de costos estimados</small>
+        </article>
+        <article class="metric">
+            <span>Calidad promedio</span>
+            <strong>@qualityText</strong>
+            <small>@(Model.VistaResumen == "traders" ? "fiabilidad trader" : "score del sistema")</small>
+        </article>
+    </section>
+
+    <section class="report-section">
+        <div class="section-title">
+            <h2>Lectura rápida</h2>
+            <span>@Model.RouteLabel</span>
+        </div>
+        <p class="detail-copy">@Model.SummaryLabel()</p>
+        <div class="guide-grid">
+            <article>
+                <strong>@Model.MarketRows.Count</strong>
+                <span>Señales totales del mercado seleccionado.</span>
+            </article>
+            <article>
+                <strong>@Model.WinRate.ToString("N1")%</strong>
+                <span>Acierto de operaciones cerradas del sistema.</span>
+            </article>
+            <article>
+                <strong>@Model.TraderReport.TotalSources</strong>
+                <span>Fuentes de traders o copy trading disponibles.</span>
+            </article>
+            <article>
+                <strong>@Model.TraderReport.TradersWithHistory</strong>
+                <span>Traders con historial local verificable.</span>
+            </article>
+        </div>
+    </section>
+
+    @if (Model.VistaResumen == "ia")
+    {
+        <section class="report-section">
+            <div class="section-title">
+                <h2>Consenso de IAs</h2>
+                <a href="/reportes?Mercado=@Model.MarketRouteValue()&VistaReporte=ia&Capital=@Model.Capital">Ver reporte completo</a>
+            </div>
+            @if (Model.ConsensusRows.Count == 0)
+            {
+                <div class="empty-state">
+                    <strong>Sin señales para consenso.</strong>
+                    <span>Cuando existan oportunidades, aquí verás las más fuertes y las bloqueadas por riesgo.</span>
+                </div>
+            }
+            else
+            {
+                <div class="ai-consensus-grid">
+                    @foreach (var row in Model.ConsensusRows)
+                    {
+                        <article class="ai-consensus-card @(row.HasVeto ? "result-red" : row.CompositeScore >= 75 ? "result-green" : "result-yellow")">
+                            <header>
+                                <div>
+                                    <span>@row.Symbol</span>
+                                    <strong>@row.CompositeScore/100</strong>
+                                </div>
+                                <em>@(row.HasVeto ? "Esperar" : "Vigilar")</em>
+                            </header>
+                            <h3>@row.ConsensusLabel</h3>
+                            <p>@row.PlainReadout</p>
+                        </article>
+                    }
+                </div>
+            }
+        </section>
+    }
+    else if (Model.VistaResumen == "traders")
+    {
+        <section class="report-section">
+            <div class="section-title">
+                <h2>Traders resumidos</h2>
+                <a href="/traders?Mercado=@Model.MarketRouteValue()">Ver análisis de traders</a>
+            </div>
+            @if (Model.TraderReport.Traders.Count == 0)
+            {
+                <div class="empty-state">
+                    <strong>No hay traders para este mercado.</strong>
+                    <span>Falta importar o activar fuentes con historial revisable.</span>
+                </div>
+            }
+            else
+            {
+                <div class="trade-card-grid compact-signal-grid">
+                    @foreach (var trader in Model.TraderReport.Traders.Take(6))
+                    {
+                        <article class="trade-card @Model.SummaryCardClass(trader.RealizedNetPnL)">
+                            <div class="trade-card-head">
+                                <div>
+                                    <strong>@trader.DisplayName</strong>
+                                    <span>@trader.Platform | @trader.StrategyType</span>
+                                    <small>@trader.PerformanceText</small>
+                                </div>
+                                <span class="score-pill">Fiabilidad @trader.ReliabilityScore:N0</span>
+                            </div>
+                            <div class="trade-footer">
+                                <span>@trader.OpenTrades abiertas</span>
+                                <span>@trader.ClosedTrades cerradas</span>
+                                <span class="@Model.SignedClass(trader.RealizedNetPnL)">Neto @Model.Money(trader.RealizedNetPnL)</span>
+                            </div>
+                        </article>
+                    }
+                </div>
+            }
+        </section>
+    }
+    else
+    {
+        <section class="report-section">
+            <div class="section-title">
+                <h2>Aprendizaje propio</h2>
+                <a href="/reportes?Mercado=@Model.MarketRouteValue()&VistaReporte=propio&Capital=@Model.Capital">Ver reporte completo</a>
+            </div>
+            @if (Model.PatternRows.Count == 0)
+            {
+                <div class="empty-state">
+                    <strong>Aún no hay cierres suficientes.</strong>
+                    <span>El resumen propio se vuelve útil cuando existen operaciones cerradas después de comisiones.</span>
+                </div>
+            }
+            else
+            {
+                <div class="learning-grid">
+                    @foreach (var row in Model.PatternRows)
+                    {
+                        <article class="learning-card">
+                            <div>
+                                <strong>@row.Pattern</strong>
+                                <span class="@Model.SignedClass(row.RealizedNetPnL)">Neto @Model.Money(row.RealizedNetPnL)</span>
+                            </div>
+                            <dl>
+                                <div><dt>Cierres</dt><dd>@row.Total</dd></div>
+                                <div><dt>Win rate</dt><dd>@row.WinRate.ToString("N1")%</dd></div>
+                                <div><dt>Score prom</dt><dd>@row.AverageScore.ToString("N1")</dd></div>
+                                <div><dt>Resultado</dt><dd class="@Model.SignedClass(row.RealizedNetPnL)">@Model.Money(row.RealizedNetPnL)</dd></div>
+                            </dl>
+                        </article>
+                    }
+                </div>
+            }
+        </section>
+    }
+
+    <section class="report-section">
+        <div class="section-title">
+            <h2>Siguiente acción útil</h2>
+            <span>según este resumen</span>
+        </div>
+        <div class="quick-links">
+            <a href="@Model.LiveLink()?Mercado=@Model.MarketRouteValue()">
+                <strong>Mercado vivo</strong>
+                <span>Ver lo que está abierto ahora y seguirlo en gráfico.</span>
+            </a>
+            <a href="/reportes?Mercado=@Model.MarketRouteValue()&VistaReporte=@(Model.VistaResumen == "ia" ? "ia" : "propio")">
+                <strong>Reportes</strong>
+                <span>Revisar cierres, ganancia, pérdida y patrones.</span>
+            </a>
+            <a href="/cartera?Mercado=@Model.MarketRouteValue()&VistaSimulador=@(Model.VistaResumen == "traders" ? "traders" : "propio")">
+                <strong>Simulador</strong>
+                <span>Probar qué habría pasado siguiendo esas operaciones.</span>
+            </a>
+            <a href="/conexiones?Ambito=@Model.MarketRouteValue()">
+                <strong>Conexiones</strong>
+                <span>Validar fuentes que alimentan este resumen.</span>
+            </a>
+        </div>
+    </section>
+</section>

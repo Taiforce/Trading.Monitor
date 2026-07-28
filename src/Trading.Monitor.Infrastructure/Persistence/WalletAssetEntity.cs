@@ -4,6 +4,8 @@ public sealed class WalletAssetEntity
 {
     public Guid Id { get; set; }
 
+    public string Market { get; set; } = "";
+
     public string Symbol { get; set; } = "";
 
     public string Asset { get; set; } = "";

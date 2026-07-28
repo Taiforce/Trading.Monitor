@@ -42,47 +42,47 @@
         </a>
         <div class="nav-links primary-nav">
             <div class="nav-group nav-mega">
-                <a class="nav-root @Active("/Index")" asp-page="/Index">Resumen</a>
+                <span class="nav-root @ActiveGroup("/Index", "/Summary")" tabindex="0">Resumen</span>
                 <div class="nav-submenu nav-mega-panel">
                     <section>
                         <strong>Crypto</strong>
-                        <a asp-page="/Reports" asp-route-Mercado="crypto" asp-route-VistaReporte="ia">Operaciones otras IAs</a>
-                        <a asp-page="/Reports" asp-route-Mercado="crypto" asp-route-VistaReporte="propio">Operaciones IA propia</a>
-                        <a asp-page="/Traders" asp-route-Mercado="crypto">Operaciones traders</a>
+                        <a asp-page="/Summary" asp-route-Mercado="crypto" asp-route-VistaResumen="ia">Operaciones otras IAs</a>
+                        <a asp-page="/Summary" asp-route-Mercado="crypto" asp-route-VistaResumen="propio">Operaciones IA propia</a>
+                        <a asp-page="/Summary" asp-route-Mercado="crypto" asp-route-VistaResumen="traders">Operaciones traders</a>
                     </section>
                     <section>
                         <strong>Forex</strong>
-                        <a asp-page="/Reports" asp-route-Mercado="forex" asp-route-VistaReporte="ia">Operaciones otras IAs</a>
-                        <a asp-page="/Reports" asp-route-Mercado="forex" asp-route-VistaReporte="propio">Operaciones IA propia</a>
-                        <a asp-page="/Traders" asp-route-Mercado="forex">Operaciones traders</a>
+                        <a asp-page="/Summary" asp-route-Mercado="forex" asp-route-VistaResumen="ia">Operaciones otras IAs</a>
+                        <a asp-page="/Summary" asp-route-Mercado="forex" asp-route-VistaResumen="propio">Operaciones IA propia</a>
+                        <a asp-page="/Summary" asp-route-Mercado="forex" asp-route-VistaResumen="traders">Operaciones traders</a>
                     </section>
                 </div>
             </div>
             <div class="nav-group nav-mega">
-                <span class="nav-root @ActiveGroup("/Actions", "/ManagedPositions", "/Traders")" tabindex="0">Mercado en vivo</span>
+                <span class="nav-root @ActiveGroup("/Actions", "/ManagedPositions", "/LiveTraders")" tabindex="0">Mercado en vivo</span>
                 <div class="nav-submenu nav-mega-panel">
                     <section>
                         <strong>Crypto</strong>
                         <a asp-page="/Actions" asp-route-Mercado="crypto">Operaciones fijas</a>
                         <a asp-page="/ManagedPositions" asp-route-Mercado="crypto">Seguimiento vivo</a>
-                        <a asp-page="/Traders" asp-route-Mercado="crypto">Traders crypto</a>
+                        <a asp-page="/LiveTraders" asp-route-Mercado="crypto">Traders crypto</a>
                     </section>
                     <section>
                         <strong>Forex</strong>
                         <a asp-page="/Actions" asp-route-Mercado="forex">Operaciones fijas</a>
                         <a asp-page="/ManagedPositions" asp-route-Mercado="forex">Seguimiento vivo</a>
-                        <a asp-page="/Traders" asp-route-Mercado="forex">Traders forex</a>
+                        <a asp-page="/LiveTraders" asp-route-Mercado="forex">Traders forex</a>
                     </section>
                 </div>
             </div>
             <div class="nav-group nav-mega wide">
-                <span class="nav-root @ActiveGroup("/Reports", "/Portfolio")" tabindex="0">Análisis</span>
+                <span class="nav-root @ActiveGroup("/Reports", "/Portfolio", "/Traders")" tabindex="0">Análisis</span>
                 <div class="nav-submenu nav-mega-panel nav-analysis-panel">
                     <section>
                         <strong>Crypto reportes</strong>
                         <a asp-page="/Reports" asp-route-Mercado="crypto" asp-route-VistaReporte="ia">IA ajena</a>
                         <a asp-page="/Reports" asp-route-Mercado="crypto" asp-route-VistaReporte="propio">IA propia</a>
-                        <a asp-page="/Traders" asp-route-Mercado="crypto">Operaciones traders</a>
+                        <a asp-page="/Traders" asp-route-Mercado="crypto">Reporte traders</a>
                     </section>
                     <section>
                         <strong>Crypto simulador</strong>
@@ -94,7 +94,7 @@
                         <strong>Forex reportes</strong>
                         <a asp-page="/Reports" asp-route-Mercado="forex" asp-route-VistaReporte="ia">IA ajena</a>
                         <a asp-page="/Reports" asp-route-Mercado="forex" asp-route-VistaReporte="propio">IA propia</a>
-                        <a asp-page="/Traders" asp-route-Mercado="forex">Operaciones traders</a>
+                        <a asp-page="/Traders" asp-route-Mercado="forex">Reporte traders</a>
                     </section>
                     <section>
                         <strong>Forex simulador</strong>

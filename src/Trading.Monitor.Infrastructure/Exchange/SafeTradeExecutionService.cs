@@ -187,7 +187,10 @@ public sealed class SafeTradeExecutionService(
         if (!options.Enabled)
             return new ExecutionDecision(false, TradeExecutionStatus.Skipped, "execution-disabled", "Ejecución automática desactivada. La señal solo queda como propuesta.");
 
-        var wallet = await walletRepository.GetSnapshotAsync(cancellationToken);
+        var market = MarketSymbolClassifier.GetMarketKind(opportunity.Symbol) == MarketKind.Forex
+            ? MarketSymbolClassifier.ForexMarket
+            : MarketSymbolClassifier.CryptoMarket;
+        var wallet = await walletRepository.GetSnapshotAsync(market, cancellationToken);
 
         if (!wallet.AutoTradingEnabled)
             return new ExecutionDecision(false, TradeExecutionStatus.Skipped, "wallet-auto-disabled", "Automático desactivado en Wallet. La señal queda como propuesta.");

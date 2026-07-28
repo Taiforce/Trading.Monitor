@@ -4,15 +4,20 @@ using Microsoft.Extensions.Options;
 using Trading.Monitor.Application.Abstractions;
 using Trading.Monitor.Application.Configuration;
 using Trading.Monitor.Application.Reporting;
+using Trading.Monitor.Application.Services;
 
 namespace Trading.Monitor.Web.Pages;
 
 public sealed class WalletModel(IWalletRepository walletRepository, IOptionsMonitor<ExchangeExecutionOptions> exchangeOptions) : PageModel
 {
-    private static readonly string[] SupportedSymbols = ["BTCUSDT", "ETHUSDT", "SOLUSDT", "XRPUSDT", "ADAUSDT"];
+    private static readonly string[] CryptoSymbols = ["BTCUSDT", "ETHUSDT", "SOLUSDT", "XRPUSDT", "ADAUSDT"];
+    private static readonly string[] ForexSymbols = ["EURUSD", "GBPUSD", "USDJPY", "USDCHF", "AUDUSD", "USDCAD", "NZDUSD", "USDMXN", "EURMXN", "GBPJPY", "EURJPY", "EURGBP"];
 
     [BindProperty]
     public WalletInput Input { get; set; } = new();
+
+    [BindProperty(SupportsGet = true)]
+    public string Mercado { get; set; } = MarketSymbolClassifier.CryptoMarket;
 
     [TempData]
     public string? StatusMessage { get; set; }
@@ -39,23 +44,54 @@ public sealed class WalletModel(IWalletRepository walletRepository, IOptionsMoni
 
     public async Task<IActionResult> OnPostAsync(CancellationToken cancellationToken)
     {
+        Mercado = MarketSymbolClassifier.NormalizeMarket(Mercado);
         var assets = Input.Assets
             .Select(asset => new WalletAssetUpdate(
                 WalletSnapshot.NormalizeSymbol(asset.Symbol),
-                string.IsNullOrWhiteSpace(asset.Asset) ? WalletSnapshot.ResolveAsset(asset.Symbol) : asset.Asset.Trim().ToUpperInvariant(),
+                string.IsNullOrWhiteSpace(asset.Asset) ? ResolveAssetLabel(asset.Symbol) : asset.Asset.Trim().ToUpperInvariant(),
                 asset.CoinQuantity,
                 asset.CoinQuantity > 0m && asset.AllowSellHighBuyLow,
                 asset.AutoTradingEnabled))
             .ToArray();
 
-        await walletRepository.SaveAsync(Input.CashCapital, Input.AutoTradingEnabled, assets, cancellationToken);
-        StatusMessage = "Wallet actualizada. Las señales se filtrarán con estos saldos.";
+        await walletRepository.SaveAsync(Mercado, Input.CashCapital, Input.AutoTradingEnabled, assets, cancellationToken);
+        StatusMessage = $"Wallet {MarketLabel()} actualizada. Las señales se filtrarán con estos saldos.";
 
-        return RedirectToPage();
+        return RedirectToPage(new { Mercado });
+    }
+
+    public string MarketLabel()
+    {
+        return MarketSymbolClassifier.MarketLabel(Mercado);
+    }
+
+    public string MarketRouteValue()
+    {
+        return MarketSymbolClassifier.NormalizeMarket(Mercado);
+    }
+
+    public string BaseLabel()
+    {
+        return MarketRouteValue() == MarketSymbolClassifier.ForexMarket ? "base USD/divisa" : "base USDT/USD";
+    }
+
+    public string AssetListLabel()
+    {
+        return MarketRouteValue() == MarketSymbolClassifier.ForexMarket ? "Divisas y pares" : "Monedas crypto";
+    }
+
+    public string AssetHelper()
+    {
+        return MarketRouteValue() == MarketSymbolClassifier.ForexMarket
+            ? "En Forex registra la divisa base que realmente tienes para permitir vender alto - comprar bajo."
+            : "En Crypto registra cuántas monedas tienes por activo.";
     }
 
     public string BinanceSafetyText()
     {
+        if (MarketRouteValue() == MarketSymbolClassifier.ForexMarket)
+            return "Forex protegido: broker real requiere integracion dedicada y pruebas antes de operar dinero real.";
+
         if (LiveOrdersReady)
             return "Live activo: la app puede enviar órdenes reales solo para activos autorizados.";
 
@@ -74,30 +110,48 @@ public sealed class WalletModel(IWalletRepository walletRepository, IOptionsMoni
         return "Protegido.";
     }
 
+    public string ExecutionPanelTitle()
+    {
+        return MarketRouteValue() == MarketSymbolClassifier.ForexMarket ? "Broker forex automatico" : "Binance automatico";
+    }
+
+    public string ConnectionLinkText()
+    {
+        return MarketRouteValue() == MarketSymbolClassifier.ForexMarket ? "Ver conexiones Forex" : "Ver conexion Binance";
+    }
+
+    public string QuantityLabel()
+    {
+        return MarketRouteValue() == MarketSymbolClassifier.ForexMarket ? "Total divisa base" : "Total monedas";
+    }
+
     public string SellHighStatus(WalletAssetInput asset)
     {
         if (asset.CoinQuantity <= 0m)
-            return "Oculta: no tienes monedas para vender.";
+            return MarketRouteValue() == MarketSymbolClassifier.ForexMarket
+                ? "Oculta: no tienes divisa base para vender."
+                : "Oculta: no tienes monedas para vender.";
 
-        return asset.AllowSellHighBuyLow ? "Permitida con tus monedas actuales." : "Bloqueada por ti.";
+        return asset.AllowSellHighBuyLow ? "Permitida con tu saldo actual." : "Bloqueada por ti.";
     }
 
     private async Task LoadAsync(CancellationToken cancellationToken)
     {
-        Snapshot = await walletRepository.GetSnapshotAsync(cancellationToken);
+        Mercado = MarketSymbolClassifier.NormalizeMarket(Mercado);
+        Snapshot = await walletRepository.GetSnapshotAsync(Mercado, cancellationToken);
         Input = BuildInput(Snapshot);
     }
 
-    private static WalletInput BuildInput(WalletSnapshot snapshot)
+    private WalletInput BuildInput(WalletSnapshot snapshot)
     {
-        var assets = SupportedSymbols
+        var assets = SymbolsForCurrentMarket()
             .Select(symbol =>
             {
                 var stored = snapshot.FindAsset(symbol);
                 return new WalletAssetInput
                 {
                     Symbol = symbol,
-                    Asset = WalletSnapshot.ResolveAsset(symbol),
+                    Asset = ResolveAssetLabel(symbol),
                     CoinQuantity = stored?.CoinQuantity ?? 0m,
                     AllowSellHighBuyLow = stored is { CoinQuantity: > 0m, AllowSellHighBuyLow: true },
                     AutoTradingEnabled = stored?.AutoTradingEnabled ?? false
@@ -111,6 +165,20 @@ public sealed class WalletModel(IWalletRepository walletRepository, IOptionsMoni
             AutoTradingEnabled = snapshot.AutoTradingEnabled,
             Assets = assets
         };
+    }
+
+    private IReadOnlyList<string> SymbolsForCurrentMarket()
+    {
+        return MarketRouteValue() == MarketSymbolClassifier.ForexMarket ? ForexSymbols : CryptoSymbols;
+    }
+
+    private string ResolveAssetLabel(string symbol)
+    {
+        var normalized = WalletSnapshot.NormalizeSymbol(symbol);
+        if (MarketRouteValue() == MarketSymbolClassifier.ForexMarket && normalized.Length >= 6)
+            return normalized[..3];
+
+        return WalletSnapshot.ResolveAsset(symbol);
     }
 
     public sealed class WalletInput

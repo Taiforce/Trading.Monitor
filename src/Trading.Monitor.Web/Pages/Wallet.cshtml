@@ -7,10 +7,10 @@
 <section class="dashboard">
     <div class="page-head">
         <div>
-            <p class="eyebrow">Capital real y reglas</p>
-            <h1>Wallet</h1>
+            <p class="eyebrow">@Model.MarketLabel() | capital real y reglas</p>
+            <h1>Wallet @Model.MarketLabel()</h1>
         </div>
-        <a class="ghost-action" asp-page="/Connections">Ver conexión Binance</a>
+        <a class="ghost-action" asp-page="/Connections" asp-route-Ambito="@Model.MarketRouteValue()">@Model.ConnectionLinkText()</a>
     </div>
 
     @if (!string.IsNullOrWhiteSpace(Model.StatusMessage))
@@ -28,27 +28,28 @@
             <small>disponible para compras</small>
         </article>
         <article class="metric">
-            <span>Activos con monedas</span>
+            <span>Activos con saldo</span>
             <strong>@Model.Input.Assets.Count(asset => asset.CoinQuantity > 0m)</strong>
             <small>pueden venderse primero</small>
         </article>
         <article class="metric">
             <span>Automático</span>
             <strong class="@(Model.Input.AutoTradingEnabled ? "status-open" : "status-muted")">@(Model.Input.AutoTradingEnabled ? "Autorizado" : "Apagado")</strong>
-            <small>además requiere protección Binance</small>
+            <small>además requiere protección del exchange/broker</small>
         </article>
         <article class="metric">
-            <span>Binance</span>
+            <span>Exchange/Broker</span>
             <strong class="@(Model.LiveOrdersReady ? "status-win" : "status-muted")">@(Model.LiveOrdersReady ? "Live" : "Protegido")</strong>
             <small>@Model.BinanceSafetyText()</small>
         </article>
     </section>
 
     <form method="post" class="wallet-layout">
+        <input asp-for="Mercado" type="hidden"/>
         <section class="report-section wallet-panel">
             <div class="section-title">
                 <h2>Mi capital</h2>
-                <span>base USDT/USD</span>
+                <span>@Model.BaseLabel()</span>
             </div>
             <label class="wallet-field">
                 <span>Capital disponible</span>
@@ -58,14 +59,15 @@
                 <input asp-for="Input.AutoTradingEnabled" type="checkbox"/>
                 <span>Permitir automático desde esta wallet</span>
             </label>
-            <p class="wallet-note">Este check solo autoriza al motor a ejecutar señales permitidas. No mueve dinero real si Binance sigue en Paper o con órdenes live bloqueadas.</p>
+            <p class="wallet-note">Este check solo autoriza al motor a ejecutar señales permitidas. No mueve dinero real mientras el modo real esté bloqueado.</p>
         </section>
 
         <section class="report-section wallet-panel wallet-assets">
             <div class="section-title">
-                <h2>Monedas</h2>
-                <span>reglas por cripto</span>
+                <h2>@Model.AssetListLabel()</h2>
+                <span>@Model.MarketLabel()</span>
             </div>
+            <p class="wallet-note">@Model.AssetHelper()</p>
 
             @for (var i = 0; i < Model.Input.Assets.Count; i++)
             {
@@ -77,7 +79,7 @@
                         <small>@Model.Input.Assets[i].Symbol</small>
                     </div>
                     <label>
-                        <span>Total monedas</span>
+                        <span>@Model.QuantityLabel()</span>
                         <input asp-for="Input.Assets[i].CoinQuantity" type="number" min="0" step="0.00000001" data-wallet-coin-quantity="@i"/>
                     </label>
                     <label class="wallet-toggle compact @(Model.Input.Assets[i].CoinQuantity <= 0m ? "disabled" : "")">
@@ -97,7 +99,7 @@
 
         <section class="report-section wallet-panel">
             <div class="section-title">
-                <h2>Binance automático</h2>
+                <h2>@Model.ExecutionPanelTitle()</h2>
                 <span>@(Model.LiveOrdersReady ? "listo" : "bloqueado")</span>
             </div>
             <dl class="wallet-status-list">
@@ -124,11 +126,21 @@
             </dl>
             <p class="wallet-note">@Model.BinanceSafetyText()</p>
             <div class="wallet-checklist">
-                <strong>Para conectar Binance real necesito:</strong>
-                <span>API Key y Secret de Binance con permiso Spot Trading, sin retiros.</span>
-                <span>Variables `BINANCE_API_KEY` y `BINANCE_API_SECRET` en `.env.local`.</span>
-                <span>`EXCHANGE_EXECUTION_MODE=Live`, `EXCHANGE_ALLOW_LIVE_ORDERS=true` y `EXCHANGE_USE_TEST_ORDER_ENDPOINT=false`.</span>
-                <span>Recomendado: whitelist de IP y primero probar en Paper/Test.</span>
+                @if (Model.MarketRouteValue() == Trading.Monitor.Application.Services.MarketSymbolClassifier.ForexMarket)
+                {
+                    <strong>Para conectar Forex real necesito:</strong>
+                    <span>Elegir broker soportado, idealmente OANDA por API.</span>
+                    <span>Token de broker sin permisos de retiro y con límites de riesgo.</span>
+                    <span>Primero ejecutar en simulación hasta validar cierres y comisiones.</span>
+                }
+                else
+                {
+                    <strong>Para conectar Binance real necesito:</strong>
+                    <span>API Key y Secret de Binance con permiso Spot Trading, sin retiros.</span>
+                    <span>Variables `BINANCE_API_KEY` y `BINANCE_API_SECRET` en `.env.local`.</span>
+                    <span>`EXCHANGE_EXECUTION_MODE=Live`, `EXCHANGE_ALLOW_LIVE_ORDERS=true` y `EXCHANGE_USE_TEST_ORDER_ENDPOINT=false`.</span>
+                    <span>Recomendado: whitelist de IP y primero probar en Paper/Test.</span>
+                }
             </div>
         </section>
     </form>

@@ -46,7 +46,7 @@ public sealed class ActionsModel(IOpportunityRepository opportunityRepository, I
     {
         logger.LogInformation("Loading actions page for capital {Capital}.", Capital);
         await LoadReportAsync(cancellationToken);
-        var wallet = await walletRepository.GetSnapshotAsync(cancellationToken);
+        var wallet = await walletRepository.GetSnapshotAsync(Mercado, cancellationToken);
 
         Symbols = BuildSymbolListForMarket(Report.RecentSignals.Select(row => row.Symbol));
         Rows = ApplyFilters(Report.RecentSignals)

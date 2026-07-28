@@ -23,7 +23,7 @@ public sealed class LiveOperationsSnapshotService(
             resolvedCapital = reportingOptions.CurrentValue.DefaultCapital;
 
         var report = await opportunityRepository.GetDashboardReportAsync(resolvedCapital, cancellationToken);
-        var wallet = await walletRepository.GetSnapshotAsync(cancellationToken);
+        var wallet = await walletRepository.GetSnapshotAsync(MarketSymbolClassifier.NormalizeMarket(mercado), cancellationToken);
         var now = DateTimeOffset.UtcNow;
         var resolvedInstructionService = IsClassicMode(mode) ? ClassicInstructionService : instructionService;
 

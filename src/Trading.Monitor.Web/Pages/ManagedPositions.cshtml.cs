@@ -125,7 +125,7 @@ public sealed class ManagedPositionsModel : TradingPageModel
             TargetNetPercent = DefaultTargetNetPercent;
 
         await LoadReportAsync(cancellationToken);
-        var wallet = await _walletRepository.GetSnapshotAsync(cancellationToken);
+        var wallet = await _walletRepository.GetSnapshotAsync(Mercado, cancellationToken);
         Symbols = BuildSymbolListForMarket(Report.RecentSignals.Select(row => row.Symbol));
         Rows = ApplyFilters(Report.RecentSignals)
             .Where(row => WalletSignalPolicy.CanShowSignal(row, wallet))
