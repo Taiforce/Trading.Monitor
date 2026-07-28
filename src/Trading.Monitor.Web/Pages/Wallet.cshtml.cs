@@ -44,7 +44,7 @@ public sealed class WalletModel(IWalletRepository walletRepository, IOptionsMoni
                 WalletSnapshot.NormalizeSymbol(asset.Symbol),
                 string.IsNullOrWhiteSpace(asset.Asset) ? WalletSnapshot.ResolveAsset(asset.Symbol) : asset.Asset.Trim().ToUpperInvariant(),
                 asset.CoinQuantity,
-                asset.AllowSellHighBuyLow,
+                asset.CoinQuantity > 0m && asset.AllowSellHighBuyLow,
                 asset.AutoTradingEnabled))
             .ToArray();
 
@@ -99,7 +99,7 @@ public sealed class WalletModel(IWalletRepository walletRepository, IOptionsMoni
                     Symbol = symbol,
                     Asset = WalletSnapshot.ResolveAsset(symbol),
                     CoinQuantity = stored?.CoinQuantity ?? 0m,
-                    AllowSellHighBuyLow = stored?.AllowSellHighBuyLow ?? true,
+                    AllowSellHighBuyLow = stored is { CoinQuantity: > 0m, AllowSellHighBuyLow: true },
                     AutoTradingEnabled = stored?.AutoTradingEnabled ?? false
                 };
             })

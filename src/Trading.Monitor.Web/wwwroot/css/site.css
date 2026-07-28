@@ -427,9 +427,13 @@ td small,
 
 .wallet-layout {
     display: grid;
-    grid-template-columns: minmax(280px, 0.78fr) minmax(520px, 1.35fr) minmax(300px, 0.9fr);
+    grid-template-columns: minmax(260px, 0.75fr) minmax(0, 1.45fr) minmax(300px, 0.8fr);
     gap: 14px;
     align-items: start;
+}
+
+.wallet-layout > * {
+    min-width: 0;
 }
 
 .wallet-panel {
@@ -475,6 +479,11 @@ td small,
     font-size: 0.84rem;
 }
 
+.wallet-toggle.disabled {
+    color: var(--muted);
+    opacity: 0.68;
+}
+
 .wallet-toggle input {
     width: 18px;
     height: 18px;
@@ -494,13 +503,14 @@ td small,
 
 .wallet-asset-row {
     display: grid;
-    grid-template-columns: minmax(80px, 0.55fr) minmax(150px, 1fr) minmax(170px, 1fr) minmax(120px, 0.7fr) minmax(190px, 1fr);
+    grid-template-columns: minmax(72px, 0.55fr) minmax(135px, 1fr) minmax(128px, 0.85fr) minmax(105px, 0.68fr) minmax(150px, 1fr);
     gap: 10px;
     align-items: center;
     border: 1px solid var(--line);
     border-radius: 6px;
     background: var(--surface-2);
     padding: 10px;
+    min-width: 0;
 }
 
 .wallet-asset-row strong,
@@ -515,6 +525,7 @@ td small,
     color: var(--muted);
     font-size: 0.82rem;
     font-style: normal;
+    overflow-wrap: anywhere;
 }
 
 .wallet-status-list {
@@ -533,6 +544,25 @@ td small,
 
 .wallet-message {
     margin-bottom: 18px;
+}
+
+.wallet-checklist {
+    display: grid;
+    gap: 7px;
+    margin-top: 14px;
+    border-top: 1px solid var(--line);
+    padding-top: 12px;
+}
+
+.wallet-checklist strong,
+.wallet-checklist span {
+    display: block;
+}
+
+.wallet-checklist span {
+    color: var(--muted);
+    font-size: 0.86rem;
+    line-height: 1.35;
 }
 
 .quick-links {
@@ -1622,7 +1652,7 @@ td small,
 
 .internal-filter-bar {
     display: grid;
-    grid-template-columns: minmax(140px, 1fr) minmax(118px, 150px) minmax(132px, 170px) auto;
+    grid-template-columns: minmax(140px, 1fr) repeat(3, minmax(118px, 150px)) auto;
     gap: 8px;
     align-items: end;
     background: var(--surface-2);
@@ -1751,6 +1781,28 @@ td small,
 
 .detail-stack {
     min-width: 0;
+}
+
+.source-workbench > .master-list {
+    max-height: min(720px, calc(100vh - 300px));
+    min-height: min(520px, calc(100vh - 300px));
+}
+
+.source-workbench > .detail-stack {
+    max-height: min(920px, calc(100vh - 210px));
+    overflow-y: auto;
+    padding-right: 6px;
+    scrollbar-color: color-mix(in srgb, var(--accent) 70%, var(--line)) transparent;
+    scrollbar-width: thin;
+}
+
+.source-workbench > .detail-stack::-webkit-scrollbar {
+    width: 8px;
+}
+
+.source-workbench > .detail-stack::-webkit-scrollbar-thumb {
+    background: color-mix(in srgb, var(--accent) 70%, var(--line));
+    border-radius: 999px;
 }
 
 .detail-panel {
@@ -2467,7 +2519,7 @@ td small,
 }
 
 .reports-filter {
-    grid-template-columns: minmax(110px, 140px) minmax(130px, 160px) minmax(130px, 180px) minmax(190px, 230px) minmax(126px, 150px) minmax(126px, 150px) minmax(96px, 120px) auto;
+    grid-template-columns: minmax(110px, 140px) minmax(130px, 160px) minmax(130px, 180px) minmax(190px, 230px) minmax(128px, 160px) minmax(126px, 150px) minmax(126px, 150px) minmax(96px, 120px) auto;
 }
 
 .portfolio-filter {
@@ -2644,7 +2696,7 @@ td small,
 
 .symbol-row {
     display: grid;
-    grid-template-columns: 180px minmax(160px, 1fr) 190px;
+    grid-template-columns: 210px minmax(160px, 1fr) minmax(240px, 0.9fr);
     gap: 14px;
     align-items: center;
     border-top: 1px solid var(--line);
@@ -2657,8 +2709,15 @@ td small,
 }
 
 .symbol-row strong,
-.symbol-row span {
+.symbol-row span,
+.symbol-row small {
     display: block;
+}
+
+.symbol-row small {
+    color: var(--muted);
+    font-size: 0.78rem;
+    line-height: 1.25;
 }
 
 .bar-set {
@@ -2680,13 +2739,14 @@ td small,
 
 .row-money {
     display: flex;
+    flex-wrap: wrap;
     justify-content: space-between;
     gap: 12px;
 }
 
 .daily-row {
     display: grid;
-    grid-template-columns: minmax(120px, 1fr) 90px 110px 110px;
+    grid-template-columns: minmax(120px, 1fr) 90px 110px 150px 150px;
     gap: 10px;
     align-items: center;
     border-top: 1px solid var(--line);

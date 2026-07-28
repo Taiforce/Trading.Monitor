@@ -58,7 +58,7 @@
                 <input asp-for="Input.AutoTradingEnabled" type="checkbox"/>
                 <span>Permitir automático desde esta wallet</span>
             </label>
-            <p class="wallet-note">Aunque esté activo aquí, Binance real sigue bloqueado si la configuración no está en modo live seguro.</p>
+            <p class="wallet-note">Este check solo autoriza al motor a ejecutar señales permitidas. No mueve dinero real si Binance sigue en Paper o con órdenes live bloqueadas.</p>
         </section>
 
         <section class="report-section wallet-panel wallet-assets">
@@ -78,10 +78,10 @@
                     </div>
                     <label>
                         <span>Total monedas</span>
-                        <input asp-for="Input.Assets[i].CoinQuantity" type="number" min="0" step="0.00000001"/>
+                        <input asp-for="Input.Assets[i].CoinQuantity" type="number" min="0" step="0.00000001" data-wallet-coin-quantity="@i"/>
                     </label>
-                    <label class="wallet-toggle compact">
-                        <input asp-for="Input.Assets[i].AllowSellHighBuyLow" type="checkbox"/>
+                    <label class="wallet-toggle compact @(Model.Input.Assets[i].CoinQuantity <= 0m ? "disabled" : "")">
+                        <input asp-for="Input.Assets[i].AllowSellHighBuyLow" type="checkbox" disabled="@(Model.Input.Assets[i].CoinQuantity <= 0m ? "disabled" : null)" data-wallet-sell-high-toggle="@i"/>
                         <span>Vender alto - comprar bajo</span>
                     </label>
                     <label class="wallet-toggle compact">
@@ -123,6 +123,36 @@
                 </div>
             </dl>
             <p class="wallet-note">@Model.BinanceSafetyText()</p>
+            <div class="wallet-checklist">
+                <strong>Para conectar Binance real necesito:</strong>
+                <span>API Key y Secret de Binance con permiso Spot Trading, sin retiros.</span>
+                <span>Variables `BINANCE_API_KEY` y `BINANCE_API_SECRET` en `.env.local`.</span>
+                <span>`EXCHANGE_EXECUTION_MODE=Live`, `EXCHANGE_ALLOW_LIVE_ORDERS=true` y `EXCHANGE_USE_TEST_ORDER_ENDPOINT=false`.</span>
+                <span>Recomendado: whitelist de IP y primero probar en Paper/Test.</span>
+            </div>
         </section>
     </form>
 </section>
+
+@section Scripts {
+    <script>
+        (() => {
+            document.querySelectorAll("[data-wallet-coin-quantity]").forEach(input => {
+                const index = input.getAttribute("data-wallet-coin-quantity");
+                const toggle = document.querySelector(`[data-wallet-sell-high-toggle="${index}"]`);
+                const label = toggle?.closest(".wallet-toggle");
+
+                const sync = () => {
+                    const enabled = Number(input.value || 0) > 0;
+                    if (!toggle) return;
+                    toggle.disabled = !enabled;
+                    if (!enabled) toggle.checked = false;
+                    label?.classList.toggle("disabled", !enabled);
+                };
+
+                input.addEventListener("input", sync);
+                sync();
+            });
+        })();
+    </script>
+}

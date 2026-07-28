@@ -79,6 +79,7 @@
 
         const statuses = unique(items.map(item => item.dataset.filterStatus).filter(Boolean));
         const types = unique(items.map(item => item.dataset.filterType).filter(Boolean));
+        const modes = unique(items.map(item => item.dataset.filterMode).filter(Boolean));
         const filter = document.createElement("div");
         filter.className = "internal-filter-bar";
         filter.innerHTML = `
@@ -88,24 +89,28 @@
             </label>
             ${statuses.length > 1 ? `<label><span>Estado</span><select data-internal-status><option value="">Todos</option>${statuses.map(value => `<option value="${escapeAttribute(value)}">${escapeHtml(value)}</option>`).join("")}</select></label>` : ""}
             ${types.length > 1 ? `<label><span>Tipo</span><select data-internal-type><option value="">Todos</option>${types.map(value => `<option value="${escapeAttribute(value)}">${escapeHtml(value)}</option>`).join("")}</select></label>` : ""}
+            ${modes.length > 1 ? `<label><span>Modo</span><select data-internal-mode><option value="">Todos</option>${modes.map(value => `<option value="${escapeAttribute(value)}">${escapeHtml(value)}</option>`).join("")}</select></label>` : ""}
             <strong data-filter-count>${items.length}</strong>`;
         container.insertBefore(filter, list);
 
         const search = filter.querySelector("[data-internal-search]");
         const status = filter.querySelector("[data-internal-status]");
         const type = filter.querySelector("[data-internal-type]");
+        const mode = filter.querySelector("[data-internal-mode]");
         const count = filter.querySelector("[data-filter-count]");
         const apply = () => {
             const query = (search?.value || "").trim().toLowerCase();
             const selectedStatus = status?.value || "";
             const selectedType = type?.value || "";
+            const selectedMode = mode?.value || "";
             let visible = 0;
 
             items.forEach(item => {
                 const text = (item.dataset.filterText || item.textContent || "").toLowerCase();
                 const matches = (!query || text.includes(query))
                     && (!selectedStatus || item.dataset.filterStatus === selectedStatus)
-                    && (!selectedType || item.dataset.filterType === selectedType);
+                    && (!selectedType || item.dataset.filterType === selectedType)
+                    && (!selectedMode || item.dataset.filterMode === selectedMode);
 
                 item.hidden = !matches;
                 if (matches) {
@@ -129,6 +134,7 @@
         search?.addEventListener("input", apply);
         status?.addEventListener("change", apply);
         type?.addEventListener("change", apply);
+        mode?.addEventListener("change", apply);
     }
 
     async function renderSignalReplay(panel) {

@@ -44,6 +44,14 @@
                 </select>
             </label>
             <label>
+                <span>Modo</span>
+                <select asp-for="ModoOperacion">
+                    <option value="">Todos</option>
+                    <option value="fija">Señal fija</option>
+                    <option value="seguimiento">Seguimiento</option>
+                </select>
+            </label>
+            <label>
                 <span>Desde</span>
                 <input asp-for="Desde" type="date"/>
             </label>
@@ -177,7 +185,7 @@
         <div class="report-section">
             <div class="section-title">
                 <h2>Por simbolo</h2>
-                <span>ganancia y dano</span>
+                <span>real cerrado vs potencial</span>
             </div>
 
             @if (Model.FilteredSymbolBreakdown.Count == 0)
@@ -195,6 +203,7 @@
                         <article class="symbol-row">
                             <div>
                                 <strong>@row.Symbol</strong>
+                                <small>Real cerrado y potencial teórico separados.</small>
                                 <span>@row.TotalSignals señales, @row.OpenSignals abiertas</span>
                             </div>
                             <div class="bar-set">
@@ -202,6 +211,7 @@
                                 <div class="bar loss-bar" style="width:@Model.BarWidth(row.PotentialLossAtStop, Model.MaxSymbolValue)%"></div>
                             </div>
                             <div class="row-money">
+                                <span class="@Model.SignedClass(row.RealizedNetPnL)">Real @Model.Money(row.RealizedNetPnL)</span>
                                 <span class="gain">@Model.Money(row.PotentialNetAtTakeProfit1)</span>
                                 <span class="loss">@Model.Money(row.PotentialLossAtStop)</span>
                             </div>
@@ -217,7 +227,7 @@
         <div class="report-section">
             <div class="section-title">
                 <h2>Por dia</h2>
-                <span>ultimos 30 dias</span>
+                <span>real cerrado y potencial</span>
             </div>
 
             @if (Model.FilteredDailyBreakdown.Count == 0)
@@ -235,8 +245,9 @@
                         <article class="daily-row">
                             <strong>@row.Day.ToString("dd MMM yyyy")</strong>
                             <span>@row.TotalSignals señales</span>
-                            <span class="@Model.SignedClass(row.RealizedNetPnL)">@Model.Money(row.RealizedNetPnL)</span>
-                            <span class="gain">@Model.Money(row.PotentialNetAtTakeProfit1)</span>
+                            <span>@row.ClosedSignals cerradas</span>
+                            <span class="@Model.SignedClass(row.RealizedNetPnL)">Real @Model.Money(row.RealizedNetPnL)</span>
+                            <span class="gain">Potencial @Model.Money(row.PotentialNetAtTakeProfit1)</span>
                         </article>
                     }
                 </div>
@@ -270,11 +281,12 @@
                                 data-detail-key="@row.Id"
                                 data-filter-text="@($"{row.Symbol} {Model.SignalTypeLabel(row.Side)} {Model.StatusLabel(row.Status)} {Model.HorizonFor(row)} score {row.Score} entrada {Model.EntryWindow(row)} salida {Model.ExitLimit(row)}")"
                                 data-filter-status="@Model.StatusLabel(row.Status)"
-                                data-filter-type="@Model.SignalTypeLabel(row.Side)">
+                                data-filter-type="@Model.SignalTypeLabel(row.Side)"
+                                data-filter-mode="@Model.OperationModeLabel(row)">
                             <span class="master-kicker">@row.ObservedAt.ToLocalTime().ToString("dd MMM HH:mm") | @Model.HorizonFor(row)</span>
                             <strong>@row.Symbol - @Model.SignalTypeLabel(row.Side)</strong>
                             <span class="status @Model.StatusClass(row.Status)">@Model.StatusLabel(row.Status)</span>
-                            <small>Score @row.Score | entrar @Model.EntryWindow(row) | real @Model.RealNet(row)</small>
+                            <small>@Model.OperationModeLabel(row) | Score @row.Score | real @Model.RealNet(row)</small>
                             <div class="master-item-extra">
                                 <span>Entrada @Model.Price(row.EntryPrice)</span>
                                 <span>Salida @(row.ExitPrice.HasValue ? Model.Price(row.ExitPrice.Value) : "pendiente")</span>
@@ -312,7 +324,7 @@
                                  data-status="@Model.StatusLabel(row.Status)">
                             <div class="section-title">
                                 <h2>@row.Symbol - @Model.SignalTypeLabel(row.Side)</h2>
-                                <span>@Model.StatusLabel(row.Status) | score @row.Score</span>
+                                <span>@Model.OperationModeLabel(row) | @Model.StatusLabel(row.Status) | score @row.Score</span>
                             </div>
                             <div class="signal-replay-chart" data-signal-chart>
                                 <span>Cargando replay de la señal...</span>
@@ -321,7 +333,7 @@
                                 <article>
                                     <span>Señal recibida</span>
                                     <strong>@row.ObservedAt.ToLocalTime().ToString("dd MMM yyyy HH:mm")</strong>
-                                    <small>@Model.OperationMeaning(row)</small>
+                                    <small>@Model.OperationModeHint(row)</small>
                                 </article>
                                 <article>
                                     <span>Momento para entrar</span>

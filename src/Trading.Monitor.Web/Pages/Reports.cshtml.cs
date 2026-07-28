@@ -91,6 +91,9 @@ public sealed class ReportsModel : TradingPageModel
     public string TipoSenal { get; set; } = "";
 
     [BindProperty(SupportsGet = true)]
+    public string ModoOperacion { get; set; } = "";
+
+    [BindProperty(SupportsGet = true)]
     public DateOnly? Desde { get; set; }
 
     [BindProperty(SupportsGet = true)]
@@ -133,6 +136,7 @@ public sealed class ReportsModel : TradingPageModel
             rows = rows.Where(row => string.Equals(row.Symbol, Symbol.Trim(), StringComparison.OrdinalIgnoreCase));
 
         rows = rows.Where(row => MatchesSignalType(row, TipoSenal));
+        rows = rows.Where(row => MatchesOperationMode(row, ModoOperacion));
 
         rows = Estado?.Trim().ToLowerInvariant() switch
         {
@@ -323,6 +327,18 @@ public sealed class ReportsModel : TradingPageModel
         return SignalTypeLabel(row.Side);
     }
 
+    public string OperationModeLabel(OpportunityReportRow row)
+    {
+        return IsTrackingSignal(row) ? "Seguimiento" : "Señal fija";
+    }
+
+    public string OperationModeHint(OpportunityReportRow row)
+    {
+        return IsTrackingSignal(row)
+            ? "Entrada con salida administrada por objetivo neto y mercado vivo."
+            : "Entrada con salida/objetivo definido desde la señal original.";
+    }
+
     public string OperationMeaning(OpportunityReportRow row)
     {
         return SignalTypeRequirement(row.Side);
@@ -401,6 +417,24 @@ public sealed class ReportsModel : TradingPageModel
     public string RealTotal(TradeConversionSummary conversion)
     {
         return conversion.FinalTotal.HasValue ? Money(conversion.FinalTotal.Value) : "Pendiente";
+    }
+
+    private static bool MatchesOperationMode(OpportunityReportRow row, string? mode)
+    {
+        return mode?.Trim().ToLowerInvariant() switch
+        {
+            "fija" => !IsTrackingSignal(row),
+            "seguimiento" => IsTrackingSignal(row),
+            _ => true
+        };
+    }
+
+    private static bool IsTrackingSignal(OpportunityReportRow row)
+    {
+        if (row.Status is OpportunityStatus.ManagedProfitExit or OpportunityStatus.ManuallyClosed)
+            return true;
+
+        return false;
     }
 
     private static string Asset(string symbol)

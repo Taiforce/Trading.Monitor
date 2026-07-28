@@ -10,13 +10,17 @@ public sealed class RssNewsProvider(HttpClient httpClient, NewsOptions options, 
     private static readonly string[] PositiveWords =
     [
         "approval", "approved", "bullish", "rally", "surge", "breakout", "inflow", "adoption", "partnership", "upgrade",
-        "record high", "soars", "gains", "positive", "launch", "accumulates", "buys", "beat"
+        "record high", "soars", "gains", "positive", "launch", "accumulates", "buys", "beat",
+        "aprobacion", "aprobación", "aprobado", "alcista", "repunte", "sube", "suben", "gana", "ganan", "avance", "avanza",
+        "rompe resistencia", "maximo", "máximo", "maximos", "máximos", "entrada", "adopcion", "adopción", "alianza", "mejora", "compra", "compras"
     ];
 
     private static readonly string[] NegativeWords =
     [
         "hack", "lawsuit", "ban", "bearish", "outflow", "falls", "drops", "selloff", "liquidation", "probe",
-        "exploit", "bankruptcy", "downgrade", "crackdown", "negative", "reject", "rejected", "fraud", "breach"
+        "exploit", "bankruptcy", "downgrade", "crackdown", "negative", "reject", "rejected", "fraud", "breach",
+        "cae", "caen", "baja", "bajan", "perdida", "pérdida", "perdidas", "pérdidas", "bajista", "venta", "ventas", "demanda",
+        "prohibicion", "prohibición", "rechazo", "fraude", "hackeo", "quiebra", "liquidacion", "liquidación", "investigacion", "investigación", "presion", "presión"
     ];
 
     public string Name => "RSS research feeds";
