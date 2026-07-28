@@ -7,64 +7,15 @@
 <section class="dashboard">
     <div class="page-head">
         <div>
-            <p class="eyebrow">Analitica del trader</p>
+            <p class="eyebrow">@Model.MarketLabel() | analítica del trader</p>
             <h1>Reportes</h1>
         </div>
-        <form method="get" class="filter-bar reports-filter">
-            <label>
-                <span>Monto</span>
-                <input asp-for="Capital" type="number" min="0.01" step="0.01"/>
-            </label>
-            <label>
-                <span>Estado</span>
-                <select asp-for="Estado">
-                    <option value="todas">Todas</option>
-                    <option value="abiertas">Abiertas</option>
-                    <option value="cerradas">Cerradas</option>
-                    <option value="ganadas">Ganadas</option>
-                    <option value="perdidas">Pérdidas</option>
-                </select>
-            </label>
-            <label>
-                <span>Activo</span>
-                <select asp-for="Symbol">
-                    <option value="">Todos</option>
-                    @foreach (var symbol in Model.Symbols)
-                    {
-                        <option value="@symbol">@symbol</option>
-                    }
-                </select>
-            </label>
-            <label>
-                <span>Tipo de señal</span>
-                <select asp-for="TipoSenal">
-                    <option value="">Todas</option>
-                    <option value="@Model.BuyLowSellHighValue">Compra bajo - vende alto</option>
-                    <option value="@Model.SellHighBuyLowValue">Vende alto - compra bajo</option>
-                </select>
-            </label>
-            <label>
-                <span>Modo</span>
-                <select asp-for="ModoOperacion">
-                    <option value="">Todos</option>
-                    <option value="fija">Señal fija</option>
-                    <option value="seguimiento">Seguimiento</option>
-                </select>
-            </label>
-            <label>
-                <span>Desde</span>
-                <input asp-for="Desde" type="date"/>
-            </label>
-            <label>
-                <span>Hasta</span>
-                <input asp-for="Hasta" type="date"/>
-            </label>
-            <label>
-                <span>Score min</span>
-                <input asp-for="ScoreMinimo" type="number" min="0" max="100" step="5"/>
-            </label>
-            <button type="submit">Filtrar</button>
-        </form>
+        <div class="market-subnav stacked-subnav" aria-label="Cambiar reporte">
+            <a class="@(Model.MarketRouteValue() == "crypto" ? "active" : "")" asp-page="/Reports" asp-route-Mercado="crypto" asp-route-VistaReporte="@Model.VistaReporte" asp-route-Capital="@Model.Capital">Crypto</a>
+            <a class="@(Model.MarketRouteValue() == "forex" ? "active" : "")" asp-page="/Reports" asp-route-Mercado="forex" asp-route-VistaReporte="@Model.VistaReporte" asp-route-Capital="@Model.Capital">Forex</a>
+            <a class="@(Model.VistaReporte == "ia" ? "active" : "")" asp-page="/Reports" asp-route-Mercado="@Model.MarketRouteValue()" asp-route-VistaReporte="ia" asp-route-Capital="@Model.Capital">Reportes IA</a>
+            <a class="@(Model.VistaReporte == "propio" ? "active" : "")" asp-page="/Reports" asp-route-Mercado="@Model.MarketRouteValue()" asp-route-VistaReporte="propio" asp-route-Capital="@Model.Capital">Reportes propio</a>
+        </div>
     </div>
 
     <div class="insight-strip">
@@ -137,12 +88,14 @@
                 <span>Pérdida máxima promedio.</span>
             </article>
             <article>
-                <strong>@Model.FilteredOpenSignals</strong>
-                <span>Abiertas con salida pendiente.</span>
+                <strong>@Model.FilteredClosedSignals</strong>
+                <span>Cierres medidos después de comisiones.</span>
             </article>
         </div>
     </section>
 
+    @if (Model.VistaReporte == "ia")
+    {
     <section class="report-section">
         <div class="section-title">
             <h2>IA compuesta</h2>
@@ -197,7 +150,10 @@
             </div>
         }
     </section>
+    }
 
+    @if (Model.VistaReporte == "propio")
+    {
     <section class="report-section">
         <div class="section-title">
             <h2>Aprendizaje propio</h2>
@@ -235,6 +191,7 @@
             </div>
         }
     </section>
+    }
 
     <section class="two-column">
         <div class="report-section">
@@ -313,14 +270,69 @@
     <section class="report-section">
         <div class="section-title">
             <h2>Operaciones claras</h2>
-            <span>@Model.FilteredRows.Count señales filtradas</span>
+            <span>@Model.FilteredRows.Count cierres filtrados</span>
         </div>
+        <form method="get" class="filter-bar reports-filter internal-report-filter">
+            <input asp-for="Mercado" type="hidden"/>
+            <input asp-for="VistaReporte" type="hidden"/>
+            <label>
+                <span>Monto</span>
+                <input asp-for="Capital" type="number" min="0.01" step="0.01"/>
+            </label>
+            <label>
+                <span>Resultado</span>
+                <select asp-for="Estado">
+                    <option value="cerradas">Todas cerradas</option>
+                    <option value="ganadas">Ganadas</option>
+                    <option value="perdidas">Pérdidas</option>
+                </select>
+            </label>
+            <label>
+                <span>Activo</span>
+                <select asp-for="Symbol">
+                    <option value="">Todos</option>
+                    @foreach (var symbol in Model.Symbols)
+                    {
+                        <option value="@symbol">@Model.SymbolButtonLabel(symbol)</option>
+                    }
+                </select>
+            </label>
+            <label>
+                <span>Tipo de señal</span>
+                <select asp-for="TipoSenal">
+                    <option value="">Ambas</option>
+                    <option value="@Model.BuyLowSellHighValue">Compra bajo - vende alto</option>
+                    <option value="@Model.SellHighBuyLowValue">Vende alto - compra bajo</option>
+                </select>
+            </label>
+            <label>
+                <span>Modo</span>
+                <select asp-for="ModoOperacion">
+                    <option value="">Ambos</option>
+                    <option value="fija">Señal fija</option>
+                    <option value="seguimiento">Seguimiento</option>
+                </select>
+            </label>
+            <label>
+                <span>Desde</span>
+                <input asp-for="Desde" type="date"/>
+            </label>
+            <label>
+                <span>Hasta</span>
+                <input asp-for="Hasta" type="date"/>
+            </label>
+            <label>
+                <span>Score min</span>
+                <input asp-for="ScoreMinimo" type="number" min="0" max="100" step="5"/>
+            </label>
+            <button type="submit">Filtrar</button>
+        </form>
 
         @if (Model.FilteredRows.Count == 0)
         {
             <div class="empty-state">
                 <strong>Sin operaciones para esos filtros.</strong>
-                <span>Cambia rango, activo, estado o score mínimo.</span>
+                <span>Cambia mercado, rango, activo, tipo o score mínimo.</span>
             </div>
         }
         else

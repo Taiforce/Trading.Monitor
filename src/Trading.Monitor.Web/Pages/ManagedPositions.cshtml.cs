@@ -71,7 +71,7 @@ public sealed class ManagedPositionsModel : TradingPageModel
         var row = rows.FirstOrDefault(item => item.Id == CloseId);
 
         if (row is null || row.Status != OpportunityStatus.Open)
-            return RedirectToPage(new { Capital = capital, Estado, Symbol, TipoSenal, TargetNetPercent });
+            return RedirectToPage(new { Mercado, Capital = capital, Symbol, TipoSenal, TargetNetPercent });
 
         var percent = CloseNetPercent == 0m ? ResolveTargetPercent() : CloseNetPercent;
         var exitPrice = TradeCostCalculator.ResolveExitPriceForNetPercent(row.Side, row.Capital, row.EstimatedQuantity, row.EntryPrice, percent, _reportingOptions.CurrentValue.EstimatedFeePercentPerSide);
@@ -82,7 +82,7 @@ public sealed class ManagedPositionsModel : TradingPageModel
 
         await _opportunityRepository.UpdateExitAsync(row.Id, exit, breakdown.GrossBenefit, breakdown.NetBenefit, cancellationToken);
 
-        return RedirectToPage(new { Capital = capital, Estado = "cerradas", Symbol, TipoSenal, TargetNetPercent = percent });
+        return RedirectToPage(new { Mercado, Capital = capital, Symbol, TipoSenal, TargetNetPercent = percent });
     }
 
     public TradeCostBreakdown TargetBreakdown(OpportunityReportRow row)
@@ -126,7 +126,7 @@ public sealed class ManagedPositionsModel : TradingPageModel
 
         await LoadReportAsync(cancellationToken);
         var wallet = await _walletRepository.GetSnapshotAsync(cancellationToken);
-        Symbols = BuildSymbolList(Report.RecentSignals.Select(row => row.Symbol));
+        Symbols = BuildSymbolListForMarket(Report.RecentSignals.Select(row => row.Symbol));
         Rows = ApplyFilters(Report.RecentSignals)
             .Where(row => WalletSignalPolicy.CanShowSignal(row, wallet))
             .ToArray();
@@ -134,17 +134,13 @@ public sealed class ManagedPositionsModel : TradingPageModel
 
     private IReadOnlyList<OpportunityReportRow> ApplyFilters(IEnumerable<OpportunityReportRow> rows)
     {
+        rows = rows.Where(MatchesCurrentMarket);
+
         if (!string.IsNullOrWhiteSpace(Symbol))
             rows = rows.Where(row => string.Equals(row.Symbol, Symbol, StringComparison.OrdinalIgnoreCase));
 
         rows = rows.Where(row => MatchesSignalType(row, TipoSenal));
-
-        rows = Estado?.Trim().ToLowerInvariant() switch
-        {
-            "cerradas" => rows.Where(row => row.Status != OpportunityStatus.Open),
-            "todas" => rows,
-            _ => rows.Where(row => row.Status == OpportunityStatus.Open)
-        };
+        rows = rows.Where(row => row.Status == OpportunityStatus.Open);
 
         return rows
             .OrderBy(SignalTypePriority)

@@ -121,10 +121,15 @@ services:
       MarketSources__BinanceUsEnabled: ${MARKET_BINANCE_US_ENABLED:-true}
       MarketSources__CoinbaseEnabled: ${MARKET_COINBASE_ENABLED:-true}
       MarketSources__KrakenEnabled: ${MARKET_KRAKEN_ENABLED:-true}
+      MarketSources__YahooFinanceForexEnabled: ${MARKET_YAHOO_FOREX_ENABLED:-true}
+      MarketSources__AlphaVantageForexEnabled: ${MARKET_ALPHA_VANTAGE_FOREX_ENABLED:-true}
       MarketSources__BinanceBaseUrl: ${BINANCE_BASE_URL:-https://api.binance.com}
       MarketSources__BinanceUsBaseUrl: ${BINANCE_US_BASE_URL:-https://api.binance.us}
       MarketSources__CoinbaseBaseUrl: ${COINBASE_BASE_URL:-https://api.exchange.coinbase.com}
       MarketSources__KrakenBaseUrl: ${KRAKEN_BASE_URL:-https://api.kraken.com}
+      MarketSources__YahooFinanceBaseUrl: ${YAHOO_FINANCE_BASE_URL:-https://query1.finance.yahoo.com}
+      MarketSources__AlphaVantageBaseUrl: ${ALPHA_VANTAGE_BASE_URL:-https://www.alphavantage.co}
+      MarketSources__AlphaVantageApiKeyEnvironmentVariable: ALPHA_VANTAGE_API_KEY
       MarketSources__TimeoutSeconds: ${MARKET_TIMEOUT_SECONDS:-10}
       News__Enabled: ${NEWS_ENABLED:-true}
       News__FearGreedEnabled: ${NEWS_FEAR_GREED_ENABLED:-true}
@@ -165,6 +170,7 @@ services:
       ExchangeExecution__AllowedSymbols__1: ${EXCHANGE_ALLOWED_SYMBOL_1:-ETHUSDT}
       BINANCE_API_KEY: ${BINANCE_API_KEY:-}
       BINANCE_API_SECRET: ${BINANCE_API_SECRET:-}
+      ALPHA_VANTAGE_API_KEY: ${ALPHA_VANTAGE_API_KEY:-}
       Notifications__ConsoleEnabled: ${NOTIFICATIONS_CONSOLE_ENABLED:-true}
       Notifications__Email__Enabled: ${EMAIL_ENABLED:-false}
       Notifications__Email__Host: ${EMAIL_HOST:-}

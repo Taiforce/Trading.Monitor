@@ -16,7 +16,7 @@ public sealed class LiveOperationsSnapshotService(
     private const int PreEntryLeadMinutes = 3;
     private static readonly TradeInstructionService ClassicInstructionService = new(new RiskOptions { ManagedProfitExitEnabled = false });
 
-    public async Task<LiveOperationsSnapshot> GetAsync(decimal? capital, string? estado, string? symbol, string? tipoSenal, string? mode, string? selectedSignalId, CancellationToken cancellationToken)
+    public async Task<LiveOperationsSnapshot> GetAsync(decimal? capital, string? estado, string? symbol, string? tipoSenal, string? mode, string? selectedSignalId, string? mercado, CancellationToken cancellationToken)
     {
         var resolvedCapital = capital.GetValueOrDefault();
         if (resolvedCapital <= 0m)
@@ -27,7 +27,7 @@ public sealed class LiveOperationsSnapshotService(
         var now = DateTimeOffset.UtcNow;
         var resolvedInstructionService = IsClassicMode(mode) ? ClassicInstructionService : instructionService;
 
-        var filteredRows = ApplyFilters(report.RecentSignals, estado, symbol, tipoSenal)
+        var filteredRows = ApplyFilters(report.RecentSignals, estado, symbol, tipoSenal, mercado)
             .Where(row => WalletSignalPolicy.CanShowSignal(row, wallet))
             .ToArray();
         var selectedRow = ResolveSelectedRow(filteredRows, selectedSignalId);
@@ -150,8 +150,10 @@ public sealed class LiveOperationsSnapshotService(
         return string.Equals(mode, "classic", StringComparison.OrdinalIgnoreCase);
     }
 
-    private static IEnumerable<Application.Reporting.OpportunityReportRow> ApplyFilters(IEnumerable<Application.Reporting.OpportunityReportRow> rows, string? estado, string? symbol, string? tipoSenal)
+    private static IEnumerable<Application.Reporting.OpportunityReportRow> ApplyFilters(IEnumerable<Application.Reporting.OpportunityReportRow> rows, string? estado, string? symbol, string? tipoSenal, string? mercado)
     {
+        rows = rows.Where(row => MarketSymbolClassifier.MatchesMarket(row.Symbol, mercado));
+
         if (!string.IsNullOrWhiteSpace(symbol))
             rows = rows.Where(row => string.Equals(row.Symbol, symbol.Trim(), StringComparison.OrdinalIgnoreCase));
 
@@ -265,6 +267,9 @@ public sealed class LiveOperationsSnapshotService(
     private static IReadOnlyList<TradeLinkDto> BuildLinks(Application.Reporting.OpportunityReportRow row, string? mode)
     {
         var symbol = row.Symbol;
+        if (MarketSymbolClassifier.GetMarketKind(symbol) == MarketKind.Forex)
+            return BuildForexLinks(row, mode);
+
         var asset = MapAsset(symbol);
         var quote = symbol.EndsWith("USDT", StringComparison.OrdinalIgnoreCase) ? "USDT" : "USD";
         var coinbaseProduct = $"{asset}-USD";
@@ -279,6 +284,25 @@ public sealed class LiveOperationsSnapshotService(
             new TradeLinkDto("TradingView", $"https://www.tradingview.com/chart/?symbol=BINANCE:{asset}{quote}"),
             new TradeLinkDto("Coinbase", $"https://advanced.coinbase.com/trade/{coinbaseProduct}"),
             new TradeLinkDto("Kraken", $"https://pro.kraken.com/app/trade/{asset}-USD")
+        ];
+    }
+
+    private static IReadOnlyList<TradeLinkDto> BuildForexLinks(Application.Reporting.OpportunityReportRow row, string? mode)
+    {
+        var symbol = MarketSymbolClassifier.NormalizeSymbol(row.Symbol);
+        var baseCurrency = MarketSymbolClassifier.BaseAsset(symbol);
+        var quoteCurrency = MarketSymbolClassifier.QuoteAsset(symbol);
+        var page = IsClassicMode(mode) ? "/acciones" : "/posiciones";
+        var internalUrl = $"{page}?Mercado=forex&Capital={Uri.EscapeDataString(row.Capital.ToString(CultureInfo.InvariantCulture))}&TipoSenal={Uri.EscapeDataString(SignalTypeFormatter.Value(row.Side))}&senal={row.Id:N}&interval={Uri.EscapeDataString(DefaultIntervalFor(row))}";
+        var investingPair = $"{baseCurrency.ToLowerInvariant()}-{quoteCurrency.ToLowerInvariant()}";
+
+        return
+        [
+            new TradeLinkDto("Abrir señal", internalUrl),
+            new TradeLinkDto("TradingView", $"https://www.tradingview.com/chart/?symbol=FX:{symbol}"),
+            new TradeLinkDto("Yahoo", $"https://finance.yahoo.com/quote/{symbol}=X"),
+            new TradeLinkDto("Investing", $"https://www.investing.com/currencies/{investingPair}"),
+            new TradeLinkDto("OANDA", $"https://www.oanda.com/us-en/trading/instruments/{baseCurrency.ToLowerInvariant()}-{quoteCurrency.ToLowerInvariant()}/")
         ];
     }
 

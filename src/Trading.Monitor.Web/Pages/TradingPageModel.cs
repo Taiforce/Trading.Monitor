@@ -14,7 +14,9 @@ namespace Trading.Monitor.Web.Pages;
 public abstract class TradingPageModel(IOpportunityRepository opportunityRepository, IOptionsMonitor<ReportingOptions> reportingOptions) : PageModel
 {
     private static readonly CultureInfo CurrencyCulture = CultureInfo.GetCultureInfo("en-US");
-    private static readonly string[] SupportedTradingSymbols = ["BTCUSDT", "ETHUSDT", "SOLUSDT", "XRPUSDT", "ADAUSDT"];
+
+    [BindProperty(SupportsGet = true)]
+    public string Mercado { get; set; } = MarketSymbolClassifier.CryptoMarket;
 
     [BindProperty(SupportsGet = true)]
     public decimal Capital { get; set; }
@@ -185,11 +187,11 @@ public abstract class TradingPageModel(IOpportunityRepository opportunityReposit
 
     public string SymbolButtonLabel(string symbol)
     {
+        if (MarketSymbolClassifier.GetMarketKind(symbol) == MarketKind.Forex && symbol.Length >= 6)
+            return $"{symbol[..3]}/{symbol[3..]}";
+
         if (symbol.EndsWith("USDT", StringComparison.OrdinalIgnoreCase))
             return symbol[..^4];
-
-        if (symbol.EndsWith("USD", StringComparison.OrdinalIgnoreCase))
-            return symbol[..^3];
 
         return symbol;
     }
@@ -221,19 +223,27 @@ public abstract class TradingPageModel(IOpportunityRepository opportunityReposit
 
     protected static IReadOnlyList<string> BuildSymbolList(IEnumerable<string> symbols)
     {
-        var configured = SupportedTradingSymbols
-            .Concat(symbols.Where(symbol => !string.IsNullOrWhiteSpace(symbol)).Select(symbol => symbol.Trim().ToUpperInvariant()))
-            .Distinct(StringComparer.OrdinalIgnoreCase)
-            .ToArray();
+        return MarketSymbolClassifier.BuildSymbolList(symbols, MarketSymbolClassifier.CryptoMarket);
+    }
 
-        return configured
-            .OrderBy(symbol =>
-            {
-                var index = Array.FindIndex(SupportedTradingSymbols, configuredSymbol => string.Equals(configuredSymbol, symbol, StringComparison.OrdinalIgnoreCase));
-                return index < 0 ? int.MaxValue : index;
-            })
-            .ThenBy(symbol => symbol, StringComparer.OrdinalIgnoreCase)
-            .ToArray();
+    protected IReadOnlyList<string> BuildSymbolListForMarket(IEnumerable<string> symbols)
+    {
+        return MarketSymbolClassifier.BuildSymbolList(symbols, Mercado);
+    }
+
+    protected bool MatchesCurrentMarket(OpportunityReportRow row)
+    {
+        return MarketSymbolClassifier.MatchesMarket(row.Symbol, Mercado);
+    }
+
+    public string MarketLabel()
+    {
+        return MarketSymbolClassifier.MarketLabel(Mercado);
+    }
+
+    public string MarketRouteValue()
+    {
+        return MarketSymbolClassifier.NormalizeMarket(Mercado);
     }
 
     public string StatusMeaning(OpportunityStatus status)

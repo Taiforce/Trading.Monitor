@@ -78,12 +78,14 @@ public sealed class PortfolioModel : TradingPageModel
 
         _logger.LogInformation("Loading virtual portfolio for initial capital {InitialCapital}.", InitialCapital);
         var allSignals = await _opportunityRepository.GetSignalsAsync(InitialCapital, cancellationToken);
-        Symbols = BuildSymbolList(allSignals.Select(row => row.Symbol));
+        Symbols = BuildSymbolListForMarket(allSignals.Select(row => row.Symbol));
         FilteredSignals = ApplyFilters(allSignals).ToArray();
         Simulation = _simulator.Simulate(FilteredSignals, InitialCapital, _reportingOptions.CurrentValue.EstimatedFeePercentPerSide);
         EquityPolyline = BuildEquityPolyline(Simulation.EquityPoints);
 
-        Traders = await _traderRepository.GetTradersAsync(cancellationToken);
+        Traders = (await _traderRepository.GetTradersAsync(cancellationToken))
+            .Where(MatchesTraderMarket)
+            .ToArray();
         if (TraderId.HasValue)
         {
             var traderTrades = await _traderRepository.GetTradesAsync(TraderId.Value, Desde, Hasta, cancellationToken);
@@ -208,6 +210,9 @@ public sealed class PortfolioModel : TradingPageModel
 
     private IEnumerable<OpportunityReportRow> ApplyFilters(IEnumerable<OpportunityReportRow> rows)
     {
+        rows = rows.Where(MatchesCurrentMarket);
+        rows = rows.Where(row => row.Status != OpportunityStatus.Open);
+
         if (!string.IsNullOrWhiteSpace(Symbol))
             rows = rows.Where(row => string.Equals(row.Symbol, Symbol.Trim(), StringComparison.OrdinalIgnoreCase));
 
@@ -223,6 +228,18 @@ public sealed class PortfolioModel : TradingPageModel
             rows = rows.Where(row => row.Score >= ScoreMinimo.Value);
 
         return rows.OrderBy(SignalTypePriority).ThenBy(row => row.ObservedAt);
+    }
+
+    private bool MatchesTraderMarket(TraderProfileReportRow row)
+    {
+        if (row.Market.Contains("multi-mercado", StringComparison.OrdinalIgnoreCase)
+            || row.Market.Contains("multi-activo", StringComparison.OrdinalIgnoreCase))
+            return true;
+
+        var market = MarketSymbolClassifier.NormalizeMarket(Mercado);
+        return market == MarketSymbolClassifier.ForexMarket
+            ? row.Market.Contains("forex", StringComparison.OrdinalIgnoreCase) || row.Market.Contains("divisa", StringComparison.OrdinalIgnoreCase) || row.Market.Contains("MXN", StringComparison.OrdinalIgnoreCase)
+            : row.Market.Contains("crypto", StringComparison.OrdinalIgnoreCase) || row.Market.Contains("cripto", StringComparison.OrdinalIgnoreCase) || row.Market.Contains("BTC", StringComparison.OrdinalIgnoreCase);
     }
 
     private static string BuildEquityPolyline(IReadOnlyList<VirtualPortfolioEquityPoint> points)

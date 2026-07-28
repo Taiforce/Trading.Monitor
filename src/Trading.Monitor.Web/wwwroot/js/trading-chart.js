@@ -40,6 +40,7 @@
     ];
     const capital = board.dataset.liveCapital || "1000";
     const estado = board.dataset.liveEstado || "abiertas";
+    const mercado = board.dataset.liveMarket || "crypto";
     const symbolFilter = board.dataset.liveSymbol || "";
     const tipoSenal = board.dataset.liveTipoSenal || "";
     const liveMode = board.dataset.liveMode || "managed";
@@ -47,8 +48,8 @@
     const defaultTargetPercent = parseNumber(board.dataset.liveTargetNetPercent, 5);
     const feePercent = parseNumber(board.dataset.liveFeePercent, 0.1);
     const targetStoragePrefix = `trading-monitor-target-percent-${liveMode}`;
-    const symbolStorageKey = "trading-monitor-chart-symbol";
-    const intervalStorageKey = "trading-monitor-chart-interval";
+    const symbolStorageKey = `trading-monitor-chart-symbol-${mercado}`;
+    const intervalStorageKey = `trading-monitor-chart-interval-${mercado}`;
     const lineStyleDashed = lwc.LineStyle?.Dashed ?? 2;
     const lineStyleSolid = lwc.LineStyle?.Solid ?? 0;
     const crosshairModeNormal = lwc.CrosshairMode?.Normal ?? 0;
@@ -61,7 +62,7 @@
     let candleSeries;
     let volumeSeries;
     let markerApi;
-    let selectedSymbol = initialOperationId && symbolFilter ? symbolFilter : localStorage.getItem(symbolStorageKey) || symbolFilter || "BTCUSDT";
+    let selectedSymbol = initialOperationId && symbolFilter ? symbolFilter : localStorage.getItem(symbolStorageKey) || symbolFilter || defaultSymbolForMarket();
     let selectedInterval = initialInterval || localStorage.getItem(intervalStorageKey) || "1m";
     let chartZoom = Number(chartZoomInput?.value || 45);
     let lastOperations = [];
@@ -248,7 +249,7 @@
     async function refreshLiveTrades() {
         try {
             const requestSymbol = selectedSymbol || symbolFilter;
-            const url = `/api/operaciones-vivas?capital=${encodeURIComponent(capital)}&estado=${encodeURIComponent(estado)}&symbol=${encodeURIComponent(requestSymbol)}&tipoSenal=${encodeURIComponent(tipoSenal)}&mode=${encodeURIComponent(liveMode)}&senal=${encodeURIComponent(selectedOperationId || "")}`;
+            const url = `/api/operaciones-vivas?capital=${encodeURIComponent(capital)}&estado=${encodeURIComponent(estado)}&symbol=${encodeURIComponent(requestSymbol)}&tipoSenal=${encodeURIComponent(tipoSenal)}&mode=${encodeURIComponent(liveMode)}&senal=${encodeURIComponent(selectedOperationId || "")}&mercado=${encodeURIComponent(mercado)}`;
             const response = await fetch(url, { cache: "no-store" });
             if (!response.ok) {
                 throw new Error(`HTTP ${response.status}`);
@@ -278,7 +279,7 @@
         const requestId = ++chartRequestId;
         const requestSymbol = selectedSymbol;
         const requestInterval = selectedInterval;
-        const url = `/api/grafico-vivo?symbol=${encodeURIComponent(requestSymbol)}&interval=${encodeURIComponent(requestInterval)}&capital=${encodeURIComponent(capital)}&estado=${encodeURIComponent(estado)}&tipoSenal=${encodeURIComponent(tipoSenal)}&mode=${encodeURIComponent(liveMode)}&senal=${encodeURIComponent(selectedOperationId || "")}`;
+        const url = `/api/grafico-vivo?symbol=${encodeURIComponent(requestSymbol)}&interval=${encodeURIComponent(requestInterval)}&capital=${encodeURIComponent(capital)}&estado=${encodeURIComponent(estado)}&tipoSenal=${encodeURIComponent(tipoSenal)}&mode=${encodeURIComponent(liveMode)}&senal=${encodeURIComponent(selectedOperationId || "")}&mercado=${encodeURIComponent(mercado)}`;
         const response = await fetch(url, { cache: "no-store" });
         if (!response.ok) {
             throw new Error(`HTTP ${response.status}`);
@@ -931,6 +932,7 @@
         }
 
         const url = new URL(window.location.href);
+        url.searchParams.set("Mercado", mercado);
         url.searchParams.set("Capital", capital);
         url.searchParams.set("Estado", estado);
         url.searchParams.set("Symbol", selectedSymbol);
@@ -993,7 +995,11 @@
     }
 
     function pickChartSymbol(operations) {
-        return (operations.find(item => item.highlight) || operations.find(item => item.status === "Abierta") || operations[0] || { symbol: "BTCUSDT" }).symbol;
+        return (operations.find(item => item.highlight) || operations.find(item => item.status === "Abierta") || operations[0] || { symbol: defaultSymbolForMarket() }).symbol;
+    }
+
+    function defaultSymbolForMarket() {
+        return mercado === "forex" ? "EURUSD" : "BTCUSDT";
     }
 
     function buildAnalysisTrade(analysis) {

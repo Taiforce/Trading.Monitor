@@ -61,6 +61,9 @@ public sealed class MarketScanner(
 
             foreach (var interval in intervals)
             {
+                if (MarketSymbolClassifier.GetMarketKind(symbol) == MarketKind.Forex && string.Equals(interval, "1s", StringComparison.Ordinal))
+                    continue;
+
                 try
                 {
                     var candles = await marketDataProvider.GetCandlesAsync(symbol, interval, monitorOptions.CandleLimit, cancellationToken);

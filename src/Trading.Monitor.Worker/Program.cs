@@ -53,21 +53,32 @@ try
     builder.Services.AddSingleton<IMarketDataProvider>(serviceProvider =>
     {
         var options = serviceProvider.GetRequiredService<IOptions<MarketDataSourceOptions>>().Value;
-        var providers = new List<IMarketDataProvider>();
+        var cryptoProviders = new List<IMarketDataProvider>();
+        var forexProviders = new List<IMarketDataProvider>();
 
         if (options.BinanceEnabled)
-            providers.Add(new BinanceRestMarketDataProvider(CreateMarketClient(options.BinanceBaseUrl, options.TimeoutSeconds), "Binance"));
+            cryptoProviders.Add(new BinanceRestMarketDataProvider(CreateMarketClient(options.BinanceBaseUrl, options.TimeoutSeconds), "Binance"));
 
         if (options.BinanceUsEnabled)
-            providers.Add(new BinanceRestMarketDataProvider(CreateMarketClient(options.BinanceUsBaseUrl, options.TimeoutSeconds), "Binance US"));
+            cryptoProviders.Add(new BinanceRestMarketDataProvider(CreateMarketClient(options.BinanceUsBaseUrl, options.TimeoutSeconds), "Binance US"));
 
         if (options.CoinbaseEnabled)
-            providers.Add(new CoinbaseExchangeMarketDataProvider(CreateMarketClient(options.CoinbaseBaseUrl, options.TimeoutSeconds)));
+            cryptoProviders.Add(new CoinbaseExchangeMarketDataProvider(CreateMarketClient(options.CoinbaseBaseUrl, options.TimeoutSeconds)));
 
         if (options.KrakenEnabled)
-            providers.Add(new KrakenMarketDataProvider(CreateMarketClient(options.KrakenBaseUrl, options.TimeoutSeconds)));
+            cryptoProviders.Add(new KrakenMarketDataProvider(CreateMarketClient(options.KrakenBaseUrl, options.TimeoutSeconds)));
 
-        return new CompositeMarketDataProvider(providers, serviceProvider.GetRequiredService<ISourceTelemetryRecorder>());
+        if (options.AlphaVantageForexEnabled)
+        {
+            var apiKey = Environment.GetEnvironmentVariable(options.AlphaVantageApiKeyEnvironmentVariable);
+            if (!string.IsNullOrWhiteSpace(apiKey))
+                forexProviders.Add(new AlphaVantageForexMarketDataProvider(CreateMarketClient(options.AlphaVantageBaseUrl, options.TimeoutSeconds), apiKey));
+        }
+
+        if (options.YahooFinanceForexEnabled)
+            forexProviders.Add(new YahooFinanceForexMarketDataProvider(CreateMarketClient(options.YahooFinanceBaseUrl, options.TimeoutSeconds)));
+
+        return new MarketRoutingDataProvider(cryptoProviders, forexProviders, serviceProvider.GetRequiredService<ISourceTelemetryRecorder>());
     });
 
     builder.Services.AddSingleton<INewsProvider>(serviceProvider =>

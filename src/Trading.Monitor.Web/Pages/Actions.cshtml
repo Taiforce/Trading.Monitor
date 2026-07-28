@@ -7,42 +7,13 @@
 <section class="dashboard">
     <div class="page-head">
         <div>
-            <p class="eyebrow">Entrada y salida fija</p>
+            <p class="eyebrow">@Model.MarketLabel() | entrada y salida fija</p>
             <h1>Operaciones por señal</h1>
         </div>
-        <form method="get" class="filter-bar actions-filter" id="actionsFilterForm">
-            <label>
-                <span>Monto</span>
-                <input asp-for="Capital" type="number" min="0.01" step="0.01"/>
-            </label>
-            <label>
-                <span>Estado</span>
-                <select asp-for="Estado">
-                    <option value="abiertas">Abiertas</option>
-                    <option value="cerradas">Cerradas</option>
-                    <option value="todas">Todas</option>
-                </select>
-            </label>
-            <label>
-                <span>Tipo de señal</span>
-                <select asp-for="TipoSenal">
-                    <option value="">Todas</option>
-                    <option value="@Model.BuyLowSellHighValue">Compra bajo - vende alto</option>
-                    <option value="@Model.SellHighBuyLowValue">Vende alto - compra bajo</option>
-                </select>
-            </label>
-            <label>
-                <span>Activo</span>
-                <select asp-for="Symbol">
-                    <option value="">Todos</option>
-                    @foreach (var symbol in Model.Symbols)
-                    {
-                        <option value="@symbol">@symbol</option>
-                    }
-                </select>
-            </label>
-            <button type="submit">Aplicar</button>
-        </form>
+        <div class="market-subnav" aria-label="Cambiar mercado">
+            <a class="@(Model.MarketRouteValue() == "crypto" ? "active" : "")" asp-page="/Actions" asp-route-Mercado="crypto" asp-route-Capital="@Model.Capital">Crypto</a>
+            <a class="@(Model.MarketRouteValue() == "forex" ? "active" : "")" asp-page="/Actions" asp-route-Mercado="forex" asp-route-Capital="@Model.Capital">Forex</a>
+        </div>
     </div>
 
     <section class="metrics-grid metrics-grid-four" aria-label="Resumen de acciones">
@@ -64,20 +35,36 @@
         <article class="metric">
             <span>Resultado neto</span>
             <strong class="@Model.SignedClass(Model.FilteredRealizedNet)">@Model.Money(Model.FilteredRealizedNet)</strong>
-            <small>@Model.Rows.Count(row => row.Status != Trading.Monitor.Domain.OpportunityStatus.Open) cierres medidos</small>
+            <small>@Model.FilteredClosedOperations cierres medidos</small>
         </article>
     </section>
 
     <div class="insight-strip trade-type-guide">
         <span>Operación fija</span>
-        <strong>Cada señal trae entrada, mercado objetivo y salida. Para entrar y dejar que el sistema busque la salida después, usa <a asp-page="/ManagedPositions">Seguimiento por señal</a>.</strong>
+        <strong>Cada señal trae entrada, mercado objetivo y salida. Para entrar y dejar que el sistema busque la salida después, usa <a asp-page="/ManagedPositions" asp-route-Mercado="@Model.MarketRouteValue()">Seguimiento por señal</a>.</strong>
     </div>
 
-    <section class="report-section live-board" data-live-mode="classic" data-live-capital="@Model.Report.Capital" data-live-estado="@Model.Estado" data-live-symbol="@Model.Symbol" data-live-tipo-senal="@Model.TipoSenal" data-live-fee-percent="@Model.EstimatedFeePercentPerSide">
+    <section class="report-section live-board" data-live-mode="classic" data-live-market="@Model.MarketRouteValue()" data-live-capital="@Model.Report.Capital" data-live-estado="abiertas" data-live-symbol="@Model.Symbol" data-live-tipo-senal="@Model.TipoSenal" data-live-fee-percent="@Model.EstimatedFeePercentPerSide">
         <div class="section-title">
             <h2>Gráfico y seguimiento</h2>
             <span id="liveUpdated">actualizando...</span>
         </div>
+        <form method="get" class="filter-bar live-inline-filter" id="actionsFilterForm">
+            <input asp-for="Mercado" type="hidden"/>
+            <label>
+                <span>Monto</span>
+                <input asp-for="Capital" type="number" min="0.01" step="0.01"/>
+            </label>
+            <label>
+                <span>Tipo de señal</span>
+                <select asp-for="TipoSenal">
+                    <option value="">Ambas</option>
+                    <option value="@Model.BuyLowSellHighValue">Compra bajo - vende alto</option>
+                    <option value="@Model.SellHighBuyLowValue">Vende alto - compra bajo</option>
+                </select>
+            </label>
+            <button type="submit">Aplicar</button>
+        </form>
         <div class="chart-toolbar" aria-label="Controles del gráfico">
             <div>
                 <span>Activo</span>
@@ -114,7 +101,7 @@
         <div class="live-layout">
             <div class="trade-terminal">
                 <div class="terminal-strip" id="terminalStrip">
-                    <strong>BTCUSDT</strong>
+                    <strong>@(Model.SymbolButtonLabel(Model.Symbols.FirstOrDefault() ?? "BTCUSDT"))</strong>
                     <span>cargando mercado...</span>
                 </div>
                 <div id="advancedTradesChart" class="tradingview-chart" aria-label="Gráfico de operaciones por señal"></div>

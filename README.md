@@ -6,7 +6,8 @@ Por defecto ejecuta en modo `Paper`: simula entradas y salidas y las registra en
 
 ## Que hace
 
-- Consulta velas publicas con proveedores encadenados: Binance, Binance US, Coinbase Exchange y Kraken.
+- Consulta velas publicas con proveedores encadenados: Binance, Binance US, Coinbase Exchange, Kraken, Yahoo Finance FX y Alpha Vantage FX opcional.
+- Monitorea Crypto y Forex por separado: BTC/ETH/SOL/XRP/ADA y pares como EUR/USD, GBP/USD, USD/JPY, USD/MXN, EUR/MXN, GBP/JPY y EUR/GBP.
 - Calcula EMA 9/20/50/200, RSI, MACD, Bollinger Bands, ATR, ADX, VWAP, volumen relativo, soporte y resistencia.
 - Evalua coincidencia multi-temporal para LONG o SHORT.
 - Lee noticias RSS, reportes macro/regulatorios configurables y clasifica sentimiento basico por palabras clave.
@@ -102,8 +103,11 @@ Paginas principales:
 
 - `http://localhost:5088/`: resumen ejecutivo.
 - `http://localhost:5088/acciones`: entradas, salidas, ganancia objetivo, perdida maxima y calculos por monto.
+- `http://localhost:5088/acciones?Mercado=forex`: operaciones Forex vivas.
+- `http://localhost:5088/posiciones?Mercado=forex`: seguimiento Forex sin salida fija.
 - `http://localhost:5088/api/operaciones-vivas?capital=1000`: JSON del tablero vivo.
 - `http://localhost:5088/api/grafico-vivo?symbol=BTCUSDT&interval=1m&capital=1000`: velas 1m y niveles de entrada, ganancia y perdida maxima.
+- `http://localhost:5088/api/grafico-vivo?mercado=forex&symbol=EURUSD&interval=1m&capital=1000`: velas Forex y lectura viva.
 - `http://localhost:5088/api/exchange/status`: estado seguro de integracion con exchange.
 - `http://localhost:5088/reportes`: reportes por simbolo, dia, win rate y PnL.
 - `http://localhost:5088/conexiones`: salud de exchanges, noticias, reportes e IA.
@@ -150,11 +154,11 @@ Edita `src/Trading.Monitor.Worker/appsettings.json` o crea `src/Trading.Monitor.
 
 Campos importantes:
 
-- `TradingMonitor:Symbols`: pares a monitorear, por ejemplo `BTCUSDT`, `ETHUSDT`.
+- `TradingMonitor:Symbols`: pares a monitorear, por ejemplo `BTCUSDT`, `ETHUSDT`, `EURUSD`, `USDMXN`.
 - `TradingMonitor:Intervals`: temporalidades a evaluar.
 - `TradingMonitor:MinimumScore`: puntuacion minima para lanzar alerta.
 - `TradingMonitor:EvaluationIntervalSeconds`: frecuencia de escaneo.
-- `MarketSources:*Enabled`: activa o desactiva Binance, Binance US, Coinbase y Kraken.
+- `MarketSources:*Enabled`: activa o desactiva Binance, Binance US, Coinbase, Kraken, Yahoo Finance FX y Alpha Vantage FX.
 - `MarketSources:*BaseUrl`: URLs base de cada proveedor de mercado.
 - `MarketSources:TimeoutSeconds`: limite por solicitud de mercado.
 - `Risk:ManagedProfitExitEnabled`: mantiene operaciones vivas y cierra por beneficio neto administrado.
@@ -167,6 +171,7 @@ Campos importantes:
 - `Reporting:EstimatedFeePercentPerSide`: comision estimada por lado.
 - `Database:ConnectionString`: conexion SQL Server usada por Entity Framework.
 - `News:Feeds`: fuentes RSS, reportes y recursos a revisar.
+- `ALPHA_VANTAGE_API_KEY`: opcional para reforzar Forex con Alpha Vantage. Sin llave, Forex sigue funcionando con Yahoo Finance FX.
 - `News:FearGreedEnabled`: agrega el indice publico Fear & Greed como contexto de sentimiento.
 - `News:CryptoPanicEnabled`: activa CryptoPanic si configuras `CRYPTOPANIC_AUTH_TOKEN`.
 - `News:CryptoPanicAuthTokenEnvironmentVariable`: nombre de la variable que contiene el token de CryptoPanic.

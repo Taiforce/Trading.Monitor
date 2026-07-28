@@ -7,10 +7,22 @@
 <section class="dashboard">
     <div class="page-head">
         <div>
-            <p class="eyebrow">Simulador compuesto</p>
+            <p class="eyebrow">@Model.MarketLabel() | simulador compuesto</p>
             <h1>Cartera virtual</h1>
         </div>
+        <div class="market-subnav" aria-label="Cambiar simulador">
+            <a class="@(Model.MarketRouteValue() == "crypto" ? "active" : "")" asp-page="/Portfolio" asp-route-Mercado="crypto" asp-route-InitialCapital="@Model.InitialCapital">Crypto</a>
+            <a class="@(Model.MarketRouteValue() == "forex" ? "active" : "")" asp-page="/Portfolio" asp-route-Mercado="forex" asp-route-InitialCapital="@Model.InitialCapital">Forex</a>
+        </div>
+    </div>
+
+    <section class="report-section">
+        <div class="section-title">
+            <h2>Filtros de simulación</h2>
+            <span>solo señales cerradas</span>
+        </div>
         <form method="get" class="filter-bar portfolio-filter">
+            <input asp-for="Mercado" type="hidden"/>
             <label>
                 <span>Monto inicial</span>
                 <input asp-for="InitialCapital" type="number" min="0.01" step="0.01"/>
@@ -45,19 +57,9 @@
                 <span>Score min</span>
                 <input asp-for="ScoreMinimo" type="number" min="0" max="100" step="5"/>
             </label>
-            <label>
-                <span>Trader</span>
-                <select asp-for="TraderId">
-                    <option value="">Sin trader</option>
-                    @foreach (var trader in Model.Traders)
-                    {
-                        <option value="@trader.Id">@trader.Platform - @trader.DisplayName</option>
-                    }
-                </select>
-            </label>
             <button type="submit">Simular</button>
         </form>
-    </div>
+    </section>
 
     <div class="insight-strip">
         <span>Regla</span>

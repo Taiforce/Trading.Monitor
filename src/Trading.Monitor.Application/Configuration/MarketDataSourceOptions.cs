@@ -10,6 +10,10 @@ public sealed class MarketDataSourceOptions
 
     public bool KrakenEnabled { get; set; } = true;
 
+    public bool YahooFinanceForexEnabled { get; set; } = true;
+
+    public bool AlphaVantageForexEnabled { get; set; } = true;
+
     public string BinanceBaseUrl { get; set; } = "https://api.binance.com";
 
     public string BinanceUsBaseUrl { get; set; } = "https://api.binance.us";
@@ -17,6 +21,12 @@ public sealed class MarketDataSourceOptions
     public string CoinbaseBaseUrl { get; set; } = "https://api.exchange.coinbase.com";
 
     public string KrakenBaseUrl { get; set; } = "https://api.kraken.com";
+
+    public string YahooFinanceBaseUrl { get; set; } = "https://query1.finance.yahoo.com";
+
+    public string AlphaVantageBaseUrl { get; set; } = "https://www.alphavantage.co";
+
+    public string AlphaVantageApiKeyEnvironmentVariable { get; set; } = "ALPHA_VANTAGE_API_KEY";
 
     public int TimeoutSeconds { get; set; } = 10;
 }

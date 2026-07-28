@@ -163,7 +163,9 @@ public sealed class MarketMonitorWorker(ILogger<MarketMonitorWorker> logger, Mar
                 var candles = await marketDataProvider.GetCandlesAsync(opportunity.Symbol, trackingInterval, Math.Min(1000, Math.Max(100, monitor.CandleLimit)), cancellationToken);
                 var exitCandles = candles;
 
-                if (risk.ManagedProfitExitEnabled && opportunityExitService.HasTouchedManagedTarget(opportunity, candles, risk))
+                if (risk.ManagedProfitExitEnabled
+                    && MarketSymbolClassifier.GetMarketKind(opportunity.Symbol) != MarketKind.Forex
+                    && opportunityExitService.HasTouchedManagedTarget(opportunity, candles, risk))
                 {
                     try
                     {

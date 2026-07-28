@@ -146,7 +146,8 @@
         host.dataset.rendered = "true";
 
         try {
-            const url = `/api/grafico-vivo?symbol=${encodeURIComponent(panel.dataset.symbol)}&interval=${encodeURIComponent(panel.dataset.interval)}&capital=${encodeURIComponent(panel.dataset.capital || "1000")}&estado=todas&from=${encodeURIComponent(panel.dataset.from || "")}&to=${encodeURIComponent(panel.dataset.to || "")}`;
+            const mercado = panel.dataset.market || inferMarket(panel.dataset.symbol);
+            const url = `/api/grafico-vivo?symbol=${encodeURIComponent(panel.dataset.symbol)}&interval=${encodeURIComponent(panel.dataset.interval)}&capital=${encodeURIComponent(panel.dataset.capital || "1000")}&estado=todas&mercado=${encodeURIComponent(mercado)}&from=${encodeURIComponent(panel.dataset.from || "")}&to=${encodeURIComponent(panel.dataset.to || "")}`;
             const response = await fetch(url, { cache: "no-store" });
             if (!response.ok) {
                 throw new Error(`HTTP ${response.status}`);
@@ -457,6 +458,11 @@
         const number = Number(value || 0);
         const decimals = Math.abs(number) >= 1000 ? 2 : Math.abs(number) >= 1 ? 4 : 8;
         return number.toLocaleString("en-US", { minimumFractionDigits: decimals, maximumFractionDigits: decimals });
+    }
+
+    function inferMarket(symbol) {
+        const value = String(symbol || "").toUpperCase();
+        return /^[A-Z]{6}$/.test(value) && !value.endsWith("USDT") ? "forex" : "crypto";
     }
 
     function escapeHtml(value) {

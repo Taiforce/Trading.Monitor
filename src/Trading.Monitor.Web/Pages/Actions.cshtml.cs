@@ -31,6 +31,8 @@ public sealed class ActionsModel(IOpportunityRepository opportunityRepository, I
 
     public decimal SimulatedBalanceAfterClosedOperations { get; private set; }
 
+    public int FilteredClosedOperations { get; private set; }
+
     [BindProperty(SupportsGet = true)]
     public string Estado { get; set; } = "abiertas";
 
@@ -46,7 +48,7 @@ public sealed class ActionsModel(IOpportunityRepository opportunityRepository, I
         await LoadReportAsync(cancellationToken);
         var wallet = await walletRepository.GetSnapshotAsync(cancellationToken);
 
-        Symbols = BuildSymbolList(Report.RecentSignals.Select(row => row.Symbol));
+        Symbols = BuildSymbolListForMarket(Report.RecentSignals.Select(row => row.Symbol));
         Rows = ApplyFilters(Report.RecentSignals)
             .Where(row => WalletSignalPolicy.CanShowSignal(row, wallet))
             .ToArray();
@@ -129,17 +131,13 @@ public sealed class ActionsModel(IOpportunityRepository opportunityRepository, I
 
     private IReadOnlyList<OpportunityReportRow> ApplyFilters(IEnumerable<OpportunityReportRow> rows)
     {
+        rows = rows.Where(MatchesCurrentMarket);
+
         if (!string.IsNullOrWhiteSpace(Symbol))
             rows = rows.Where(row => string.Equals(row.Symbol, Symbol, StringComparison.OrdinalIgnoreCase));
 
         rows = rows.Where(row => MatchesSignalType(row, TipoSenal));
-
-        rows = Estado?.Trim().ToLowerInvariant() switch
-        {
-            "cerradas" => rows.Where(row => row.Status != OpportunityStatus.Open),
-            "todas" => rows,
-            _ => rows.Where(row => row.Status == OpportunityStatus.Open)
-        };
+        rows = rows.Where(row => row.Status == OpportunityStatus.Open);
 
         return rows
             .OrderBy(SignalTypePriority)
@@ -150,7 +148,14 @@ public sealed class ActionsModel(IOpportunityRepository opportunityRepository, I
 
     private void CalculateMoneySummary()
     {
-        var closed = Rows.Where(row => row.Status != OpportunityStatus.Open && row.RealizedNetPnL.HasValue).ToArray();
+        var closed = Report.RecentSignals
+            .Where(MatchesCurrentMarket)
+            .Where(row => string.IsNullOrWhiteSpace(Symbol) || string.Equals(row.Symbol, Symbol, StringComparison.OrdinalIgnoreCase))
+            .Where(row => MatchesSignalType(row, TipoSenal))
+            .Where(row => row.Status != OpportunityStatus.Open && row.RealizedNetPnL.HasValue)
+            .ToArray();
+
+        FilteredClosedOperations = closed.Length;
         FilteredWonAmount = closed.Where(row => row.RealizedNetPnL > 0m).Sum(row => row.RealizedNetPnL!.Value);
         FilteredLostAmount = Math.Abs(closed.Where(row => row.RealizedNetPnL < 0m).Sum(row => row.RealizedNetPnL!.Value));
         FilteredRealizedNet = FilteredWonAmount - FilteredLostAmount;

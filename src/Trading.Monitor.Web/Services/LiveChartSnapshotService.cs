@@ -12,17 +12,22 @@ public sealed class LiveChartSnapshotService(
     LiveOperationsSnapshotService operationsSnapshotService,
     IOptionsMonitor<ReportingOptions> reportingOptions)
 {
-    public async Task<LiveChartSnapshot> GetAsync(string? symbol, string? interval, decimal? capital, string? estado, string? tipoSenal, string? mode, string? selectedSignalId, DateTimeOffset? from, DateTimeOffset? to, CancellationToken cancellationToken)
+    public async Task<LiveChartSnapshot> GetAsync(string? symbol, string? interval, decimal? capital, string? estado, string? tipoSenal, string? mode, string? selectedSignalId, string? mercado, DateTimeOffset? from, DateTimeOffset? to, CancellationToken cancellationToken)
     {
-        var resolvedSymbol = string.IsNullOrWhiteSpace(symbol) ? "BTCUSDT" : symbol.Trim().ToUpperInvariant();
+        var resolvedMarket = MarketSymbolClassifier.NormalizeMarket(mercado);
+        var resolvedSymbol = string.IsNullOrWhiteSpace(symbol)
+            ? MarketSymbolClassifier.BuildSymbolList([], resolvedMarket)[0]
+            : MarketSymbolClassifier.NormalizeSymbol(symbol);
         var resolvedInterval = NormalizeInterval(interval);
+        if (resolvedMarket == MarketSymbolClassifier.ForexMarket && string.Equals(resolvedInterval, "1s", StringComparison.OrdinalIgnoreCase))
+            resolvedInterval = "1m";
         var resolvedCapital = capital.GetValueOrDefault();
         if (resolvedCapital <= 0m)
             resolvedCapital = reportingOptions.CurrentValue.DefaultCapital;
 
         var range = ResolveCandleRange(resolvedInterval, from, to);
         var candles = await GetCandlesAsync(resolvedSymbol, resolvedInterval, range.From, range.To, cancellationToken);
-        var operations = await operationsSnapshotService.GetAsync(resolvedCapital, estado, resolvedSymbol, tipoSenal, mode, selectedSignalId, cancellationToken);
+        var operations = await operationsSnapshotService.GetAsync(resolvedCapital, estado, resolvedSymbol, tipoSenal, mode, selectedSignalId, resolvedMarket, cancellationToken);
         var currentPrice = candles.LastOrDefault()?.Close;
         var refreshedOperations = operations.Operations
             .Where(operation => string.Equals(operation.Symbol, resolvedSymbol, StringComparison.OrdinalIgnoreCase))
@@ -130,11 +135,15 @@ public sealed class LiveChartSnapshotService(
     [
         static (service, symbol, interval, from, to, cancellationToken) => service.GetBinanceCandlesAsync(symbol, interval, from, to, cancellationToken),
         static (service, symbol, interval, from, to, cancellationToken) => service.GetCoinbaseCandlesAsync(symbol, interval, from, to, cancellationToken),
-        static (service, symbol, interval, from, to, cancellationToken) => service.GetKrakenCandlesAsync(symbol, interval, from, to, cancellationToken)
+        static (service, symbol, interval, from, to, cancellationToken) => service.GetKrakenCandlesAsync(symbol, interval, from, to, cancellationToken),
+        static (service, symbol, interval, from, to, cancellationToken) => service.GetYahooForexCandlesAsync(symbol, interval, from, to, cancellationToken)
     ];
 
     private async Task<IReadOnlyList<LiveCandleDto>> GetBinanceCandlesAsync(string symbol, string interval, DateTimeOffset? from, DateTimeOffset? to, CancellationToken cancellationToken)
     {
+        if (MarketSymbolClassifier.GetMarketKind(symbol) == MarketKind.Forex)
+            return [];
+
         var requestUri = $"https://api.binance.com/api/v3/klines?symbol={Uri.EscapeDataString(symbol)}&interval={Uri.EscapeDataString(interval)}&limit=180";
         if (from.HasValue)
             requestUri += $"&startTime={from.Value.ToUnixTimeMilliseconds()}";
@@ -168,6 +177,9 @@ public sealed class LiveChartSnapshotService(
 
     private async Task<IReadOnlyList<LiveCandleDto>> GetCoinbaseCandlesAsync(string symbol, string interval, DateTimeOffset? from, DateTimeOffset? to, CancellationToken cancellationToken)
     {
+        if (MarketSymbolClassifier.GetMarketKind(symbol) == MarketKind.Forex)
+            return [];
+
         var product = ToCoinbaseProduct(symbol);
         if (product is null)
             return [];
@@ -262,6 +274,9 @@ public sealed class LiveChartSnapshotService(
 
     private async Task<IReadOnlyList<LiveCandleDto>> GetKrakenCandlesAsync(string symbol, string interval, DateTimeOffset? from, DateTimeOffset? to, CancellationToken cancellationToken)
     {
+        if (MarketSymbolClassifier.GetMarketKind(symbol) == MarketKind.Forex)
+            return [];
+
         var pair = ToKrakenPair(symbol);
         if (pair is null)
             return [];
@@ -317,6 +332,178 @@ public sealed class LiveChartSnapshotService(
 
             return filtered.OrderBy(candle => candle.OpenTime).TakeLast(180).ToArray();
         }
+    }
+
+    private async Task<IReadOnlyList<LiveCandleDto>> GetYahooForexCandlesAsync(string symbol, string interval, DateTimeOffset? from, DateTimeOffset? to, CancellationToken cancellationToken)
+    {
+        var normalizedSymbol = MarketSymbolClassifier.NormalizeSymbol(symbol);
+        if (MarketSymbolClassifier.GetMarketKind(normalizedSymbol) != MarketKind.Forex)
+            return [];
+
+        var request = BuildYahooForexRequest(normalizedSymbol, interval, from, to);
+        if (request is null)
+            return [];
+
+        var document = await GetJsonDocumentAsync(request.Value.RequestUri, cancellationToken);
+        if (document is null)
+            return [];
+
+        using (document)
+        {
+            if (!document.RootElement.TryGetProperty("chart", out var chart)
+                || !chart.TryGetProperty("result", out var result)
+                || result.ValueKind != JsonValueKind.Array
+                || result.GetArrayLength() == 0)
+            {
+                return [];
+            }
+
+            var series = result[0];
+            if (!series.TryGetProperty("timestamp", out var timestamps)
+                || !series.TryGetProperty("indicators", out var indicators)
+                || !indicators.TryGetProperty("quote", out var quotes)
+                || quotes.ValueKind != JsonValueKind.Array
+                || quotes.GetArrayLength() == 0)
+            {
+                return [];
+            }
+
+            var quote = quotes[0];
+            var opens = quote.GetProperty("open");
+            var highs = quote.GetProperty("high");
+            var lows = quote.GetProperty("low");
+            var closes = quote.GetProperty("close");
+            var volumes = quote.TryGetProperty("volume", out var volumeValues) ? volumeValues : default;
+            var candles = new List<LiveCandleDto>();
+            var count = Math.Min(timestamps.GetArrayLength(), closes.GetArrayLength());
+
+            for (var index = 0; index < count; index++)
+            {
+                if (!TryReadDecimal(opens[index], out var open)
+                    || !TryReadDecimal(highs[index], out var high)
+                    || !TryReadDecimal(lows[index], out var low)
+                    || !TryReadDecimal(closes[index], out var close))
+                {
+                    continue;
+                }
+
+                var openTime = DateTimeOffset.FromUnixTimeSeconds(timestamps[index].GetInt64());
+                if (from.HasValue && openTime < from.Value)
+                    continue;
+
+                if (to.HasValue && openTime > to.Value)
+                    continue;
+
+                var volume = volumes.ValueKind == JsonValueKind.Array && index < volumes.GetArrayLength() && TryReadDecimal(volumes[index], out var parsedVolume)
+                    ? parsedVolume
+                    : 0m;
+
+                candles.Add(new LiveCandleDto(openTime, openTime.Add(request.Value.SourceWindow), open, high, low, close, volume));
+            }
+
+            if (request.Value.TargetWindow != request.Value.SourceWindow)
+                candles = AggregateLiveCandles(candles, request.Value.TargetWindow).ToList();
+
+            return candles.OrderBy(candle => candle.OpenTime).TakeLast(180).ToArray();
+        }
+    }
+
+    private static YahooForexChartRequest? BuildYahooForexRequest(string symbol, string interval, DateTimeOffset? from, DateTimeOffset? to)
+    {
+        var normalizedInterval = NormalizeInterval(interval);
+        if (normalizedInterval == "1s")
+            return null;
+
+        var yahooSymbol = $"{symbol}=X";
+        var range = ResolveYahooRange(normalizedInterval, from, to);
+        var (sourceInterval, sourceWindow, targetWindow) = normalizedInterval switch
+        {
+            "5m" => ("5m", TimeSpan.FromMinutes(5), TimeSpan.FromMinutes(5)),
+            "15m" => ("15m", TimeSpan.FromMinutes(15), TimeSpan.FromMinutes(15)),
+            "30m" => ("30m", TimeSpan.FromMinutes(30), TimeSpan.FromMinutes(30)),
+            "1h" => ("1h", TimeSpan.FromHours(1), TimeSpan.FromHours(1)),
+            "4h" => ("1h", TimeSpan.FromHours(1), TimeSpan.FromHours(4)),
+            "1d" => ("1d", TimeSpan.FromDays(1), TimeSpan.FromDays(1)),
+            "1w" => ("1wk", TimeSpan.FromDays(7), TimeSpan.FromDays(7)),
+            "1M" => ("1mo", TimeSpan.FromDays(30), TimeSpan.FromDays(30)),
+            _ => ("1m", TimeSpan.FromMinutes(1), TimeSpan.FromMinutes(1))
+        };
+
+        var requestUri = $"https://query1.finance.yahoo.com/v8/finance/chart/{Uri.EscapeDataString(yahooSymbol)}?interval={sourceInterval}";
+        if (range.Period1.HasValue && range.Period2.HasValue)
+            requestUri += $"&period1={range.Period1.Value.ToUnixTimeSeconds()}&period2={range.Period2.Value.ToUnixTimeSeconds()}";
+        else
+            requestUri += $"&range={range.Range}";
+
+        return new YahooForexChartRequest(requestUri, sourceWindow, targetWindow);
+    }
+
+    private static YahooForexRange ResolveYahooRange(string interval, DateTimeOffset? from, DateTimeOffset? to)
+    {
+        if (from.HasValue || to.HasValue)
+        {
+            var end = to ?? DateTimeOffset.UtcNow;
+            var start = from ?? end.Subtract(DefaultYahooWindow(interval));
+            return new YahooForexRange("", start, end);
+        }
+
+        return new YahooForexRange(interval switch
+        {
+            "1m" => "5d",
+            "5m" or "15m" or "30m" => "1mo",
+            "1h" or "4h" => "6mo",
+            "1d" => "2y",
+            _ => "10y"
+        }, null, null);
+    }
+
+    private static TimeSpan DefaultYahooWindow(string interval)
+    {
+        return interval switch
+        {
+            "1m" => TimeSpan.FromDays(5),
+            "5m" or "15m" or "30m" => TimeSpan.FromDays(30),
+            "1h" or "4h" => TimeSpan.FromDays(180),
+            "1d" => TimeSpan.FromDays(730),
+            _ => TimeSpan.FromDays(3650)
+        };
+    }
+
+    private static IReadOnlyList<LiveCandleDto> AggregateLiveCandles(IReadOnlyList<LiveCandleDto> candles, TimeSpan window)
+    {
+        if (candles.Count == 0)
+            return [];
+
+        var sourceWindow = candles.Count > 1
+            ? candles[1].OpenTime - candles[0].OpenTime
+            : TimeSpan.FromHours(1);
+        var bucketSize = Math.Max(1, (int)Math.Round(window.TotalSeconds / Math.Max(1, sourceWindow.TotalSeconds)));
+
+        return candles
+            .OrderBy(candle => candle.OpenTime)
+            .Select((candle, index) => new { candle, Bucket = index / bucketSize })
+            .GroupBy(item => item.Bucket)
+            .Select(group =>
+            {
+                var values = group.Select(item => item.candle).OrderBy(candle => candle.OpenTime).ToArray();
+                var open = values[0];
+                var close = values[^1];
+
+                return new LiveCandleDto(open.OpenTime, close.CloseTime, open.Open, values.Max(candle => candle.High), values.Min(candle => candle.Low), close.Close, values.Sum(candle => candle.Volume));
+            })
+            .ToArray();
+    }
+
+    private static bool TryReadDecimal(JsonElement element, out decimal value)
+    {
+        value = 0m;
+
+        return element.ValueKind switch
+        {
+            JsonValueKind.Number => element.TryGetDecimal(out value),
+            JsonValueKind.String => decimal.TryParse(element.GetString(), NumberStyles.Float, CultureInfo.InvariantCulture, out value),
+            _ => false
+        };
     }
 
     private async Task<JsonDocument?> GetJsonDocumentAsync(string requestUri, CancellationToken cancellationToken)
@@ -657,3 +844,7 @@ public sealed class LiveChartSnapshotService(
 internal sealed record CandleRange(DateTimeOffset? From, DateTimeOffset? To);
 
 internal sealed record LiveCoinbaseTradeTick(DateTimeOffset Time, decimal Price, decimal Size);
+
+internal readonly record struct YahooForexChartRequest(string RequestUri, TimeSpan SourceWindow, TimeSpan TargetWindow);
+
+internal readonly record struct YahooForexRange(string Range, DateTimeOffset? Period1, DateTimeOffset? Period2);

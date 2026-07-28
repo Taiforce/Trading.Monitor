@@ -21,8 +21,10 @@ public sealed class EfTraderResearchRepository : ITraderResearchRepository
             .OrderBy(row => row.Platform)
             .Select(row => new TraderSourceReportRow(row.Platform, row.Name, row.Market, row.Url, row.DataAccess, row.DataQuality, row.Notes, row.SupportsCopyTrading))
             .ToArrayAsync(cancellationToken);
+        sources = sources.Where(row => MatchesMarket(row.Market, filter.Market)).ToArray();
 
         var trades = await GetTradeRowsAsync(cancellationToken);
+        trades = trades.Where(row => MarketSymbolClassifier.MatchesMarket(row.Symbol, filter.Market)).ToArray();
         var traders = await GetTraderRowsAsync(trades, cancellationToken);
         traders = ApplyTraderFilters(traders, filter).ToArray();
         var selectedTrader = filter.TraderId.HasValue ? traders.FirstOrDefault(row => row.Id == filter.TraderId.Value) : null;
@@ -131,6 +133,8 @@ public sealed class EfTraderResearchRepository : ITraderResearchRepository
 
     private static IEnumerable<TraderProfileReportRow> ApplyTraderFilters(IEnumerable<TraderProfileReportRow> rows, TraderResearchFilter filter)
     {
+        rows = rows.Where(row => MatchesMarket(row.Market, filter.Market));
+
         if (!string.IsNullOrWhiteSpace(filter.Platform))
             rows = rows.Where(row => string.Equals(row.Platform, filter.Platform.Trim(), StringComparison.OrdinalIgnoreCase));
 
@@ -152,10 +156,31 @@ public sealed class EfTraderResearchRepository : ITraderResearchRepository
 
     private static IEnumerable<TraderTradeReportRow> ApplyTradeFilters(IEnumerable<TraderTradeReportRow> rows, TraderResearchFilter filter)
     {
+        rows = rows.Where(row => MarketSymbolClassifier.MatchesMarket(row.Symbol, filter.Market));
+
         if (!string.IsNullOrWhiteSpace(filter.TradeStatus) && !string.Equals(filter.TradeStatus, "todas", StringComparison.OrdinalIgnoreCase))
             rows = rows.Where(row => string.Equals(row.Status, NormalizeStatus(filter.TradeStatus), StringComparison.OrdinalIgnoreCase));
 
         return rows;
+    }
+
+    private static bool MatchesMarket(string value, string? market)
+    {
+        var normalizedMarket = MarketSymbolClassifier.NormalizeMarket(market);
+        if (value.Contains("multi-mercado", StringComparison.OrdinalIgnoreCase)
+            || value.Contains("multi-activo", StringComparison.OrdinalIgnoreCase))
+            return true;
+
+        return normalizedMarket == MarketSymbolClassifier.ForexMarket
+            ? value.Contains("forex", StringComparison.OrdinalIgnoreCase)
+              || value.Contains("divisa", StringComparison.OrdinalIgnoreCase)
+              || value.Contains("FX", StringComparison.OrdinalIgnoreCase)
+              || value.Contains("MXN", StringComparison.OrdinalIgnoreCase)
+              || value.Contains("macro", StringComparison.OrdinalIgnoreCase)
+            : value.Contains("crypto", StringComparison.OrdinalIgnoreCase)
+              || value.Contains("cripto", StringComparison.OrdinalIgnoreCase)
+              || value.Contains("BTC", StringComparison.OrdinalIgnoreCase)
+              || value.Contains("ETH", StringComparison.OrdinalIgnoreCase);
     }
 
     private static decimal ReliabilityScore(TraderProfileEntity profile, IReadOnlyList<TraderTradeReportRow> allTrades, IReadOnlyList<TraderTradeReportRow> closedTrades)

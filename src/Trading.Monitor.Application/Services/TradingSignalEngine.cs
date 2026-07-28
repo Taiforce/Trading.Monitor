@@ -240,7 +240,10 @@ public sealed class TradingSignalEngine(TechnicalAnalysisService technicalAnalys
             .Take(10)
             .ToArray();
 
-        return new TradingOpportunity(symbol, side, score, trigger.ObservedAt, DateTimeOffset.UtcNow.AddMinutes(expiryMinutes), RoundPrice(price), RoundPrice(entryLower), RoundPrice(entryUpper),
+        var now = DateTimeOffset.UtcNow;
+        var observedAt = trigger.ObservedAt > now ? now : trigger.ObservedAt;
+
+        return new TradingOpportunity(symbol, side, score, observedAt, now.AddMinutes(expiryMinutes), RoundPrice(price), RoundPrice(entryLower), RoundPrice(entryUpper),
             RoundPrice(stopLoss), RoundPrice(takeProfit1), RoundPrice(takeProfit2), Math.Round(riskReward, 2), confirmedIntervals, enrichedReasons, risks.Distinct().Take(8).ToArray(),
             relatedNews);
     }

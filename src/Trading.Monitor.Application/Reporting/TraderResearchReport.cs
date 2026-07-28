@@ -2,7 +2,7 @@ using Trading.Monitor.Domain;
 
 namespace Trading.Monitor.Application.Reporting;
 
-public sealed record TraderResearchFilter(string? Platform, string? Search, string? TradeStatus, Guid? TraderId, bool OnlyWithHistory);
+public sealed record TraderResearchFilter(string? Market, string? Platform, string? Search, string? TradeStatus, Guid? TraderId, bool OnlyWithHistory);
 
 public sealed record TraderResearchReport(
     IReadOnlyList<TraderSourceReportRow> Sources,

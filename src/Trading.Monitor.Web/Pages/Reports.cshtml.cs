@@ -87,7 +87,10 @@ public sealed class ReportsModel : TradingPageModel
     public IReadOnlyList<AiConsensusResult> AiConsensusRows { get; private set; } = [];
 
     [BindProperty(SupportsGet = true)]
-    public string Estado { get; set; } = "todas";
+    public string Estado { get; set; } = "cerradas";
+
+    [BindProperty(SupportsGet = true)]
+    public string VistaReporte { get; set; } = "ia";
 
     [BindProperty(SupportsGet = true)]
     public string Symbol { get; set; } = "";
@@ -113,7 +116,7 @@ public sealed class ReportsModel : TradingPageModel
         await LoadReportAsync(cancellationToken);
 
         var allSignals = await _opportunityRepository.GetSignalsAsync(Capital, cancellationToken);
-        Symbols = BuildSymbolList(allSignals.Select(row => row.Symbol));
+        Symbols = BuildSymbolListForMarket(allSignals.Select(row => row.Symbol));
         FilteredRows = ApplyFilters(allSignals).ToArray();
         BuildFilteredMetrics();
         LearningRows = BuildLearningRows(FilteredRows);
@@ -138,16 +141,17 @@ public sealed class ReportsModel : TradingPageModel
 
     private IEnumerable<OpportunityReportRow> ApplyFilters(IEnumerable<OpportunityReportRow> rows)
     {
+        rows = rows.Where(MatchesCurrentMarket);
+
         if (!string.IsNullOrWhiteSpace(Symbol))
             rows = rows.Where(row => string.Equals(row.Symbol, Symbol.Trim(), StringComparison.OrdinalIgnoreCase));
 
         rows = rows.Where(row => MatchesSignalType(row, TipoSenal));
         rows = rows.Where(row => MatchesOperationMode(row, ModoOperacion));
+        rows = rows.Where(row => row.Status != OpportunityStatus.Open);
 
         rows = Estado?.Trim().ToLowerInvariant() switch
         {
-            "abiertas" => rows.Where(row => row.Status == OpportunityStatus.Open),
-            "cerradas" => rows.Where(row => row.Status != OpportunityStatus.Open),
             "ganadas" => rows.Where(row => row.RealizedNetPnL > 0m),
             "perdidas" => rows.Where(row => row.RealizedNetPnL < 0m),
             _ => rows
@@ -213,7 +217,7 @@ public sealed class ReportsModel : TradingPageModel
             return "Todavia no hay suficiente historial. Primero deja que el worker acumule oportunidades.";
 
         if (FilteredTotalSignals == 0)
-            return "No hay operaciones para esos filtros. Cambia activo, fecha, estado o score mínimo.";
+            return "No hay operaciones cerradas para esos filtros. Cambia mercado, activo, fecha, tipo o score mínimo.";
 
         if (FilteredWinRate >= 55m && FilteredRealizedNetPnL > 0m)
             return "El historial cerrado tiene ventaja positiva. La prioridad es repetir setups similares sin aumentar riesgo.";

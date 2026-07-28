@@ -117,6 +117,61 @@ body {
     border-color: var(--accent);
 }
 
+.nav-group {
+    position: relative;
+    display: inline-flex;
+}
+
+.nav-group > button {
+    min-height: 34px;
+    display: inline-flex;
+    align-items: center;
+    border: 1px solid transparent;
+    background: transparent;
+    color: #efe7d8;
+    padding: 0 11px;
+    font: inherit;
+    font-size: 0.88rem;
+    font-weight: 800;
+    cursor: pointer;
+    white-space: nowrap;
+}
+
+.nav-group:hover > button,
+.nav-group:focus-within > button,
+.nav-group > button.active {
+    color: #06131a;
+    background: var(--accent);
+    border-color: var(--accent);
+}
+
+.nav-submenu {
+    min-width: 190px;
+    position: absolute;
+    top: 100%;
+    left: 0;
+    z-index: 20;
+    display: none;
+    gap: 4px;
+    background: var(--surface);
+    border: 1px solid var(--line);
+    border-radius: var(--radius);
+    box-shadow: var(--shadow);
+    padding: 8px;
+}
+
+.nav-group:hover .nav-submenu,
+.nav-group:focus-within .nav-submenu {
+    display: grid;
+}
+
+.nav-submenu a {
+    width: 100%;
+    justify-content: flex-start;
+    color: var(--ink);
+    border-radius: 6px;
+}
+
 .theme-toggle {
     display: inline-flex;
     align-items: center;
@@ -241,6 +296,7 @@ h2 {
     display: grid;
     gap: 6px;
     margin: 0;
+    min-width: 0;
 }
 
 .filter-bar span {
@@ -252,6 +308,8 @@ h2 {
 .filter-bar input,
 .filter-bar select,
 .filter-bar button {
+    width: 100%;
+    min-width: 0;
     min-height: 40px;
     border: 1px solid var(--line);
     background: var(--surface-2);
@@ -266,6 +324,53 @@ h2 {
     color: #fff;
     font-weight: 900;
     padding: 0 16px;
+}
+
+.market-subnav {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: flex-end;
+    gap: 8px;
+}
+
+.market-subnav a {
+    min-height: 38px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    border: 1px solid var(--line);
+    border-radius: 6px;
+    background: var(--surface);
+    color: var(--ink);
+    padding: 0 14px;
+    font-size: 0.86rem;
+    font-weight: 900;
+    text-decoration: none;
+}
+
+.market-subnav a.active,
+.market-subnav a:hover {
+    border-color: var(--accent);
+    background: var(--accent);
+    color: #062a1f;
+}
+
+.stacked-subnav {
+    max-width: 520px;
+}
+
+.live-inline-filter {
+    grid-template-columns: repeat(2, minmax(150px, 1fr)) auto;
+    box-shadow: none;
+    margin-bottom: 12px;
+}
+
+.internal-report-filter,
+.portfolio-filter,
+.traders-filter {
+    grid-template-columns: repeat(auto-fit, minmax(145px, 1fr));
+    box-shadow: none;
+    margin-bottom: 14px;
 }
 
 .capital-form label {
@@ -3113,6 +3218,18 @@ td small,
 
     .nav-links {
         width: 100%;
+    }
+
+    .nav-group {
+        display: grid;
+    }
+
+    .nav-submenu {
+        position: static;
+        display: grid;
+        min-width: 0;
+        box-shadow: none;
+        margin-top: 4px;
     }
 
     .theme-toggle {

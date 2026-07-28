@@ -3,6 +3,7 @@ using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.RazorPages;
 using Trading.Monitor.Application.Abstractions;
 using Trading.Monitor.Application.Reporting;
+using Trading.Monitor.Application.Services;
 
 namespace Trading.Monitor.Web.Pages;
 
@@ -13,6 +14,9 @@ public sealed class TradersModel(ITraderResearchRepository traderRepository, ILo
     public TraderResearchReport Report { get; private set; } = EmptyReport();
 
     public IReadOnlyList<string> Platforms { get; private set; } = [];
+
+    [BindProperty(SupportsGet = true)]
+    public string Mercado { get; set; } = MarketSymbolClassifier.CryptoMarket;
 
     [BindProperty(SupportsGet = true)]
     public string Platform { get; set; } = "";
@@ -32,8 +36,18 @@ public sealed class TradersModel(ITraderResearchRepository traderRepository, ILo
     public async Task OnGetAsync(CancellationToken cancellationToken)
     {
         logger.LogInformation("Loading trader research page for platform {Platform}.", Platform);
-        Report = await traderRepository.GetReportAsync(new TraderResearchFilter(Platform, Search, TradeStatus, TraderId, OnlyWithHistory), cancellationToken);
+        Report = await traderRepository.GetReportAsync(new TraderResearchFilter(Mercado, Platform, Search, TradeStatus, TraderId, OnlyWithHistory), cancellationToken);
         Platforms = Report.Sources.Select(row => row.Platform).Distinct(StringComparer.OrdinalIgnoreCase).OrderBy(row => row).ToArray();
+    }
+
+    public string MarketLabel()
+    {
+        return MarketSymbolClassifier.MarketLabel(Mercado);
+    }
+
+    public string MarketRouteValue()
+    {
+        return MarketSymbolClassifier.NormalizeMarket(Mercado);
     }
 
     public string Money(decimal value)
