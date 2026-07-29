@@ -14,8 +14,18 @@ public interface IWalletRepository
 
     Task SaveAsync(decimal cashCapital, bool autoTradingEnabled, IReadOnlyCollection<WalletAssetUpdate> assets, CancellationToken cancellationToken)
     {
-        return SaveAsync(MarketSymbolClassifier.CryptoMarket, cashCapital, autoTradingEnabled, assets, cancellationToken);
+        return SaveAsync(MarketSymbolClassifier.CryptoMarket, cashCapital, autoTradingEnabled, 5m, assets, cancellationToken);
     }
 
-    Task SaveAsync(string market, decimal cashCapital, bool autoTradingEnabled, IReadOnlyCollection<WalletAssetUpdate> assets, CancellationToken cancellationToken);
+    Task SaveAsync(decimal cashCapital, bool autoTradingEnabled, decimal managedTargetNetPercent, IReadOnlyCollection<WalletAssetUpdate> assets, CancellationToken cancellationToken)
+    {
+        return SaveAsync(MarketSymbolClassifier.CryptoMarket, cashCapital, autoTradingEnabled, managedTargetNetPercent, assets, cancellationToken);
+    }
+
+    Task SaveAsync(string market, decimal cashCapital, bool autoTradingEnabled, IReadOnlyCollection<WalletAssetUpdate> assets, CancellationToken cancellationToken)
+    {
+        return SaveAsync(market, cashCapital, autoTradingEnabled, 5m, assets, cancellationToken);
+    }
+
+    Task SaveAsync(string market, decimal cashCapital, bool autoTradingEnabled, decimal managedTargetNetPercent, IReadOnlyCollection<WalletAssetUpdate> assets, CancellationToken cancellationToken);
 }

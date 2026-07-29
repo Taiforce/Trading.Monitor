@@ -10,6 +10,8 @@ public sealed class WalletSettingsEntity
 
     public bool AutoTradingEnabled { get; set; }
 
+    public decimal ManagedTargetNetPercent { get; set; } = 5m;
+
     public DateTimeOffset CreatedAt { get; set; }
 
     public DateTimeOffset UpdatedAt { get; set; }

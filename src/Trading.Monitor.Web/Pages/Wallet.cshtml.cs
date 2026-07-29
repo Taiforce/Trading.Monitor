@@ -66,7 +66,7 @@ public sealed class WalletModel(
                 asset.CoinQuantity > 0m && asset.AutoTradingEnabled))
             .ToArray();
 
-        await walletRepository.SaveAsync(Mercado, Input.CashCapital, Input.AutoTradingEnabled, assets, cancellationToken);
+        await walletRepository.SaveAsync(Mercado, Input.CashCapital, Input.AutoTradingEnabled, Input.ManagedTargetNetPercent, assets, cancellationToken);
         StatusMessage = $"Wallet {MarketLabel()} actualizada. Las señales se filtrarán con estos saldos.";
 
         return RedirectToPage(new { Mercado });
@@ -301,6 +301,7 @@ public sealed class WalletModel(
         {
             CashCapital = snapshot.CashCapital,
             AutoTradingEnabled = snapshot.AutoTradingEnabled,
+            ManagedTargetNetPercent = snapshot.ManagedTargetNetPercent <= 0m ? 5m : snapshot.ManagedTargetNetPercent,
             Assets = assets
         };
     }
@@ -324,6 +325,8 @@ public sealed class WalletModel(
         public decimal CashCapital { get; set; }
 
         public bool AutoTradingEnabled { get; set; }
+
+        public decimal ManagedTargetNetPercent { get; set; } = 5m;
 
         public List<WalletAssetInput> Assets { get; set; } = [];
     }

@@ -258,9 +258,9 @@ public sealed class TradingSignalEngine(TechnicalAnalysisService technicalAnalys
         if (!riskOptions.ManagedProfitExitEnabled)
             return SignalOperationKind.Fixed;
 
-        var hasManagedEdge = score >= 95 && expiryMinutes <= 240;
+        var hasManagedEdge = score >= 94 && expiryMinutes <= 240;
         if (MarketSymbolClassifier.GetMarketKind(symbol) == MarketKind.Forex)
-            hasManagedEdge = score >= 96 && expiryMinutes <= 180;
+            hasManagedEdge = score >= 94 && expiryMinutes <= 240;
 
         return hasManagedEdge ? SignalOperationKind.Managed : SignalOperationKind.Fixed;
     }

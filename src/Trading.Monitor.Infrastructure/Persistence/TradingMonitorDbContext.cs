@@ -181,6 +181,7 @@ public sealed class TradingMonitorDbContext : DbContext
         walletSettings.HasIndex(entity => entity.Market).IsUnique();
         walletSettings.Property(entity => entity.Market).HasMaxLength(16);
         walletSettings.Property(entity => entity.CashCapital).HasColumnType("decimal(18,2)");
+        walletSettings.Property(entity => entity.ManagedTargetNetPercent).HasColumnType("decimal(18,4)");
 
         var walletAsset = modelBuilder.Entity<WalletAssetEntity>();
         walletAsset.ToTable("wallet_assets");

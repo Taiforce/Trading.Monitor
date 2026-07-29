@@ -53,9 +53,12 @@ public sealed class LiveOperationsSnapshotService(
         var preEntryUntil = row.ObservedAt.AddMinutes(PreEntryLeadMinutes);
         var preEntrySecondsRemaining = row.Status == OpportunityStatus.Open ? Math.Max(0, (int)Math.Round((preEntryUntil - now).TotalSeconds)) : 0;
         var maxLifeMinutes = Math.Max(1, (int)Math.Ceiling((row.ExpiresAt - row.ObservedAt).TotalMinutes));
-        var timeText = row.Status == OpportunityStatus.Open
-            ? $"{FormatDuration(secondsRemaining)} viva | entrada {FormatDuration(preEntrySecondsRemaining)}"
-            : row.ExitTime.HasValue ? $"Cerro {row.ExitTime.Value.ToLocalTime():HH:mm}" : "Cerrada";
+        var timeText = row.Status switch
+        {
+            OpportunityStatus.Open when row.OperationKind == SignalOperationKind.Managed => $"Sin salida fija | objetivo neto {row.ManagedTargetNetPercent:N2}%",
+            OpportunityStatus.Open => $"{FormatDuration(secondsRemaining)} viva | entrada {FormatDuration(preEntrySecondsRemaining)}",
+            _ => row.ExitTime.HasValue ? $"Cerro {row.ExitTime.Value.ToLocalTime():HH:mm}" : "Cerrada"
+        };
         var markPrice = row.ExitPrice ?? row.LastPrice;
         var breakdown = TradeCostCalculator.Build(
             row.Side,

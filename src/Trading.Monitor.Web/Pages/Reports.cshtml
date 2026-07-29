@@ -371,14 +371,21 @@
                                  data-capital="@row.Capital.ToString(System.Globalization.CultureInfo.InvariantCulture)"
                                  data-from="@Model.ReplayFrom(row).ToString("O")"
                                  data-to="@Model.ReplayTo(row).ToString("O")"
+                                 data-market="@Model.MarketRouteValue()"
+                                 data-operation-kind="@row.OperationKind"
                                  data-side="@row.Side"
                                  data-entry-price="@row.EntryPrice.ToString(System.Globalization.CultureInfo.InvariantCulture)"
+                                 data-quantity="@row.EstimatedQuantity.ToString(System.Globalization.CultureInfo.InvariantCulture)"
+                                 data-fee-percent="@Model.EstimatedFeePercentPerSide.ToString(System.Globalization.CultureInfo.InvariantCulture)"
                                  data-entry-lower="@row.EntryLower.ToString(System.Globalization.CultureInfo.InvariantCulture)"
                                  data-entry-upper="@row.EntryUpper.ToString(System.Globalization.CultureInfo.InvariantCulture)"
                                  data-stop-loss="@row.StopLoss.ToString(System.Globalization.CultureInfo.InvariantCulture)"
                                  data-take-profit1="@row.TakeProfit1.ToString(System.Globalization.CultureInfo.InvariantCulture)"
                                  data-take-profit2="@row.TakeProfit2.ToString(System.Globalization.CultureInfo.InvariantCulture)"
+                                 data-managed-target-percent="@row.ManagedTargetNetPercent.ToString(System.Globalization.CultureInfo.InvariantCulture)"
+                                 data-managed-target-exit-price="@(row.ManagedTargetExitPrice?.ToString(System.Globalization.CultureInfo.InvariantCulture) ?? "")"
                                  data-exit-price="@(row.ExitPrice?.ToString(System.Globalization.CultureInfo.InvariantCulture) ?? "")"
+                                 data-realized-net-pnl="@(row.RealizedNetPnL?.ToString(System.Globalization.CultureInfo.InvariantCulture) ?? "")"
                                  data-observed-at="@row.ObservedAt.ToString("O")"
                                  data-exit-time="@((row.ExitTime ?? row.ExpiresAt).ToString("O"))"
                                  data-action="@Model.SignalTypeLabel(row.Side)"
@@ -390,6 +397,7 @@
                             <div class="signal-replay-chart" data-signal-chart>
                                 <span>Cargando replay de la señal...</span>
                             </div>
+                            <div class="managed-scenario-grid" data-managed-exit-scenarios hidden></div>
                             <div class="detail-grid">
                                 <article>
                                     <span>Señal recibida</span>

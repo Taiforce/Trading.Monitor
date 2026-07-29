@@ -2419,6 +2419,53 @@ td small,
     overflow: hidden;
 }
 
+.managed-scenario-grid {
+    display: grid;
+    grid-template-columns: minmax(220px, 1.1fr) repeat(3, minmax(180px, 1fr));
+    gap: 10px;
+    margin: 12px 0;
+}
+
+.managed-scenario-grid[hidden] {
+    display: none;
+}
+
+.managed-scenario-grid > article {
+    display: grid;
+    gap: 5px;
+    align-content: start;
+    background: var(--surface-2);
+    border: 1px solid var(--line);
+    border-radius: 6px;
+    padding: 12px;
+}
+
+.managed-scenario-grid span,
+.managed-scenario-grid small,
+.managed-scenario-grid em {
+    color: var(--muted);
+    font-size: 0.76rem;
+    font-weight: 800;
+    line-height: 1.35;
+}
+
+.managed-scenario-grid span {
+    text-transform: uppercase;
+}
+
+.managed-scenario-grid strong {
+    font-size: 0.96rem;
+}
+
+.managed-scenario-grid em {
+    font-style: normal;
+}
+
+.managed-scenario-head {
+    background: color-mix(in srgb, var(--accent) 9%, var(--surface)) !important;
+    border-color: color-mix(in srgb, var(--accent) 32%, var(--line)) !important;
+}
+
 .report-chart-hover {
     top: 0;
     left: 0;
@@ -3515,6 +3562,7 @@ td small,
     .money-scenario,
     .wallet-exposure-grid,
     .wallet-operation-workbench,
+    .managed-scenario-grid,
     .trade-explain,
     .instruction-panel,
     .guide-grid,

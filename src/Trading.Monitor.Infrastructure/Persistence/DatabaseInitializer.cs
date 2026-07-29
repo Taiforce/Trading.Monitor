@@ -155,6 +155,8 @@ public static class DatabaseInitializer
                         Market nvarchar(16) NOT NULL,
                         CashCapital decimal(18,2) NOT NULL,
                         AutoTradingEnabled bit NOT NULL,
+                        ManagedTargetNetPercent decimal(18,4) NOT NULL
+                            CONSTRAINT DF_wallet_settings_ManagedTargetNetPercent DEFAULT(5.0000),
                         CreatedAt datetimeoffset NOT NULL,
                         UpdatedAt datetimeoffset NOT NULL
                     );
@@ -184,6 +186,9 @@ public static class DatabaseInitializer
 
                 IF COL_LENGTH(N'dbo.wallet_assets', N'Market') IS NULL
                     ALTER TABLE dbo.wallet_assets ADD Market nvarchar(16) NOT NULL CONSTRAINT DF_wallet_assets_Market DEFAULT N'crypto';
+
+                IF COL_LENGTH(N'dbo.wallet_settings', N'ManagedTargetNetPercent') IS NULL
+                    ALTER TABLE dbo.wallet_settings ADD ManagedTargetNetPercent decimal(18,4) NOT NULL CONSTRAINT DF_wallet_settings_ManagedTargetNetPercent DEFAULT(5.0000);
                 """,
                 cancellationToken);
 
@@ -196,15 +201,19 @@ public static class DatabaseInitializer
 
                 IF NOT EXISTS (SELECT 1 FROM dbo.wallet_settings WHERE Market = N'crypto')
                 BEGIN
-                    INSERT INTO dbo.wallet_settings (Id, Market, CashCapital, AutoTradingEnabled, CreatedAt, UpdatedAt)
-                    VALUES ('0fa2b2e6-35ec-4cc9-96b8-b8051eb4c2c5', N'crypto', 0, 0, @walletNow, @walletNow);
+                    INSERT INTO dbo.wallet_settings (Id, Market, CashCapital, AutoTradingEnabled, ManagedTargetNetPercent, CreatedAt, UpdatedAt)
+                    VALUES ('0fa2b2e6-35ec-4cc9-96b8-b8051eb4c2c5', N'crypto', 0, 0, 5.0000, @walletNow, @walletNow);
                 END;
 
                 IF NOT EXISTS (SELECT 1 FROM dbo.wallet_settings WHERE Market = N'forex')
                 BEGIN
-                    INSERT INTO dbo.wallet_settings (Id, Market, CashCapital, AutoTradingEnabled, CreatedAt, UpdatedAt)
-                    VALUES ('f8c2765c-0602-42d8-a76f-6510b2342c21', N'forex', 0, 0, @walletNow, @walletNow);
+                    INSERT INTO dbo.wallet_settings (Id, Market, CashCapital, AutoTradingEnabled, ManagedTargetNetPercent, CreatedAt, UpdatedAt)
+                    VALUES ('f8c2765c-0602-42d8-a76f-6510b2342c21', N'forex', 0, 0, 5.0000, @walletNow, @walletNow);
                 END;
+
+                UPDATE dbo.wallet_settings
+                SET ManagedTargetNetPercent = 5.0000
+                WHERE ManagedTargetNetPercent <= 0;
 
                 IF NOT EXISTS (SELECT 1 FROM dbo.wallet_assets WHERE Symbol = N'BTCUSDT')
                     INSERT INTO dbo.wallet_assets (Id, Market, Symbol, Asset, CoinQuantity, AllowSellHighBuyLow, AutoTradingEnabled, CreatedAt, UpdatedAt)

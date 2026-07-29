@@ -55,6 +55,11 @@
                 <span>Capital disponible</span>
                 <input asp-for="Input.CashCapital" type="number" min="0" step="0.01"/>
             </label>
+            <label class="wallet-field">
+                <span>Ganancia neta seguimiento %</span>
+                <input asp-for="Input.ManagedTargetNetPercent" type="number" min="0.01" max="1000" step="0.01"/>
+            </label>
+            <p class="wallet-note">Este porcentaje se usa como meta default para nuevas seÃ±ales de seguimiento. Cada seÃ±al viva todavÃ­a puede tener su propio porcentaje custom.</p>
             <label class="wallet-toggle">
                 <input asp-for="Input.AutoTradingEnabled" type="checkbox"/>
                 <span>Permitir automático desde esta wallet</span>

@@ -32,10 +32,14 @@ public sealed class EfWalletRepository(TradingMonitorDbContext dbContext) : IWal
                 asset.UpdatedAt))
             .ToArrayAsync(cancellationToken);
 
-        return new WalletSnapshot(settings?.CashCapital ?? 0m, settings?.AutoTradingEnabled ?? false, assets);
+        return new WalletSnapshot(
+            settings?.CashCapital ?? 0m,
+            settings?.AutoTradingEnabled ?? false,
+            assets,
+            settings?.ManagedTargetNetPercent > 0m ? settings.ManagedTargetNetPercent : 5m);
     }
 
-    public async Task SaveAsync(string market, decimal cashCapital, bool autoTradingEnabled, IReadOnlyCollection<WalletAssetUpdate> assets, CancellationToken cancellationToken)
+    public async Task SaveAsync(string market, decimal cashCapital, bool autoTradingEnabled, decimal managedTargetNetPercent, IReadOnlyCollection<WalletAssetUpdate> assets, CancellationToken cancellationToken)
     {
         var normalizedMarket = MarketSymbolClassifier.NormalizeMarket(market);
         var now = DateTimeOffset.UtcNow;
@@ -58,6 +62,7 @@ public sealed class EfWalletRepository(TradingMonitorDbContext dbContext) : IWal
         settings.Market = normalizedMarket;
         settings.CashCapital = Math.Round(Math.Max(0m, cashCapital), 2);
         settings.AutoTradingEnabled = autoTradingEnabled;
+        settings.ManagedTargetNetPercent = Math.Round(Math.Max(0.01m, managedTargetNetPercent), 4);
         settings.UpdatedAt = now;
 
         var normalizedAssets = assets

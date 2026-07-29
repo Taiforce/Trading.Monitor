@@ -516,7 +516,7 @@
 
         return `
             <article class="live-card managed-live-card ${escapeHtml(item.signalClass)} ${resultClass} ${isSelected ? "selected-live-card" : ""}" data-operation-id="${escapeAttribute(item.id)}" style="--signal-color: ${escapeAttribute(routeColor)}">
-                ${cardSummary(item, isSelected, item.operationKindLabel || "Seguimiento", `${item.originKindLabel || "IA propia"} | ${item.signalTypeLabel || item.side} | ${item.status} | actual ${signedMoney(currentMetrics.netBenefit)}`)}
+                ${cardSummary(item, isSelected, item.operationKindLabel || "Seguimiento", `${item.originKindLabel || "IA propia"} | ${item.signalTypeLabel || item.side} | ${item.status} | actual ${signedMoney(currentMetrics.netBenefit)} (${signedPercent(currentMetrics.netPercent)}) | meta ${targetPercent.toFixed(2)}%`)}
                 <div class="live-card-body">
                     <div class="target-editor">
                         <label>
@@ -532,13 +532,14 @@
                         ${detailCell(`${assetFor(item.symbol)} obtenido`, quantityText(item), quantityMeaning(item))}
                         ${detailCell("Comisión entrada", `${formatPercent(item.feePercentPerSide ?? feePercent)}`, formatMoney(currentMetrics.entryFee))}
                         ${detailCell("Mercado objetivo", formatPrice(targetPrice), `${targetPercent.toFixed(2)}% neto`)}
-                        ${detailCell("Ganancia objetivo", signedMoney(targetMetrics.netBenefit), "después de salida y comisiones", signedClass(targetMetrics.netBenefit))}
+                        ${detailCell("Ganancia objetivo", signedMoney(targetMetrics.netBenefit), `${signedPercent(targetMetrics.netPercent)} después de comisiones`, signedClass(targetMetrics.netBenefit))}
                         ${detailCell("Comisión salida", `${formatPercent(item.feePercentPerSide ?? feePercent)}`, formatMoney(targetMetrics.exitFee))}
-                        ${detailCell("Total obtenido", formatMoney(currentMetrics.totalObtained), "si cierras al mercado actual")}
+                        ${detailCell("Total esperado", formatMoney(targetMetrics.totalObtained), "en mercado objetivo")}
                     </dl>
                     <div class="signal-extra-row">
                         <span>Mercado actual: <strong>${formatPrice(currentPrice)}</strong></span>
-                        <span>Ganancia actual: <strong class="${signedClass(currentMetrics.netBenefit)}">${signedMoney(currentMetrics.netBenefit)}</strong></span>
+                        <span>Ganancia actual: <strong class="${signedClass(currentMetrics.netBenefit)}">${signedMoney(currentMetrics.netBenefit)} (${signedPercent(currentMetrics.netPercent)})</strong></span>
+                        <span>Total actual: <strong>${formatMoney(currentMetrics.totalObtained)}</strong></span>
                         <span>Diferencia: <strong class="${difference <= 0 ? "gain" : "flat"}">${difference <= 0 ? "+" : "-"}${formatMoney(Math.abs(difference))}</strong></span>
                     </div>
                     <div class="trade-links">
@@ -649,6 +650,19 @@
                     shape: operation.status === "Abierta" ? "circle" : "square",
                     text: exitMarkerText(operation)
                 });
+            }
+
+            if (isManagedMode && operation.status === "Abierta") {
+                const targetMarkerTime = nearestTime(candleData.at(-1)?.time, candleData);
+                if (targetMarkerTime) {
+                    markers.push({
+                        time: targetMarkerTime,
+                        position: operation.side === "Long" ? "aboveBar" : "belowBar",
+                        color: colors.green,
+                        shape: "circle",
+                        text: `Meta ${getTargetPercent(operation).toFixed(2)}%`
+                    });
+                }
             }
         }
 
@@ -1220,6 +1234,11 @@
         return `${sign}${formatMoney(Math.abs(value))}`;
     }
 
+    function signedPercent(value) {
+        const sign = value > 0 ? "+" : value < 0 ? "-" : "";
+        return `${sign}${Math.abs(Number(value || 0)).toFixed(2)}%`;
+    }
+
     function formatPercent(value) {
         return `${Number(value || 0).toFixed(2)}%`;
     }
@@ -1286,7 +1305,7 @@
     }
 
     function targetLineTitle(trade, targetPercent) {
-        return `${isBuyLowSellHigh(trade) ? "Vender" : "Comprar"} meta +${targetPercent.toFixed(2)}%`;
+        return `${isBuyLowSellHigh(trade) ? "Vender" : "Comprar"} meta neta ${targetPercent.toFixed(2)}%`;
     }
 
     function analysisEntryLabel(analysis) {

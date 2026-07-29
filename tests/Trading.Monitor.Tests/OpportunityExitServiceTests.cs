@@ -36,6 +36,52 @@ public class OpportunityExitServiceTests
     }
 
     [Fact]
+    public void ResolveExit_ManagedProfitExit_UsesSignalTargetAndClosesOnFirstLowerClose()
+    {
+        var service = new OpportunityExitService();
+        var observedAt = DateTimeOffset.UtcNow.AddMinutes(-10);
+        var opportunity = Row(observedAt, managedTargetNetPercent: 2m);
+        var candles = new[]
+        {
+            Candle(observedAt.AddSeconds(1), 100m, 102.8m, 99m, 102.50m),
+            Candle(observedAt.AddSeconds(2), 102.50m, 102.7m, 102.20m, 102.30m)
+        };
+
+        var exit = service.ResolveExit(opportunity, candles, new RiskOptions
+        {
+            ManagedProfitExitEnabled = true,
+            ManagedProfitExitPercentAfterCosts = 5m,
+            ManagedProfitTrailCandlesAfterTarget = 1
+        });
+
+        Assert.NotNull(exit);
+        Assert.Equal(OpportunityStatus.ManagedProfitExit, exit.Status);
+        Assert.Equal(102.30m, exit.ExitPrice);
+    }
+
+    [Fact]
+    public void ResolveExit_FixedSignal_IgnoresManagedExitWhenGlobalManagedIsEnabled()
+    {
+        var service = new OpportunityExitService();
+        var observedAt = DateTimeOffset.UtcNow.AddMinutes(-10);
+        var opportunity = Row(observedAt, operationKind: SignalOperationKind.Fixed);
+        var candles = new[]
+        {
+            Candle(observedAt.AddSeconds(1), 100m, 105.6m, 99m, 105.50m),
+            Candle(observedAt.AddSeconds(2), 105.50m, 105.6m, 105.30m, 105.40m)
+        };
+
+        var exit = service.ResolveExit(opportunity, candles, new RiskOptions
+        {
+            ManagedProfitExitEnabled = true,
+            ManagedProfitExitPercentAfterCosts = 5m,
+            ManagedProfitTrailCandlesAfterTarget = 1
+        });
+
+        Assert.Null(exit);
+    }
+
+    [Fact]
     public void ResolveExit_ManagedProfitExit_DoesNotCloseWhenStopIsTouchedByDefault()
     {
         var service = new OpportunityExitService();
@@ -98,7 +144,7 @@ public class OpportunityExitServiceTests
         Assert.Equal(OpportunityStatus.HitStopLoss, exit.Status);
     }
 
-    private static OpportunityReportRow Row(DateTimeOffset observedAt)
+    private static OpportunityReportRow Row(DateTimeOffset observedAt, decimal managedTargetNetPercent = 5m, SignalOperationKind operationKind = SignalOperationKind.Managed)
     {
         return new OpportunityReportRow(
             Guid.NewGuid(),
@@ -123,7 +169,7 @@ public class OpportunityExitServiceTests
             58m,
             98m,
             -52m,
-            5m,
+            managedTargetNetPercent,
             50m,
             105.21m,
             null,
@@ -132,7 +178,8 @@ public class OpportunityExitServiceTests
             2m,
             "1m | 5m | 15m",
             "trend",
-            "");
+            "",
+            operationKind);
     }
 
     private static MarketCandle Candle(DateTimeOffset closeTime, decimal open, decimal high, decimal low, decimal close)

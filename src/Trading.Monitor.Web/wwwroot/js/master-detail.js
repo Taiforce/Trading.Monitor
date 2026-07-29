@@ -228,6 +228,9 @@
         candleSeries.setData(isForex ? candles.map(candle => ({ time: candle.time, value: candle.close })) : candles);
         const hover = createHoverCard(host);
 
+        const managedScenarios = buildManagedScenarios(panel, candles);
+        renderManagedScenarios(panel, managedScenarios);
+
         const route = buildRoute(panel, candles);
         if (route.length >= 2) {
             const routeSeries = addSeries(lwc, chart, "line", {
@@ -240,11 +243,16 @@
         }
 
         addLevel(candleSeries, Number(panel.dataset.entryPrice), "#f0b90b", entryLabel(panel));
-        addLevel(candleSeries, Number(panel.dataset.takeProfit1), "#0ecb81", profitLabel(panel));
-        addLevel(candleSeries, Number(panel.dataset.takeProfit2), "#0ecb81", profitLabel(panel));
-        addLevel(candleSeries, Number(panel.dataset.stopLoss), "#f6465d", profitLabel(panel));
+        if (isManagedSignal(panel)) {
+            addLevel(candleSeries, resolveManagedTargetPrice(panel), "#0ecb81", `Objetivo +${managedTargetPercent(panel).toFixed(2)}%`);
+            addLevel(candleSeries, Number(panel.dataset.stopLoss), "#f6465d", "Protección");
+        } else {
+            addLevel(candleSeries, Number(panel.dataset.takeProfit1), "#0ecb81", profitLabel(panel));
+            addLevel(candleSeries, Number(panel.dataset.takeProfit2), "#0ecb81", profitLabel(panel));
+            addLevel(candleSeries, Number(panel.dataset.stopLoss), "#f6465d", profitLabel(panel));
+        }
 
-        const markers = buildMarkers(panel, candles);
+        const markers = buildMarkers(panel, candles, managedScenarios);
         if (lwc.createSeriesMarkers) {
             lwc.createSeriesMarkers(candleSeries, markers);
         } else if (candleSeries.setMarkers) {
@@ -297,7 +305,7 @@
             .sort((a, b) => a.time - b.time);
     }
 
-    function buildMarkers(panel, candles) {
+    function buildMarkers(panel, candles, managedScenarios = []) {
         const isLong = panel.dataset.side === "Long";
         const entryTime = nearestTime(toUnix(panel.dataset.observedAt), candles);
         const exitTime = nearestTime(toUnix(panel.dataset.exitTime), candles);
@@ -324,6 +332,18 @@
             });
         }
 
+        managedScenarios
+            .filter(scenario => Number.isFinite(scenario.time))
+            .forEach(scenario => {
+                markers.push({
+                    time: nearestTime(scenario.time, candles),
+                    position: isLong ? "aboveBar" : "belowBar",
+                    color: scenario.threshold === 1 ? "#2ab5f6" : scenario.threshold === 2 ? "#a78bfa" : "#f97316",
+                    shape: "circle",
+                    text: `${scenario.threshold} retro`
+                });
+            });
+
         return markers;
     }
 
@@ -348,6 +368,163 @@
 
     function profitLabel(panel) {
         return panel.dataset.side === "Long" ? "Vender" : "Comprar";
+    }
+
+    function isManagedSignal(panel) {
+        return panel.dataset.operationKind === "Managed";
+    }
+
+    function managedTargetPercent(panel) {
+        const value = Number(panel.dataset.managedTargetPercent || 5);
+        return Number.isFinite(value) && value > 0 ? value : 5;
+    }
+
+    function resolveManagedTargetPrice(panel) {
+        const stored = Number(panel.dataset.managedTargetExitPrice);
+        if (Number.isFinite(stored) && stored > 0) {
+            return stored;
+        }
+
+        return resolveTargetExitPrice(panel, managedTargetPercent(panel));
+    }
+
+    function buildManagedScenarios(panel, candles) {
+        if (!isManagedSignal(panel)) {
+            return [];
+        }
+
+        const targetPercent = managedTargetPercent(panel);
+        const targetPrice = resolveManagedTargetPrice(panel);
+
+        return [1, 2, 3].map(threshold => findManagedExitScenario(panel, candles, threshold, targetPercent, targetPrice));
+    }
+
+    function findManagedExitScenario(panel, candles, threshold, targetPercent, targetPrice) {
+        const observedTime = toUnix(panel.dataset.observedAt);
+        const isLong = panel.dataset.side === "Long";
+        const relevantCandles = candles
+            .filter(candle => candle.time > observedTime)
+            .sort((a, b) => a.time - b.time);
+        let targetReached = false;
+        let previousNetPercent = null;
+        let adverseCount = 0;
+
+        for (const candle of relevantCandles) {
+            const touchedTarget = isLong ? candle.high >= targetPrice : candle.low <= targetPrice;
+            const favorablePrice = isLong ? candle.high : candle.low;
+            if (touchedTarget || netPercentFor(panel, favorablePrice) >= targetPercent) {
+                targetReached = true;
+            }
+
+            const currentNetPercent = netPercentFor(panel, candle.close);
+            if (targetReached && currentNetPercent >= targetPercent) {
+                adverseCount = previousNetPercent !== null && currentNetPercent < previousNetPercent
+                    ? adverseCount + 1
+                    : 0;
+                previousNetPercent = currentNetPercent;
+
+                if (adverseCount >= threshold) {
+                    const metrics = buildPanelCostMetrics(panel, candle.close);
+                    return {
+                        threshold,
+                        time: candle.time,
+                        exitPrice: candle.close,
+                        netBenefit: metrics.netBenefit,
+                        netPercent: metrics.netPercent,
+                        totalObtained: metrics.totalObtained
+                    };
+                }
+            } else if (targetReached) {
+                adverseCount = 0;
+                previousNetPercent = null;
+            }
+        }
+
+        return { threshold, time: Number.NaN, exitPrice: Number.NaN, netBenefit: Number.NaN, netPercent: Number.NaN, totalObtained: Number.NaN };
+    }
+
+    function renderManagedScenarios(panel, scenarios) {
+        const host = panel.querySelector("[data-managed-exit-scenarios]");
+        if (!host) {
+            return;
+        }
+
+        if (!isManagedSignal(panel)) {
+            host.hidden = true;
+            host.innerHTML = "";
+            return;
+        }
+
+        const actual = Number(panel.dataset.realizedNetPnl);
+        host.hidden = false;
+        host.innerHTML = `
+            <article class="managed-scenario-head">
+                <span>Aprendizaje de salida</span>
+                <strong>Comparando 1, 2 y 3 retrocesos</strong>
+                <small>Sirve para revisar si convenía cerrar en la primera variación en contra o esperar más confirmación.</small>
+            </article>
+            ${scenarios.map(scenario => scenarioCard(scenario, actual)).join("")}`;
+    }
+
+    function scenarioCard(scenario, actual) {
+        if (!Number.isFinite(scenario.time)) {
+            return `
+                <article>
+                    <span>${scenario.threshold} retroceso${scenario.threshold === 1 ? "" : "s"}</span>
+                    <strong>Sin salida</strong>
+                    <small>No se formaron ${scenario.threshold} retrocesos seguidos después del objetivo.</small>
+                </article>`;
+        }
+
+        const delta = Number.isFinite(actual) ? scenario.netBenefit - actual : Number.NaN;
+        return `
+            <article>
+                <span>${scenario.threshold} retroceso${scenario.threshold === 1 ? "" : "s"}</span>
+                <strong class="${scenario.netBenefit >= 0 ? "gain" : "loss"}">${formatMoney(scenario.netBenefit)} (${signedPercent(scenario.netPercent)})</strong>
+                <small>${formatChartDateTime(scenario.time)} | salida ${formatPrice(scenario.exitPrice)} | total ${formatMoney(scenario.totalObtained)}</small>
+                ${Number.isFinite(delta) ? `<em class="${delta >= 0 ? "gain" : "loss"}">${delta >= 0 ? "+" : "-"}${formatMoney(Math.abs(delta))} vs cierre real</em>` : ""}
+            </article>`;
+    }
+
+    function buildPanelCostMetrics(panel, exitPrice) {
+        const investment = Math.max(0, Number(panel.dataset.capital || 0));
+        const quantity = Math.max(0, Number(panel.dataset.quantity || 0));
+        const entryPrice = Math.max(0, Number(panel.dataset.entryPrice || 0));
+        const resolvedExitPrice = Math.max(0, Number(exitPrice || 0));
+        const feeRate = Math.max(0, Number(panel.dataset.feePercent || 0)) / 100;
+        const entryFee = investment * feeRate;
+        const exitNotional = quantity * resolvedExitPrice;
+        const exitFee = exitNotional * feeRate;
+        const grossBenefit = panel.dataset.side === "Long"
+            ? (resolvedExitPrice - entryPrice) * quantity
+            : (entryPrice - resolvedExitPrice) * quantity;
+        const netBenefit = grossBenefit - entryFee - exitFee;
+        const totalObtained = investment + netBenefit;
+        const netPercent = investment <= 0 ? 0 : netBenefit / investment * 100;
+
+        return { netBenefit, netPercent, totalObtained };
+    }
+
+    function netPercentFor(panel, exitPrice) {
+        return buildPanelCostMetrics(panel, exitPrice).netPercent;
+    }
+
+    function resolveTargetExitPrice(panel, targetPercent) {
+        const investment = Math.max(0, Number(panel.dataset.capital || 0));
+        const quantity = Math.max(0, Number(panel.dataset.quantity || 0));
+        const entryPrice = Math.max(0, Number(panel.dataset.entryPrice || 0));
+        const feeRate = Math.max(0, Number(panel.dataset.feePercent || 0)) / 100;
+        if (investment <= 0 || quantity <= 0 || entryPrice <= 0) {
+            return entryPrice;
+        }
+
+        const targetNet = investment * Number(targetPercent || 0) / 100;
+        const entryFee = investment * feeRate;
+        const exitNotional = panel.dataset.side === "Long"
+            ? (investment + entryFee + targetNet) / Math.max(0.00000001, 1 - feeRate)
+            : (investment - entryFee - targetNet) / (1 + feeRate);
+
+        return Math.max(0.00000001, exitNotional / quantity);
     }
 
     function nearestTime(target, candles) {
@@ -475,6 +652,16 @@
         const number = Number(value || 0);
         const decimals = Math.abs(number) >= 1000 ? 2 : Math.abs(number) >= 1 ? 4 : 8;
         return number.toLocaleString("en-US", { minimumFractionDigits: decimals, maximumFractionDigits: decimals });
+    }
+
+    function formatMoney(value) {
+        return Number(value || 0).toLocaleString("en-US", { style: "currency", currency: "USD" });
+    }
+
+    function signedPercent(value) {
+        const number = Number(value || 0);
+        const sign = number > 0 ? "+" : number < 0 ? "-" : "";
+        return `${sign}${Math.abs(number).toFixed(2)}%`;
     }
 
     function inferMarket(symbol) {

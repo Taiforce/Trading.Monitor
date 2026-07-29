@@ -20,7 +20,8 @@ public sealed record WalletAssetUpdate(
 public sealed record WalletSnapshot(
     decimal CashCapital,
     bool AutoTradingEnabled,
-    IReadOnlyList<WalletAssetPosition> Assets)
+    IReadOnlyList<WalletAssetPosition> Assets,
+    decimal ManagedTargetNetPercent = 5m)
 {
     public bool CanShowSignal(MarketSide side, string symbol)
     {

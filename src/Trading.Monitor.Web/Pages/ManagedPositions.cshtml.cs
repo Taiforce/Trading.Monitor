@@ -58,7 +58,11 @@ public sealed class ManagedPositionsModel : TradingPageModel
     [BindProperty]
     public decimal CloseNetPercent { get; set; }
 
-    public decimal DefaultTargetNetPercent => Math.Max(0.01m, _riskOptions.CurrentValue.ManagedProfitExitPercentAfterCosts);
+    public decimal RiskDefaultTargetNetPercent => Math.Max(0.01m, _riskOptions.CurrentValue.ManagedProfitExitPercentAfterCosts);
+
+    public decimal WalletDefaultTargetNetPercent { get; private set; }
+
+    public decimal DefaultTargetNetPercent => WalletDefaultTargetNetPercent > 0m ? WalletDefaultTargetNetPercent : RiskDefaultTargetNetPercent;
 
     public async Task OnGetAsync(CancellationToken cancellationToken)
     {
@@ -123,11 +127,13 @@ public sealed class ManagedPositionsModel : TradingPageModel
 
     private async Task LoadAsync(CancellationToken cancellationToken)
     {
+        var wallet = await _walletRepository.GetSnapshotAsync(Mercado, cancellationToken);
+        WalletDefaultTargetNetPercent = wallet.ManagedTargetNetPercent > 0m ? wallet.ManagedTargetNetPercent : RiskDefaultTargetNetPercent;
+
         if (TargetNetPercent <= 0m)
             TargetNetPercent = DefaultTargetNetPercent;
 
         await LoadReportAsync(cancellationToken);
-        var wallet = await _walletRepository.GetSnapshotAsync(Mercado, cancellationToken);
         var managedRows = Report.RecentSignals
             .Where(MatchesCurrentMarket)
             .Where(row => row.OperationKind == SignalOperationKind.Managed)

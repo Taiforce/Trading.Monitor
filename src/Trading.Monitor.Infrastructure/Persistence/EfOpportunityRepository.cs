@@ -49,7 +49,8 @@ public sealed class EfOpportunityRepository : IOpportunityRepository
             return;
 
         var projection = _projectionService.Project(opportunity, _reportingOptions.CurrentValue);
-        var managedTarget = BuildManagedTarget(opportunity.Side, projection.Capital, projection.EstimatedQuantity, projection.EntryPrice, _riskOptions.CurrentValue.ManagedProfitExitPercentAfterCosts);
+        var defaultManagedTargetPercent = await ResolveDefaultManagedTargetPercentAsync(opportunity.Symbol, cancellationToken);
+        var managedTarget = BuildManagedTarget(opportunity.Side, projection.Capital, projection.EstimatedQuantity, projection.EntryPrice, defaultManagedTargetPercent);
         var now = DateTimeOffset.UtcNow;
 
         _dbContext.Opportunities.Add(new TradingOpportunityEntity
@@ -294,6 +295,20 @@ public sealed class EfOpportunityRepository : IOpportunityRepository
             resolvedTargetNetPercent,
             targetBreakdown.NetBenefit,
             targetExitPrice);
+    }
+
+    private async Task<decimal> ResolveDefaultManagedTargetPercentAsync(string symbol, CancellationToken cancellationToken)
+    {
+        var market = MarketSymbolClassifier.GetMarketKind(symbol) == MarketKind.Forex
+            ? MarketSymbolClassifier.ForexMarket
+            : MarketSymbolClassifier.CryptoMarket;
+        var walletTarget = await _dbContext.WalletSettings.AsNoTracking()
+            .Where(setting => setting.Market == market)
+            .Select(setting => (decimal?)setting.ManagedTargetNetPercent)
+            .FirstOrDefaultAsync(cancellationToken);
+        var fallback = _riskOptions.CurrentValue.ManagedProfitExitPercentAfterCosts;
+
+        return Math.Max(0.01m, walletTarget.GetValueOrDefault(fallback));
     }
 
     private static bool IsSameSignalFamily(DateTimeOffset observedAt, DateTimeOffset expiresAt, TradingOpportunity opportunity)

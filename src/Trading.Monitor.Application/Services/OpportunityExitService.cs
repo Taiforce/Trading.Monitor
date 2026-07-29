@@ -8,14 +8,17 @@ public sealed class OpportunityExitService
 {
     public OpportunityExit? ResolveExit(OpportunityReportRow opportunity, IReadOnlyList<MarketCandle> candles, RiskOptions riskOptions)
     {
-        return riskOptions.ManagedProfitExitEnabled
+        return riskOptions.ManagedProfitExitEnabled && opportunity.OperationKind == SignalOperationKind.Managed
             ? ResolveManagedProfitExit(opportunity, candles, riskOptions)
             : ResolveStaticExit(opportunity, candles);
     }
 
     public bool HasTouchedManagedTarget(OpportunityReportRow opportunity, IReadOnlyList<MarketCandle> candles, RiskOptions riskOptions)
     {
-        var minimumNetPercent = Math.Max(0.01m, riskOptions.ManagedProfitExitPercentAfterCosts);
+        if (!riskOptions.ManagedProfitExitEnabled || opportunity.OperationKind != SignalOperationKind.Managed)
+            return false;
+
+        var minimumNetPercent = ResolveManagedTargetPercent(opportunity, riskOptions);
 
         return candles
             .Where(candle => candle.CloseTime > opportunity.ObservedAt)
@@ -28,7 +31,7 @@ public sealed class OpportunityExitService
         if (relevantCandles.Length == 0)
             return null;
 
-        var minimumNetPercent = Math.Max(0.01m, riskOptions.ManagedProfitExitPercentAfterCosts);
+        var minimumNetPercent = ResolveManagedTargetPercent(opportunity, riskOptions);
         var trailingGivebackPercent = Math.Max(0m, riskOptions.ManagedTrailingGivebackPercent);
         var requiredLowerCandles = Math.Max(1, riskOptions.ManagedProfitTrailCandlesAfterTarget);
         var peakNetPercent = decimal.MinValue;
@@ -57,7 +60,6 @@ public sealed class OpportunityExitService
             var gaveBackFromPeak = peakNetPercent - currentNetPercent;
             var momentumWeakness = HasMomentumWeakness(opportunity.Side, candle, previous);
             var trailingExit = trailingGivebackPercent > 0m && gaveBackFromPeak >= trailingGivebackPercent;
-            var canExitByMomentum = !riskOptions.ManagedExitRequiresMomentumWeakness || momentumWeakness || trailingExit;
 
             if (targetWasReached && currentNetPercent >= minimumNetPercent)
             {
@@ -67,7 +69,10 @@ public sealed class OpportunityExitService
 
                 previousTargetCloseNetPercent = currentNetPercent;
 
-                if ((lowerNetCloseCount >= requiredLowerCandles && canExitByMomentum) || trailingExit)
+                var lowerCloseExit = lowerNetCloseCount >= requiredLowerCandles
+                                     && (!riskOptions.ManagedExitRequiresMomentumWeakness || requiredLowerCandles <= 1 || momentumWeakness || trailingExit);
+
+                if (lowerCloseExit || trailingExit)
                 {
                     var reason = trailingExit
                         ? $"{ExitVerb(opportunity.Side)} ahora: beneficio neto {currentNetPercent:N2}% y retroceso desde pico de {gaveBackFromPeak:N2}%."
@@ -182,5 +187,11 @@ public sealed class OpportunityExitService
             return 0m;
 
         return TradeCostCalculator.Build(opportunity.Side, opportunity.Capital, opportunity.EstimatedQuantity, opportunity.EntryPrice, exitPrice, feePercentPerSide).NetPercent;
+    }
+
+    private static decimal ResolveManagedTargetPercent(OpportunityReportRow opportunity, RiskOptions riskOptions)
+    {
+        var signalTarget = opportunity.ManagedTargetNetPercent > 0m ? opportunity.ManagedTargetNetPercent : riskOptions.ManagedProfitExitPercentAfterCosts;
+        return Math.Max(0.01m, signalTarget);
     }
 }

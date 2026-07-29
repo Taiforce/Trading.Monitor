@@ -42,8 +42,8 @@ services:
       Risk__ManagedProfitExitPercentAfterCosts: ${RISK_MANAGED_PROFIT_EXIT_PERCENT_AFTER_COSTS:-5}
       Risk__ManagedQuickProfitExitPercentAfterCosts: ${RISK_MANAGED_QUICK_PROFIT_EXIT_PERCENT_AFTER_COSTS:-8}
       Risk__ManagedTrailingGivebackPercent: ${RISK_MANAGED_TRAILING_GIVEBACK_PERCENT:-0.75}
-      Risk__ManagedProfitTrailCandlesAfterTarget: ${RISK_MANAGED_PROFIT_TRAIL_CANDLES_AFTER_TARGET:-3}
-      Risk__ManagedExitRequiresMomentumWeakness: ${RISK_MANAGED_EXIT_REQUIRES_MOMENTUM_WEAKNESS:-true}
+      Risk__ManagedProfitTrailCandlesAfterTarget: ${RISK_MANAGED_PROFIT_TRAIL_CANDLES_AFTER_TARGET:-1}
+      Risk__ManagedExitRequiresMomentumWeakness: ${RISK_MANAGED_EXIT_REQUIRES_MOMENTUM_WEAKNESS:-false}
       Risk__ManagedHardStopExitEnabled: ${RISK_MANAGED_HARD_STOP_EXIT_ENABLED:-false}
       Risk__ManagedExpiryExitEnabled: ${RISK_MANAGED_EXPIRY_EXIT_ENABLED:-false}
       ExchangeExecution__Enabled: ${EXCHANGE_EXECUTION_ENABLED:-true}
@@ -113,8 +113,8 @@ services:
       Risk__ManagedProfitExitPercentAfterCosts: ${RISK_MANAGED_PROFIT_EXIT_PERCENT_AFTER_COSTS:-5}
       Risk__ManagedQuickProfitExitPercentAfterCosts: ${RISK_MANAGED_QUICK_PROFIT_EXIT_PERCENT_AFTER_COSTS:-8}
       Risk__ManagedTrailingGivebackPercent: ${RISK_MANAGED_TRAILING_GIVEBACK_PERCENT:-0.75}
-      Risk__ManagedProfitTrailCandlesAfterTarget: ${RISK_MANAGED_PROFIT_TRAIL_CANDLES_AFTER_TARGET:-3}
-      Risk__ManagedExitRequiresMomentumWeakness: ${RISK_MANAGED_EXIT_REQUIRES_MOMENTUM_WEAKNESS:-true}
+      Risk__ManagedProfitTrailCandlesAfterTarget: ${RISK_MANAGED_PROFIT_TRAIL_CANDLES_AFTER_TARGET:-1}
+      Risk__ManagedExitRequiresMomentumWeakness: ${RISK_MANAGED_EXIT_REQUIRES_MOMENTUM_WEAKNESS:-false}
       Risk__ManagedHardStopExitEnabled: ${RISK_MANAGED_HARD_STOP_EXIT_ENABLED:-false}
       Risk__ManagedExpiryExitEnabled: ${RISK_MANAGED_EXPIRY_EXIT_ENABLED:-false}
       MarketSources__BinanceEnabled: ${MARKET_BINANCE_ENABLED:-true}
