@@ -43,7 +43,13 @@ services:
       TZ: ${APP_TIME_ZONE:-America/Mexico_City}
       TradingMonitor__DisplayTimeZone: ${APP_TIME_ZONE:-America/Mexico_City}
       Database__Provider: SqlServer
+      Database__InitializeOnStartup: "true"
+      Database__CreateIfMissing: "true"
       Database__ConnectionString: Server=sqlserver,1433;Database=TradingMarket;User Id=sa;Password=${SQLSERVER_SA_PASSWORD:?Set SQLSERVER_SA_PASSWORD in .env};TrustServerCertificate=True;Encrypt=True;MultipleActiveResultSets=True
+      AdminAccess__Enabled: ${ADMIN_ACCESS_ENABLED:-false}
+      AdminAccess__Username: ${ADMIN_ACCESS_USERNAME:-admin}
+      AdminAccess__Password: ${ADMIN_ACCESS_PASSWORD:-local-development-only}
+      TRADING_MONITOR_LOG_DIRECTORY: /app/logs
       Logs__DirectoryPath: /shared-logs
       Reporting__DefaultCapital: ${REPORTING_DEFAULT_CAPITAL:-1000}
       Reporting__EstimatedFeePercentPerSide: ${REPORTING_FEE_PERCENT_PER_SIDE:-0.1}
@@ -105,10 +111,14 @@ services:
       - .env.local
     environment:
       DOTNET_ENVIRONMENT: Production
+      ASPNETCORE_URLS: http://+:8080
       TZ: ${APP_TIME_ZONE:-America/Mexico_City}
       TradingMonitor__DisplayTimeZone: ${APP_TIME_ZONE:-America/Mexico_City}
       Database__Provider: SqlServer
+      Database__InitializeOnStartup: "true"
+      Database__CreateIfMissing: "true"
       Database__ConnectionString: Server=sqlserver,1433;Database=TradingMarket;User Id=sa;Password=${SQLSERVER_SA_PASSWORD:?Set SQLSERVER_SA_PASSWORD in .env};TrustServerCertificate=True;Encrypt=True;MultipleActiveResultSets=True
+      TRADING_MONITOR_LOG_DIRECTORY: /app/logs
       TradingMonitor__Enabled: ${TRADING_MONITOR_ENABLED:-true}
       TradingMonitor__MinimumScore: ${TRADING_MINIMUM_SCORE:-88}
       TradingMonitor__EvaluationIntervalSeconds: ${TRADING_EVALUATION_INTERVAL_SECONDS:-60}

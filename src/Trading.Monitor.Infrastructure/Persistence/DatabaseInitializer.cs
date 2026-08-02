@@ -2,64 +2,117 @@ using Microsoft.Data.SqlClient;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Options;
+using Trading.Monitor.Application.Configuration;
 
 namespace Trading.Monitor.Infrastructure.Persistence;
 
 public static class DatabaseInitializer
 {
+    private const string BaselineMigration = "20260802203208_InitialCreate";
+
     public static async Task EnsureCreatedAsync(IServiceProvider serviceProvider, CancellationToken cancellationToken = default)
     {
         using var scope = serviceProvider.CreateScope();
         var logger = scope.ServiceProvider.GetRequiredService<ILogger<TradingMonitorDbContext>>();
         var dbContext = scope.ServiceProvider.GetRequiredService<TradingMonitorDbContext>();
+        var databaseOptions = scope.ServiceProvider.GetRequiredService<IOptions<DatabaseOptions>>().Value;
 
         var connectionString = dbContext.Database.GetConnectionString();
-        logger.LogInformation("Ensuring local trading database exists at {ConnectionString}", RedactConnectionString(connectionString));
+        logger.LogInformation("Applying trading database migrations at {ConnectionString}", RedactConnectionString(connectionString));
 
         if (string.IsNullOrWhiteSpace(connectionString))
             throw new InvalidOperationException("A SQL Server connection string is required to initialize Trading Monitor.");
 
-        var masterConnectionString = new SqlConnectionStringBuilder(connectionString)
-        {
-            InitialCatalog = "master"
-        }.ConnectionString;
+        var lockConnectionString = databaseOptions.CreateIfMissing
+            ? new SqlConnectionStringBuilder(connectionString) { InitialCatalog = "master" }.ConnectionString
+            : connectionString;
 
-        await using var initializationConnection = new SqlConnection(masterConnectionString);
+        await using var initializationConnection = new SqlConnection(lockConnectionString);
         await initializationConnection.OpenAsync(cancellationToken);
         await AcquireInitializationLockAsync(initializationConnection, cancellationToken);
 
         try
         {
-            await dbContext.Database.EnsureCreatedAsync(cancellationToken);
-
-            await dbContext.Database.OpenConnectionAsync(cancellationToken);
-            try
+            if (await HasLegacySchemaWithoutMigrationHistoryAsync(connectionString, cancellationToken))
             {
-                await EnsureOpportunityManagedSchemaAsync(dbContext, cancellationToken);
-                await EnsureTraderResearchSchemaAsync(dbContext, cancellationToken);
-                await EnsureTradeExecutionSchemaAsync(dbContext, cancellationToken);
-                await EnsureWalletSchemaAsync(dbContext, cancellationToken);
-                await EnsureHistoricalMarketCandleSchemaAsync(dbContext, cancellationToken);
+                logger.LogInformation("Baselining the legacy database before enabling EF Core migrations.");
 
+                await dbContext.Database.OpenConnectionAsync(cancellationToken);
                 try
                 {
-                    await TraderResearchSeeder.SeedAsync(dbContext, cancellationToken);
+                    await EnsureOpportunityManagedSchemaAsync(dbContext, cancellationToken);
+                    await EnsureTraderResearchSchemaAsync(dbContext, cancellationToken);
+                    await EnsureTradeExecutionSchemaAsync(dbContext, cancellationToken);
+                    await EnsureWalletSchemaAsync(dbContext, cancellationToken);
+                    await EnsureHistoricalMarketCandleSchemaAsync(dbContext, cancellationToken);
+                    await RecordBaselineMigrationAsync(dbContext, cancellationToken);
                 }
-                catch (DbUpdateException exception) when (exception.InnerException is SqlException { Number: 2601 or 2627 })
+                finally
                 {
-                    dbContext.ChangeTracker.Clear();
-                    logger.LogInformation("Trader research seed already exists. Continuing.");
+                    await dbContext.Database.CloseConnectionAsync();
                 }
             }
-            finally
+            else
             {
-                await dbContext.Database.CloseConnectionAsync();
+                if (!databaseOptions.CreateIfMissing && !await dbContext.Database.CanConnectAsync(cancellationToken))
+                    throw new InvalidOperationException("The production database does not exist or is not reachable. Provision it before starting Trading Monitor.");
+
+                await dbContext.Database.MigrateAsync(cancellationToken);
+            }
+
+            try
+            {
+                await TraderResearchSeeder.SeedAsync(dbContext, cancellationToken);
+            }
+            catch (DbUpdateException exception) when (exception.InnerException is SqlException { Number: 2601 or 2627 })
+            {
+                dbContext.ChangeTracker.Clear();
+                logger.LogInformation("Trader research seed already exists. Continuing.");
             }
         }
         finally
         {
             await ReleaseInitializationLockAsync(initializationConnection);
         }
+    }
+
+    private static async Task<bool> HasLegacySchemaWithoutMigrationHistoryAsync(string connectionString, CancellationToken cancellationToken)
+    {
+        await using var connection = new SqlConnection(connectionString);
+
+        try
+        {
+            await connection.OpenAsync(cancellationToken);
+        }
+        catch (SqlException exception) when (exception.Number is 4060 or 911)
+        {
+            return false;
+        }
+
+        await using var command = connection.CreateCommand();
+        command.CommandText =
+            "SELECT CASE WHEN OBJECT_ID(N'dbo.trading_opportunities', N'U') IS NOT NULL AND OBJECT_ID(N'dbo.__EFMigrationsHistory', N'U') IS NULL THEN 1 ELSE 0 END;";
+        return Convert.ToInt32(await command.ExecuteScalarAsync(cancellationToken)) == 1;
+    }
+
+    private static async Task RecordBaselineMigrationAsync(TradingMonitorDbContext dbContext, CancellationToken cancellationToken)
+    {
+        await dbContext.Database.ExecuteSqlRawAsync(
+            $"""
+            IF OBJECT_ID(N'dbo.__EFMigrationsHistory', N'U') IS NULL
+            BEGIN
+                CREATE TABLE dbo.__EFMigrationsHistory
+                (
+                    MigrationId nvarchar(150) NOT NULL CONSTRAINT PK___EFMigrationsHistory PRIMARY KEY,
+                    ProductVersion nvarchar(32) NOT NULL
+                );
+            END;
+
+            IF NOT EXISTS (SELECT 1 FROM dbo.__EFMigrationsHistory WHERE MigrationId = N'{BaselineMigration}')
+                INSERT INTO dbo.__EFMigrationsHistory (MigrationId, ProductVersion) VALUES (N'{BaselineMigration}', N'10.0.10');
+            """,
+            cancellationToken);
     }
 
     private static async Task AcquireInitializationLockAsync(SqlConnection connection, CancellationToken cancellationToken)

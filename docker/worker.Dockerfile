@@ -34,6 +34,8 @@ WORKDIR /app
 
 ENV DOTNET_RUNNING_IN_CONTAINER=true
 
+ENV ASPNETCORE_URLS=http://+:8080
+
 RUN --mount=type=secret,id=local_ca,required=false \
     if [ -s /run/secrets/local_ca ]; then \
       cp /run/secrets/local_ca /usr/local/share/ca-certificates/local-development-ca.crt; \
@@ -45,5 +47,6 @@ RUN mkdir -p /data /app/logs && \
 
 COPY --from=build --chown=app:app /app/publish .
 
+EXPOSE 8080
 USER app
 ENTRYPOINT ["dotnet", "Trading.Monitor.Worker.dll"]

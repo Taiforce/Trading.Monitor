@@ -1,3 +1,5 @@
+using Microsoft.AspNetCore.Diagnostics.HealthChecks;
+using Microsoft.Extensions.Diagnostics.HealthChecks;
 using Microsoft.Extensions.Options;
 using Serilog;
 using Serilog.Events;
@@ -14,18 +16,25 @@ using Trading.Monitor.Infrastructure.Notifications;
 using Trading.Monitor.Infrastructure.Persistence;
 using Trading.Monitor.Worker;
 
-Log.Logger = new LoggerConfiguration().MinimumLevel.Information()
-                                      .MinimumLevel.Override("Microsoft", LogEventLevel.Warning)
-                                      .MinimumLevel.Override("Microsoft.Hosting.Lifetime", LogEventLevel.Information)
-                                      .MinimumLevel.Override("Microsoft.EntityFrameworkCore.Database.Command", LogEventLevel.Warning)
-                                      .Enrich.FromLogContext()
-                                      .WriteTo.Console()
-                                      .WriteTo.File("logs/worker-.log", rollingInterval: RollingInterval.Day, retainedFileCountLimit: 30)
-                                      .CreateLogger();
+var bootstrapLogger = new LoggerConfiguration().MinimumLevel.Information()
+                                               .MinimumLevel.Override("Microsoft", LogEventLevel.Warning)
+                                               .MinimumLevel.Override("Microsoft.Hosting.Lifetime", LogEventLevel.Information)
+                                               .MinimumLevel.Override("Microsoft.EntityFrameworkCore.Database.Command", LogEventLevel.Warning)
+                                               .Enrich.FromLogContext()
+                                               .WriteTo.Console();
+
+if (!string.Equals(Environment.GetEnvironmentVariable("TRADING_MONITOR_DISABLE_FILE_LOGS"), "true", StringComparison.OrdinalIgnoreCase))
+{
+    var logDirectory = Environment.GetEnvironmentVariable("TRADING_MONITOR_LOG_DIRECTORY") ?? "logs";
+    Directory.CreateDirectory(logDirectory);
+    bootstrapLogger.WriteTo.File(Path.Combine(logDirectory, "worker-.log"), rollingInterval: RollingInterval.Day, retainedFileCountLimit: 30, shared: true);
+}
+
+Log.Logger = bootstrapLogger.CreateLogger();
 
 try
 {
-    var builder = Host.CreateApplicationBuilder(args);
+    var builder = WebApplication.CreateBuilder(args);
     LocalEnvFile.TryLoadNearest(builder.Environment.ContentRootPath, ".env.local");
     builder.Configuration.AddJsonFile("appsettings.Local.json", true, true);
     builder.Logging.ClearProviders();
@@ -116,6 +125,9 @@ try
     });
 
     builder.Services.AddTradingMonitorDatabase(builder.Configuration, builder.Environment.ContentRootPath);
+    builder.Services.AddHealthChecks()
+                    .AddCheck("self", () => HealthCheckResult.Healthy(), tags: ["live"])
+                    .AddCheck<SqlDatabaseHealthCheck>("database", tags: ["ready"]);
     builder.Services.AddHttpClient<IExchangeExecutionClient, BinanceSpotExecutionClient>((serviceProvider, client) =>
     {
         var options = serviceProvider.GetRequiredService<IOptionsMonitor<ExchangeExecutionOptions>>().CurrentValue;
@@ -144,9 +156,19 @@ try
     builder.Services.AddHostedService<HistoricalMarketBackfillWorker>();
     builder.Services.AddHostedService<MarketMonitorWorker>();
 
-    var host = builder.Build();
-    await DatabaseInitializer.EnsureCreatedAsync(host.Services);
-    host.Run();
+    var app = builder.Build();
+    if (app.Services.GetRequiredService<IOptions<DatabaseOptions>>().Value.InitializeOnStartup)
+        await DatabaseInitializer.EnsureCreatedAsync(app.Services);
+
+    app.MapHealthChecks("/health/live", new HealthCheckOptions
+    {
+        Predicate = registration => registration.Tags.Contains("live")
+    });
+    app.MapHealthChecks("/health/ready", new HealthCheckOptions
+    {
+        Predicate = registration => registration.Tags.Contains("ready")
+    });
+    app.Run();
 }
 catch (Exception exception)
 {

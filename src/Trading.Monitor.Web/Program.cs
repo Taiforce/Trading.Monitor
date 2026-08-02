@@ -1,3 +1,12 @@
+using System.Threading.RateLimiting;
+using Microsoft.AspNetCore.Authentication.Cookies;
+using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.DataProtection;
+using Microsoft.AspNetCore.Diagnostics.HealthChecks;
+using Microsoft.AspNetCore.HttpOverrides;
+using Microsoft.AspNetCore.RateLimiting;
+using Microsoft.Extensions.Diagnostics.HealthChecks;
+using Microsoft.Extensions.Options;
 using Serilog;
 using Serilog.Events;
 using Trading.Monitor.Application.Abstractions;
@@ -5,16 +14,25 @@ using Trading.Monitor.Application.Configuration;
 using Trading.Monitor.Application.Services;
 using Trading.Monitor.Infrastructure;
 using Trading.Monitor.Infrastructure.Persistence;
+using Trading.Monitor.Web.Configuration;
+using Trading.Monitor.Web.Health;
 using Trading.Monitor.Web.Services;
 
-Log.Logger = new LoggerConfiguration().MinimumLevel.Information()
-                                      .MinimumLevel.Override("Microsoft", LogEventLevel.Warning)
-                                      .MinimumLevel.Override("Microsoft.Hosting.Lifetime", LogEventLevel.Information)
-                                      .MinimumLevel.Override("Microsoft.EntityFrameworkCore.Database.Command", LogEventLevel.Warning)
-                                      .Enrich.FromLogContext()
-                                      .WriteTo.Console()
-                                      .WriteTo.File("logs/web-.log", rollingInterval: RollingInterval.Day, retainedFileCountLimit: 30)
-                                      .CreateLogger();
+var bootstrapLogger = new LoggerConfiguration().MinimumLevel.Information()
+                                               .MinimumLevel.Override("Microsoft", LogEventLevel.Warning)
+                                               .MinimumLevel.Override("Microsoft.Hosting.Lifetime", LogEventLevel.Information)
+                                               .MinimumLevel.Override("Microsoft.EntityFrameworkCore.Database.Command", LogEventLevel.Warning)
+                                               .Enrich.FromLogContext()
+                                               .WriteTo.Console();
+
+if (!string.Equals(Environment.GetEnvironmentVariable("TRADING_MONITOR_DISABLE_FILE_LOGS"), "true", StringComparison.OrdinalIgnoreCase))
+{
+    var logDirectory = Environment.GetEnvironmentVariable("TRADING_MONITOR_LOG_DIRECTORY") ?? "logs";
+    Directory.CreateDirectory(logDirectory);
+    bootstrapLogger.WriteTo.File(Path.Combine(logDirectory, "web-.log"), rollingInterval: RollingInterval.Day, retainedFileCountLimit: 30, shared: true);
+}
+
+Log.Logger = bootstrapLogger.CreateLogger();
 
 try
 {
@@ -27,6 +45,62 @@ try
     builder.Services.Configure<ReportingOptions>(builder.Configuration.GetSection("Reporting"));
     builder.Services.Configure<RiskOptions>(builder.Configuration.GetSection("Risk"));
     builder.Services.Configure<ExchangeExecutionOptions>(builder.Configuration.GetSection("ExchangeExecution"));
+    var dataProtectionKeysPath = builder.Configuration["DataProtection:KeysPath"];
+    if (!string.IsNullOrWhiteSpace(dataProtectionKeysPath))
+    {
+        Directory.CreateDirectory(dataProtectionKeysPath);
+        builder.Services.AddDataProtection()
+                        .SetApplicationName("Trading.Monitor")
+                        .PersistKeysToFileSystem(new DirectoryInfo(dataProtectionKeysPath));
+    }
+    builder.Services.AddOptions<AdminAccessOptions>()
+                    .Bind(builder.Configuration.GetSection(AdminAccessOptions.SectionName));
+
+    var adminAccess = builder.Configuration.GetSection(AdminAccessOptions.SectionName).Get<AdminAccessOptions>() ?? new AdminAccessOptions();
+    if (adminAccess.Enabled && (string.IsNullOrWhiteSpace(adminAccess.Username) || string.IsNullOrWhiteSpace(adminAccess.Password)))
+        throw new InvalidOperationException("AdminAccess is enabled, but AdminAccess:Username or AdminAccess:Password is missing.");
+
+    builder.Services.Configure<ForwardedHeadersOptions>(options =>
+    {
+        options.ForwardedHeaders = ForwardedHeaders.XForwardedFor | ForwardedHeaders.XForwardedProto;
+        options.KnownIPNetworks.Clear();
+        options.KnownProxies.Clear();
+    });
+    builder.Services.AddAuthentication(CookieAuthenticationDefaults.AuthenticationScheme)
+                    .AddCookie(options =>
+                    {
+                        options.Cookie.Name = "__Host-TradingMonitor";
+                        options.Cookie.HttpOnly = true;
+                        options.Cookie.IsEssential = true;
+                        options.Cookie.SameSite = SameSiteMode.Strict;
+                        options.Cookie.SecurePolicy = CookieSecurePolicy.SameAsRequest;
+                        options.LoginPath = "/account/login";
+                        options.AccessDeniedPath = "/account/login";
+                        options.ExpireTimeSpan = TimeSpan.FromHours(Math.Clamp(adminAccess.SessionHours, 1, 24));
+                        options.SlidingExpiration = true;
+                    });
+    builder.Services.AddAuthorization(options =>
+    {
+        if (adminAccess.Enabled)
+        {
+            options.FallbackPolicy = new AuthorizationPolicyBuilder()
+                .RequireAuthenticatedUser()
+                .Build();
+        }
+    });
+    builder.Services.AddRateLimiter(options =>
+    {
+        options.RejectionStatusCode = StatusCodes.Status429TooManyRequests;
+        options.AddPolicy("login", context => RateLimitPartition.GetFixedWindowLimiter(
+            context.Connection.RemoteIpAddress?.ToString() ?? "unknown",
+            _ => new FixedWindowRateLimiterOptions
+            {
+                PermitLimit = 5,
+                Window = TimeSpan.FromMinutes(1),
+                QueueLimit = 0,
+                AutoReplenishment = true
+            }));
+    });
     builder.Services.AddSingleton<OpportunityProjectionService>();
     builder.Services.AddSingleton<AiConsensusEngine>();
     builder.Services.AddSingleton(serviceProvider => new TradeInstructionService(serviceProvider.GetRequiredService<Microsoft.Extensions.Options.IOptionsMonitor<RiskOptions>>().CurrentValue));
@@ -53,10 +127,14 @@ try
         client.DefaultRequestHeaders.UserAgent.ParseAdd("Trading.Monitor/1.0");
     });
     builder.Services.AddTradingMonitorDatabase(builder.Configuration, builder.Environment.ContentRootPath);
+    builder.Services.AddHealthChecks()
+                    .AddCheck("self", () => HealthCheckResult.Healthy(), tags: ["live"])
+                    .AddCheck<SqlDatabaseHealthCheck>("database", tags: ["ready"]);
     builder.Services.AddRazorPages();
 
     var app = builder.Build();
-    await DatabaseInitializer.EnsureCreatedAsync(app.Services);
+    if (app.Services.GetRequiredService<IOptions<DatabaseOptions>>().Value.InitializeOnStartup)
+        await DatabaseInitializer.EnsureCreatedAsync(app.Services);
 
     if (!app.Environment.IsDevelopment())
     {
@@ -64,12 +142,33 @@ try
         app.UseHsts();
     }
 
+    app.UseForwardedHeaders();
+
     if (!string.Equals(Environment.GetEnvironmentVariable("DOTNET_RUNNING_IN_CONTAINER"), "true", StringComparison.OrdinalIgnoreCase))
         app.UseHttpsRedirection();
 
+    app.Use(async (context, next) =>
+    {
+        context.Response.Headers["X-Content-Type-Options"] = "nosniff";
+        context.Response.Headers["Referrer-Policy"] = "same-origin";
+        context.Response.Headers.Append("Permissions-Policy", "camera=(), microphone=(), geolocation=()");
+        context.Response.Headers.Append("Content-Security-Policy", "base-uri 'self'; frame-ancestors 'none'; object-src 'none'");
+        await next();
+    });
+
     app.UseRouting();
+    app.UseRateLimiter();
+    app.UseAuthentication();
     app.UseAuthorization();
-    app.MapStaticAssets();
+    app.MapStaticAssets().AllowAnonymous();
+    app.MapHealthChecks("/health/live", new HealthCheckOptions
+    {
+        Predicate = registration => registration.Tags.Contains("live")
+    }).AllowAnonymous();
+    app.MapHealthChecks("/health/ready", new HealthCheckOptions
+    {
+        Predicate = registration => registration.Tags.Contains("ready")
+    }).AllowAnonymous();
     app.MapGet("/api/operaciones-vivas", async (decimal? capital, string? estado, string? symbol, string? tipoSenal, string? mode, string? senal, string? mercado, LiveOperationsSnapshotService snapshotService, CancellationToken cancellationToken) =>
     {
         return Results.Json(await snapshotService.GetAsync(capital, estado, symbol, tipoSenal, mode, senal, mercado, cancellationToken));

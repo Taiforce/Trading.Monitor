@@ -1,0 +1,93 @@
+name: Deploy production
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - 'src/**'
+      - 'docker/**'
+      - 'Directory.*'
+      - 'global.json'
+      - '.github/workflows/deploy.yml'
+
+permissions:
+  contents: read
+  id-token: write
+
+concurrency:
+  group: trading-monitor-production
+  cancel-in-progress: false
+
+env:
+  DOTNET_CLI_TELEMETRY_OPTOUT: 1
+  DOTNET_NOLOGO: true
+  RESOURCE_GROUP: ${{ vars.AZURE_RESOURCE_GROUP }}
+  REGISTRY_NAME: ${{ vars.AZURE_REGISTRY_NAME }}
+  REGISTRY_SERVER: ${{ vars.AZURE_REGISTRY_SERVER }}
+
+jobs:
+  deploy:
+    if: ${{ vars.AZURE_CLIENT_ID != '' && vars.AZURE_TENANT_ID != '' && vars.AZURE_SUBSCRIPTION_ID != '' && vars.AZURE_RESOURCE_GROUP != '' && vars.AZURE_REGISTRY_NAME != '' && vars.AZURE_REGISTRY_SERVER != '' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    environment: production
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Azure login with OIDC
+        uses: azure/login@v2
+        with:
+          client-id: ${{ vars.AZURE_CLIENT_ID }}
+          tenant-id: ${{ vars.AZURE_TENANT_ID }}
+          subscription-id: ${{ vars.AZURE_SUBSCRIPTION_ID }}
+
+      - name: Build immutable images in Azure
+        run: |
+          az acr build --registry "$REGISTRY_NAME" --image "trading-monitor-web:${GITHUB_SHA}" --file docker/web.Dockerfile . --only-show-errors
+          az acr build --registry "$REGISTRY_NAME" --image "trading-monitor-worker:${GITHUB_SHA}" --file docker/worker.Dockerfile . --only-show-errors
+
+      - name: Deploy database owner first
+        run: |
+          az containerapp update \
+            --resource-group "$RESOURCE_GROUP" \
+            --name trading-monitor-worker \
+            --image "$REGISTRY_SERVER/trading-monitor-worker:${GITHUB_SHA}" \
+            --revision-suffix "${GITHUB_SHA::12}" \
+            --only-show-errors
+
+      - name: Wait for worker readiness
+        shell: pwsh
+        run: |
+          $deadline = (Get-Date).AddMinutes(8)
+          do {
+            $state = az containerapp revision list --resource-group $env:RESOURCE_GROUP --name trading-monitor-worker --query "[?properties.active].properties.healthState | [0]" -o tsv
+            if ($state -eq "Healthy") { exit 0 }
+            Start-Sleep -Seconds 15
+          } while ((Get-Date) -lt $deadline)
+          throw "Worker revision did not become healthy."
+
+      - name: Deploy web
+        run: |
+          az containerapp update \
+            --resource-group "$RESOURCE_GROUP" \
+            --name trading-monitor-web \
+            --image "$REGISTRY_SERVER/trading-monitor-web:${GITHUB_SHA}" \
+            --revision-suffix "${GITHUB_SHA::12}" \
+            --only-show-errors
+
+      - name: Verify production readiness
+        shell: pwsh
+        run: |
+          $fqdn = az containerapp show --resource-group $env:RESOURCE_GROUP --name trading-monitor-web --query properties.configuration.ingress.fqdn -o tsv
+          $deadline = (Get-Date).AddMinutes(8)
+          do {
+            try {
+              $response = Invoke-WebRequest -Uri "https://$fqdn/health/ready" -TimeoutSec 20
+              if ($response.StatusCode -eq 200) { exit 0 }
+            } catch {
+              Write-Host "Waiting for web readiness..."
+            }
+            Start-Sleep -Seconds 15
+          } while ((Get-Date) -lt $deadline)
+          throw "Production health check failed."

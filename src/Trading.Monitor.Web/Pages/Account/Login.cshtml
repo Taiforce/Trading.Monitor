@@ -1,0 +1,41 @@
+@page "/account/login"
+@model Trading.Monitor.Web.Pages.Account.LoginModel
+@{
+    ViewData["Title"] = "Acceso seguro";
+    Layout = null;
+}
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Acceso seguro - Trading Monitor</title>
+    <link rel="stylesheet" href="~/css/site.css" asp-append-version="true" />
+</head>
+<body class="auth-body">
+    <main class="auth-shell">
+        <section class="auth-card" aria-labelledby="login-title">
+            <div class="auth-brand" aria-hidden="true">TM</div>
+            <p class="eyebrow">TradingMonitor.taiforce.com</p>
+            <h1 id="login-title">Acceso seguro</h1>
+            <p class="auth-copy">Inicia sesión para consultar conexiones, operaciones y controles del monitor.</p>
+
+            <form method="post" class="auth-form">
+                <div asp-validation-summary="ModelOnly" class="auth-error" role="alert"></div>
+                <input asp-for="ReturnUrl" type="hidden" />
+
+                <label asp-for="Username">Usuario</label>
+                <input asp-for="Username" autocomplete="username" autofocus />
+                <span asp-validation-for="Username" class="auth-error"></span>
+
+                <label asp-for="Password">Contraseña</label>
+                <input asp-for="Password" autocomplete="current-password" />
+                <span asp-validation-for="Password" class="auth-error"></span>
+
+                <button type="submit">Entrar al monitor</button>
+            </form>
+            <p class="auth-footnote">Sesión cifrada, cookie segura y protección contra intentos automatizados.</p>
+        </section>
+    </main>
+</body>
+</html>

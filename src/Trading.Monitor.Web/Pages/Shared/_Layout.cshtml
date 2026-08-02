@@ -133,6 +133,12 @@
             <span></span>
             <em>Dark</em>
         </label>
+        @if (User.Identity?.IsAuthenticated == true)
+        {
+            <form method="post" asp-page="/Account/Logout" class="logout-form">
+                <button type="submit" class="logout-button" title="Cerrar sesión">Salir</button>
+            </form>
+        }
     </nav>
 </header>
 
