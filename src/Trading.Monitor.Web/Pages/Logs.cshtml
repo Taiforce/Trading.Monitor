@@ -1,15 +1,24 @@
 @page "/logs"
 @model LogsModel
+@using System.Text.Json
 @{
     ViewData["Title"] = "Logs";
     var firstEntry = Model.FilteredEntries.FirstOrDefault();
+    var scopeLabel = Model.Ambito switch
+    {
+        "crypto" => "Crypto",
+        "forex" => "Forex",
+        "traders" => "Traders",
+        _ => "Todo"
+    };
 }
 
 <section class="dashboard">
     <div class="page-head">
         <div>
-            <p class="eyebrow">@Model.Ambito | Serilog</p>
+            <p class="eyebrow"><span class="scope-dot scope-@Model.Ambito"></span>@scopeLabel | Serilog</p>
             <h1>Logs operativos</h1>
+            <p class="page-intro">Solo se muestran eventos clasificados como @scopeLabel. Los filtros se aplican al escribir, sin recargar la página.</p>
         </div>
     </div>
 
@@ -56,37 +65,50 @@
              data-log-lines="@Model.Lines"
              data-log-scope="@Model.Ambito">
             <aside class="logs-sidebar">
-                <form method="get" class="connection-filter-card logs-filter-panel" data-log-filter>
+                <form method="get" class="connection-filter-card logs-filter-panel" data-log-filter aria-label="Filtros de logs">
                     <input asp-for="Ambito" type="hidden" data-log-scope-input/>
-                    <label>
-                        <span>Buscar</span>
-                        <input asp-for="Buscar" type="search" placeholder="señal, error, binance" data-log-search/>
-                    </label>
-                    <label>
-                        <span>Nivel</span>
-                        <select asp-for="Nivel" data-log-level>
-                            <option value="">Todos</option>
-                            @foreach (var level in Model.AvailableLevels)
-                            {
-                                <option value="@level">@level</option>
-                            }
-                        </select>
-                    </label>
-                    <label>
-                        <span>Evento</span>
-                        <select asp-for="Evento" data-log-event>
-                            <option value="">Todos</option>
-                            @foreach (var eventType in Model.AvailableEvents)
-                            {
-                                <option value="@eventType">@eventType</option>
-                            }
-                        </select>
-                    </label>
-                    <label>
-                        <span>Líneas</span>
-                        <input asp-for="Lines" type="number" min="50" max="1000" step="50" data-log-lines-input/>
-                    </label>
-                    <button type="submit" data-log-apply>Filtrar</button>
+                    <div class="filter-panel-head">
+                        <div>
+                            <span>Vista activa</span>
+                            <strong>@scopeLabel</strong>
+                        </div>
+                        <span class="live-filter-state" data-log-loading aria-live="polite">Actualización automática</span>
+                    </div>
+                    <div class="logs-filter-grid">
+                        <label class="filter-search-wide">
+                            <span>Buscar dentro de @scopeLabel</span>
+                            <input asp-for="Buscar" type="search" placeholder="símbolo, proveedor o mensaje" autocomplete="off" data-log-search/>
+                        </label>
+                        <label>
+                            <span>Nivel</span>
+                            <select asp-for="Nivel" data-log-level>
+                                <option value="">Todos</option>
+                                @foreach (var level in Model.AvailableLevels)
+                                {
+                                    <option value="@level">@level</option>
+                                }
+                            </select>
+                        </label>
+                        <label>
+                            <span>Evento</span>
+                            <select asp-for="Evento" data-log-event>
+                                <option value="">Todos</option>
+                                @foreach (var eventType in Model.AvailableEvents)
+                                {
+                                    <option value="@eventType">@eventType</option>
+                                }
+                            </select>
+                        </label>
+                        <label>
+                            <span>Profundidad</span>
+                            <select asp-for="Lines" data-log-lines-input>
+                                <option value="100">100 líneas</option>
+                                <option value="250">250 líneas</option>
+                                <option value="500">500 líneas</option>
+                                <option value="1000">1,000 líneas</option>
+                            </select>
+                        </label>
+                    </div>
                 </form>
 
                 <div class="section-title compact-title">
@@ -143,7 +165,7 @@
                             <button type="button"
                                     class="master-item @(index == 0 ? "active" : "")"
                                     data-log-entry-index="@index">
-                                <span class="master-kicker">@entry.Time | @entry.Service</span>
+                                <span class="master-kicker">@entry.Time | @entry.Service | @scopeLabel</span>
                                 <strong>@entry.EventType</strong>
                                 <span class="status @Model.LevelClass(entry.Level)">@entry.LevelLabel</span>
                                 <small>@entry.Message</small>
@@ -172,6 +194,7 @@
                         <article><span>Servicio</span><strong>@firstEntry.Service</strong><small>@(Model.Snapshot.File?.DisplayName ?? "-")</small></article>
                         <article><span>Hora</span><strong>@firstEntry.Time</strong><small>bucket @firstEntry.Hour:00</small></article>
                         <article><span>Tipo</span><strong>@firstEntry.EventType</strong><small>interpretado</small></article>
+                        <article><span>Ámbito</span><strong>@scopeLabel</strong><small>clasificación estricta</small></article>
                     </div>
                     <p class="detail-copy">@firstEntry.Message</p>
                     <details class="compact-details">
@@ -183,6 +206,8 @@
         </div>
     </section>
 </section>
+
+<script type="application/json" id="logInitialEntries">@Html.Raw(JsonSerializer.Serialize(Model.FilteredEntries, new JsonSerializerOptions(JsonSerializerDefaults.Web)))</script>
 
 @section Scripts {
     <script src="~/js/logs-explorer.js" asp-append-version="true"></script>

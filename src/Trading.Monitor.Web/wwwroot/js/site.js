@@ -19,14 +19,37 @@
 })();
 
 (() => {
-    const form = document.getElementById("actionsFilterForm");
+    document.querySelectorAll("[data-auto-submit]").forEach(form => {
+        const delay = Math.max(150, Number(form.dataset.autoSubmitDelay || 360));
+        const state = form.querySelector("[data-auto-submit-state]");
+        let timer;
 
-    if (!form) {
-        return;
-    }
+        const submit = () => {
+            window.clearTimeout(timer);
+            form.requestSubmit();
+        };
+        const submitSoon = () => {
+            window.clearTimeout(timer);
+            timer = window.setTimeout(submit, delay);
+        };
 
-    form.querySelectorAll("select").forEach(select => {
-        select.addEventListener("change", () => form.requestSubmit());
+        form.addEventListener("submit", () => {
+            form.classList.add("is-applying");
+            form.setAttribute("aria-busy", "true");
+            if (state) {
+                state.textContent = "Aplicando…";
+            }
+        });
+
+        form.querySelectorAll("select, input[type='checkbox'], input[type='radio']").forEach(control => {
+            control.addEventListener("change", submit);
+        });
+        form.querySelectorAll("input[type='number'], input[type='date']").forEach(control => {
+            control.addEventListener("change", submit);
+        });
+        form.querySelectorAll("input[type='search'], input[type='text']").forEach(control => {
+            control.addEventListener("input", submitSoon);
+        });
     });
 })();
 

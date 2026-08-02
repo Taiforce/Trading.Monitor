@@ -21,7 +21,7 @@
             <h2>Filtros de traders</h2>
             <span>@Model.MarketLabel()</span>
         </div>
-        <form method="get" class="filter-bar traders-filter">
+        <form method="get" class="filter-bar traders-filter" data-auto-submit>
             <input asp-for="Mercado" type="hidden"/>
             <label>
                 <span>Fuente</span>
@@ -49,7 +49,8 @@
                 <input asp-for="OnlyWithHistory" type="checkbox"/>
                 <span>Solo con historial</span>
             </label>
-            <button type="submit">Filtrar</button>
+            <span class="filter-auto-state" data-auto-submit-state>Filtro automático</span>
+            <noscript><button type="submit">Filtrar</button></noscript>
         </form>
     </section>
 

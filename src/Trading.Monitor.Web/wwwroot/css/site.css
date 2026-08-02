@@ -2205,6 +2205,137 @@ td small,
     margin-bottom: 12px;
 }
 
+.page-intro {
+    max-width: 760px;
+    margin: 8px 0 0;
+    color: var(--muted);
+    line-height: 1.55;
+}
+
+.connection-segment-toolbar {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    gap: 10px 16px;
+    align-items: center;
+    margin: 14px 0;
+    padding: 12px;
+    border: 1px solid color-mix(in srgb, var(--accent) 24%, var(--line));
+    border-radius: var(--radius);
+    background: linear-gradient(135deg, color-mix(in srgb, var(--accent) 8%, var(--surface-2)), var(--surface-2));
+}
+
+.connection-status-filter,
+.connection-bulk-actions {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 8px;
+}
+
+.connection-status-filter > span,
+.connection-bulk-actions > span {
+    color: var(--muted);
+    font-size: 0.76rem;
+    font-weight: 900;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+}
+
+.connection-status-filter button,
+.retry-group-action {
+    min-height: 36px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 7px;
+    border: 1px solid var(--line);
+    border-radius: 999px;
+    padding: 0 13px;
+    background: var(--surface);
+    color: var(--ink);
+    font: inherit;
+    font-size: 0.82rem;
+    font-weight: 900;
+    cursor: pointer;
+    transition: border-color 160ms ease, background 160ms ease, transform 160ms ease;
+}
+
+.connection-status-filter button:hover,
+.connection-status-filter button.active {
+    border-color: color-mix(in srgb, var(--accent) 68%, var(--line));
+    background: color-mix(in srgb, var(--accent) 11%, var(--surface));
+}
+
+.connection-status-filter button:active,
+.retry-group-action:active {
+    transform: translateY(1px);
+}
+
+.state-dot,
+.scope-dot {
+    width: 8px;
+    height: 8px;
+    display: inline-block;
+    flex: 0 0 auto;
+    border-radius: 50%;
+    background: var(--steel);
+    box-shadow: 0 0 0 3px color-mix(in srgb, var(--steel) 18%, transparent);
+}
+
+.state-dot-ok,
+.scope-crypto {
+    background: var(--good);
+    box-shadow: 0 0 0 3px color-mix(in srgb, var(--good) 18%, transparent);
+}
+
+.state-dot-issue,
+.scope-forex {
+    background: var(--warn);
+    box-shadow: 0 0 0 3px color-mix(in srgb, var(--warn) 18%, transparent);
+}
+
+.scope-traders {
+    background: var(--accent);
+    box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 18%, transparent);
+}
+
+.retry-group-action {
+    border-radius: 7px;
+    background: var(--accent);
+    border-color: var(--accent);
+    color: #062a1f;
+}
+
+.retry-group-action:disabled,
+[data-source-retry].is-busy {
+    opacity: 0.68;
+    cursor: wait;
+}
+
+.retry-group-action.is-busy .retry-icon {
+    animation: connection-spin 800ms linear infinite;
+}
+
+.connection-bulk-result {
+    grid-column: 1 / -1;
+    margin: 0;
+    color: var(--muted);
+    font-size: 0.82rem;
+}
+
+.connection-filter-empty {
+    grid-column: 1 / -1;
+}
+
+.connection-source-workbench.is-empty > .master-list,
+.connection-source-workbench.is-empty > .detail-stack {
+    display: none;
+}
+
+@keyframes connection-spin {
+    to { transform: rotate(360deg); }
+}
+
 .connection-filter-card {
     display: grid;
     grid-template-columns: 1fr;
@@ -2262,6 +2393,18 @@ td small,
     max-height: min(720px, calc(100vh - 300px));
     overflow-y: auto;
     padding-right: 6px;
+}
+
+.connection-source-workbench .detail-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.connection-source-workbench .source-url-card {
+    grid-column: 1 / -1;
+}
+
+.source-url-card strong {
+    word-break: break-word;
 }
 
 .source-retry-row {
@@ -3392,6 +3535,68 @@ td small,
 
 .logs-filter-panel {
     margin-bottom: 12px;
+    gap: 12px;
+    background: linear-gradient(145deg, color-mix(in srgb, var(--steel) 8%, var(--surface-2)), var(--surface-2));
+}
+
+.filter-panel-head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
+}
+
+.filter-panel-head > div {
+    display: grid;
+    gap: 2px;
+}
+
+.filter-panel-head strong {
+    font-size: 1rem;
+}
+
+.live-filter-state,
+.filter-auto-state {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    color: var(--good);
+    font-size: 0.72rem;
+    font-weight: 900;
+}
+
+.live-filter-state::before,
+.filter-auto-state::before {
+    content: "";
+    width: 7px;
+    height: 7px;
+    border-radius: 50%;
+    background: currentColor;
+    box-shadow: 0 0 0 3px color-mix(in srgb, currentColor 15%, transparent);
+}
+
+.logs-filter-grid {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 9px;
+}
+
+.logs-filter-grid .filter-search-wide {
+    grid-column: 1 / -1;
+}
+
+.logs-explorer .logs-events-panel,
+.logs-explorer .logs-detail-panel,
+.logs-explorer .log-file-list {
+    transition: opacity 140ms ease, transform 140ms ease;
+}
+
+.logs-explorer.is-loading .logs-events-panel,
+.logs-explorer.is-loading .logs-detail-panel,
+.logs-explorer.is-loading .log-file-list {
+    opacity: 0.58;
+    transform: translateY(2px);
+    pointer-events: none;
 }
 
 .interactive-log-file-list {
@@ -3627,6 +3832,14 @@ td small,
         grid-template-columns: 1fr;
     }
 
+    .connection-segment-toolbar {
+        grid-template-columns: 1fr;
+    }
+
+    .connection-bulk-result {
+        grid-column: 1;
+    }
+
     .logs-detail-panel {
         min-height: 320px;
     }
@@ -3662,6 +3875,19 @@ td small,
 
     .capital-control {
         grid-template-columns: 1fr;
+    }
+
+    .logs-filter-grid {
+        grid-template-columns: 1fr;
+    }
+
+    .logs-filter-grid .filter-search-wide {
+        grid-column: 1;
+    }
+
+    .connection-status-filter button,
+    .retry-group-action {
+        flex: 1 1 100%;
     }
 
     .app-nav {
@@ -3705,5 +3931,22 @@ td small,
 
     .trade-badges {
         justify-content: flex-start;
+    }
+}
+
+@view-transition {
+    navigation: auto;
+}
+
+::view-transition-old(root),
+::view-transition-new(root) {
+    animation-duration: 160ms;
+    animation-timing-function: ease-out;
+}
+
+@media (prefers-reduced-motion: reduce) {
+    ::view-transition-old(root),
+    ::view-transition-new(root) {
+        animation: none;
     }
 }

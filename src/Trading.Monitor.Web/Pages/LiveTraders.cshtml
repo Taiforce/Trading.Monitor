@@ -42,7 +42,7 @@
             <span>elige una para seguirla en el gráfico</span>
         </div>
 
-        <form method="get" class="filter-bar traders-filter live-trader-filter">
+        <form method="get" class="filter-bar traders-filter live-trader-filter" data-auto-submit>
             <input asp-for="Mercado" type="hidden"/>
             <label>
                 <span>Fuente</span>
@@ -58,7 +58,8 @@
                 <span>Buscar</span>
                 <input asp-for="Search" type="search" placeholder="trader, simbolo, estilo"/>
             </label>
-            <button type="submit">Filtrar</button>
+            <span class="filter-auto-state" data-auto-submit-state>Filtro automático</span>
+            <noscript><button type="submit">Filtrar</button></noscript>
         </form>
 
         @if (Model.OpenTrades.Count == 0)
@@ -128,6 +129,6 @@
 </section>
 
 @section Scripts {
-    <script src="~/lib/lightweight-charts/lightweight-charts.standalone.production.js"></script>
+    <script src="~/lib/lightweight-charts/dist/lightweight-charts.standalone.production.js"></script>
     <script src="~/js/trader-live-chart.js" asp-append-version="true"></script>
 }

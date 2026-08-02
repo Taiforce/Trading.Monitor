@@ -1,0 +1,51 @@
+{
+  "version": "1.0",
+  "defaultProvider": "unpkg",
+  "libraries": [
+    {
+      "library": "bootstrap@5.3.8",
+      "destination": "src/Trading.Monitor.Web/wwwroot/lib/bootstrap/",
+      "files": [
+        "dist/css/bootstrap.min.css",
+        "dist/css/bootstrap.min.css.map",
+        "dist/js/bootstrap.bundle.min.js",
+        "dist/js/bootstrap.bundle.min.js.map",
+        "LICENSE"
+      ]
+    },
+    {
+      "library": "jquery@3.7.1",
+      "destination": "src/Trading.Monitor.Web/wwwroot/lib/jquery/",
+      "files": [
+        "dist/jquery.min.js",
+        "dist/jquery.min.map",
+        "LICENSE.txt"
+      ]
+    },
+    {
+      "library": "jquery-validation@1.22.1",
+      "destination": "src/Trading.Monitor.Web/wwwroot/lib/jquery-validation/",
+      "files": [
+        "dist/jquery.validate.min.js",
+        "dist/additional-methods.min.js",
+        "LICENSE.md"
+      ]
+    },
+    {
+      "library": "jquery-validation-unobtrusive@4.0.0",
+      "destination": "src/Trading.Monitor.Web/wwwroot/lib/jquery-validation-unobtrusive/",
+      "files": [
+        "dist/jquery.validate.unobtrusive.min.js",
+        "LICENSE.txt"
+      ]
+    },
+    {
+      "library": "lightweight-charts@5.2.0",
+      "destination": "src/Trading.Monitor.Web/wwwroot/lib/lightweight-charts/",
+      "files": [
+        "dist/lightweight-charts.standalone.production.js",
+        "LICENSE"
+      ]
+    }
+  ]
+}

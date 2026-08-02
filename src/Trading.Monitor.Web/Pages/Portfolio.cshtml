@@ -17,7 +17,7 @@
             <h2>Filtros de simulación</h2>
             <span>solo señales cerradas</span>
         </div>
-        <form method="get" class="filter-bar portfolio-filter">
+        <form method="get" class="filter-bar portfolio-filter" data-auto-submit data-auto-submit-delay="450">
             <input asp-for="Mercado" type="hidden"/>
             <input asp-for="VistaSimulador" type="hidden"/>
             <label>
@@ -67,7 +67,8 @@
                     </select>
                 </label>
             }
-            <button type="submit">Simular</button>
+            <span class="filter-auto-state" data-auto-submit-state>Simulación automática</span>
+            <noscript><button type="submit">Simular</button></noscript>
         </form>
     </section>
 
@@ -345,6 +346,6 @@
 </section>
 
 @section Scripts {
-    <script src="~/lib/lightweight-charts/lightweight-charts.standalone.production.js"></script>
+    <script src="~/lib/lightweight-charts/dist/lightweight-charts.standalone.production.js"></script>
     <script src="~/js/master-detail.js" asp-append-version="true"></script>
 }

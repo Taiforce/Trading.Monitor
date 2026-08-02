@@ -20,8 +20,6 @@ public sealed class ConnectionsModel(
 
     public IReadOnlyList<TradeExecutionAudit> RecentExecutions { get; private set; } = [];
 
-    public IReadOnlyList<IGrouping<DataSourceKind, SourceHealthReportRow>> SourcesByKind { get; private set; } = [];
-
     public IReadOnlyList<SourceHealthReportRow> FilteredSources { get; private set; } = [];
 
     public IReadOnlyList<ConnectionCatalogItem> FilteredCatalog { get; private set; } = [];
@@ -31,8 +29,6 @@ public sealed class ConnectionsModel(
     public IReadOnlyList<SourceHealthReportRow> ScopedSources { get; private set; } = [];
 
     public IReadOnlyList<ConnectionCatalogItem> ScopedCatalog { get; private set; } = [];
-
-    public IReadOnlyList<DataSourceKind> AvailableKinds { get; private set; } = [];
 
     public IReadOnlyList<ConnectionCatalogItem> Catalog { get; } =
     [
@@ -66,15 +62,6 @@ public sealed class ConnectionsModel(
     ];
 
     [BindProperty(SupportsGet = true)]
-    public string Estado { get; set; } = "todas";
-
-    [BindProperty(SupportsGet = true)]
-    public string Tipo { get; set; } = "";
-
-    [BindProperty(SupportsGet = true)]
-    public string Buscar { get; set; } = "";
-
-    [BindProperty(SupportsGet = true)]
     public string Ambito { get; set; } = "todo";
 
     public async Task OnGetAsync(CancellationToken cancellationToken)
@@ -87,67 +74,9 @@ public sealed class ConnectionsModel(
         Ambito = NormalizeScope(Ambito);
         ScopedSources = Report.SourceHealth.Where(MatchesScope).ToArray();
         ScopedCatalog = Catalog.Where(MatchesScope).ToArray();
-        AvailableKinds = ScopedSources.Select(row => row.Kind).Distinct().OrderBy(row => row).ToArray();
-        FilteredSources = ApplyFilters(ScopedSources);
-        FilteredCatalog = ApplyCatalogFilters(ScopedCatalog);
-        SourcesByKind = FilteredSources.GroupBy(row => row.Kind).OrderBy(group => group.Key).ToArray();
+        FilteredSources = ScopedSources;
+        FilteredCatalog = ScopedCatalog;
         ConnectionGroups = BuildConnectionGroups();
-    }
-
-    private IReadOnlyList<SourceHealthReportRow> ApplyFilters(IEnumerable<SourceHealthReportRow> sources)
-    {
-        if (!string.IsNullOrWhiteSpace(Buscar))
-        {
-            sources = sources.Where(source =>
-                source.SourceName.Contains(Buscar, StringComparison.OrdinalIgnoreCase) ||
-                (source.Url?.Contains(Buscar, StringComparison.OrdinalIgnoreCase) ?? false) ||
-                source.LastMessage.Contains(Buscar, StringComparison.OrdinalIgnoreCase));
-        }
-
-        if (Enum.TryParse<DataSourceKind>(Tipo, true, out var kind))
-            sources = sources.Where(source => source.Kind == kind);
-
-        sources = Estado?.Trim().ToLowerInvariant() switch
-        {
-            "sanas" => sources.Where(source => source.Status == DataSourceStatus.Healthy),
-            "degradadas" => sources.Where(source => source.Status == DataSourceStatus.Degraded),
-            "fallidas" => sources.Where(source => source.Status == DataSourceStatus.Failed),
-            _ => sources
-        };
-
-        return sources.OrderBy(source => ConceptFor(source.Kind, source.SourceName))
-            .ThenBy(source => source.Status)
-            .ThenBy(source => source.SourceName)
-            .ToArray();
-    }
-
-    private IReadOnlyList<ConnectionCatalogItem> ApplyCatalogFilters(IEnumerable<ConnectionCatalogItem> catalog)
-    {
-        if (!string.IsNullOrWhiteSpace(Buscar))
-        {
-            catalog = catalog.Where(item =>
-                item.Name.Contains(Buscar, StringComparison.OrdinalIgnoreCase) ||
-                item.Group.Contains(Buscar, StringComparison.OrdinalIgnoreCase) ||
-                item.Use.Contains(Buscar, StringComparison.OrdinalIgnoreCase) ||
-                item.Requirement.Contains(Buscar, StringComparison.OrdinalIgnoreCase) ||
-                item.Url.Contains(Buscar, StringComparison.OrdinalIgnoreCase));
-        }
-
-        catalog = Estado?.Trim().ToLowerInvariant() switch
-        {
-            "sanas" => catalog.Where(item => item.Status == "En uso"),
-            "degradadas" => catalog.Where(item => item.Status is "Opcional" or "Candidato"),
-            "fallidas" => [],
-            _ => catalog
-        };
-
-        if (Enum.TryParse<DataSourceKind>(Tipo, true, out var kind))
-        {
-            var concept = ConceptFor(kind, "");
-            catalog = catalog.Where(item => ConceptFor(item.Group, item.Name) == concept);
-        }
-
-        return catalog.OrderBy(item => ConceptFor(item.Group, item.Name)).ThenBy(item => item.Name).ToArray();
     }
 
     private IReadOnlyList<ConnectionConceptGroup> BuildConnectionGroups()

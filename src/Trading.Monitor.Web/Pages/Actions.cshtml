@@ -45,7 +45,7 @@
             <h2>Gráfico y señales abiertas</h2>
             <span id="liveUpdated">actualizando...</span>
         </div>
-        <form method="get" class="filter-bar live-inline-filter" id="actionsFilterForm">
+        <form method="get" class="filter-bar live-inline-filter" id="actionsFilterForm" data-auto-submit>
             <input asp-for="Mercado" type="hidden"/>
             <label>
                 <span>Monto</span>
@@ -59,7 +59,8 @@
                     <option value="@Model.SellHighBuyLowValue">Vende alto - compra bajo</option>
                 </select>
             </label>
-            <button type="submit">Aplicar</button>
+            <span class="filter-auto-state" data-auto-submit-state>Filtro automático</span>
+            <noscript><button type="submit">Aplicar</button></noscript>
         </form>
         <div class="chart-toolbar" aria-label="Controles del gráfico">
             <div>
@@ -114,6 +115,6 @@
 </section>
 
 @section Scripts {
-    <script src="~/lib/lightweight-charts/lightweight-charts.standalone.production.js"></script>
+    <script src="~/lib/lightweight-charts/dist/lightweight-charts.standalone.production.js"></script>
     <script src="~/js/trading-chart.js" asp-append-version="true"></script>
 }

@@ -8,11 +8,17 @@ services:
     environment:
       ACCEPT_EULA: "Y"
       MSSQL_PID: Developer
-      MSSQL_SA_PASSWORD: ${SQLSERVER_SA_PASSWORD:-TradingMarket_2026!Local}
+      MSSQL_SA_PASSWORD: ${SQLSERVER_SA_PASSWORD:?Set SQLSERVER_SA_PASSWORD in .env}
     ports:
       - "127.0.0.1:${SQLSERVER_PORT:-14333}:1433"
     volumes:
       - sqlserver-data:/var/opt/mssql
+    healthcheck:
+      test: ["CMD-SHELL", "/opt/mssql-tools18/bin/sqlcmd -S localhost -U sa -P \"$${MSSQL_SA_PASSWORD}\" -C -Q 'SELECT 1' > /dev/null || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 30s
 
   web:
     build:
@@ -21,6 +27,11 @@ services:
     image: trading-monitor-web:local
     container_name: trading-monitor-web
     restart: unless-stopped
+    init: true
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
     dns:
       - 1.1.1.1
       - 8.8.8.8
@@ -32,7 +43,7 @@ services:
       TZ: ${APP_TIME_ZONE:-America/Mexico_City}
       TradingMonitor__DisplayTimeZone: ${APP_TIME_ZONE:-America/Mexico_City}
       Database__Provider: SqlServer
-      Database__ConnectionString: Server=sqlserver,1433;Database=TradingMarket;User Id=sa;Password=${SQLSERVER_SA_PASSWORD:-TradingMarket_2026!Local};TrustServerCertificate=True;Encrypt=True;MultipleActiveResultSets=True
+      Database__ConnectionString: Server=sqlserver,1433;Database=TradingMarket;User Id=sa;Password=${SQLSERVER_SA_PASSWORD:?Set SQLSERVER_SA_PASSWORD in .env};TrustServerCertificate=True;Encrypt=True;MultipleActiveResultSets=True
       Logs__DirectoryPath: /shared-logs
       Reporting__DefaultCapital: ${REPORTING_DEFAULT_CAPITAL:-1000}
       Reporting__EstimatedFeePercentPerSide: ${REPORTING_FEE_PERCENT_PER_SIDE:-0.1}
@@ -70,8 +81,10 @@ services:
     volumes:
       - ./logs/web:/app/logs
       - ./logs:/shared-logs:ro
+      - web-data-protection:/home/app/.aspnet/DataProtection-Keys
     depends_on:
-      - sqlserver
+      sqlserver:
+        condition: service_healthy
 
   worker:
     build:
@@ -80,6 +93,11 @@ services:
     image: trading-monitor-worker:local
     container_name: trading-monitor-worker
     restart: unless-stopped
+    init: true
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
     dns:
       - 1.1.1.1
       - 8.8.8.8
@@ -90,7 +108,7 @@ services:
       TZ: ${APP_TIME_ZONE:-America/Mexico_City}
       TradingMonitor__DisplayTimeZone: ${APP_TIME_ZONE:-America/Mexico_City}
       Database__Provider: SqlServer
-      Database__ConnectionString: Server=sqlserver,1433;Database=TradingMarket;User Id=sa;Password=${SQLSERVER_SA_PASSWORD:-TradingMarket_2026!Local};TrustServerCertificate=True;Encrypt=True;MultipleActiveResultSets=True
+      Database__ConnectionString: Server=sqlserver,1433;Database=TradingMarket;User Id=sa;Password=${SQLSERVER_SA_PASSWORD:?Set SQLSERVER_SA_PASSWORD in .env};TrustServerCertificate=True;Encrypt=True;MultipleActiveResultSets=True
       TradingMonitor__Enabled: ${TRADING_MONITOR_ENABLED:-true}
       TradingMonitor__MinimumScore: ${TRADING_MINIMUM_SCORE:-88}
       TradingMonitor__EvaluationIntervalSeconds: ${TRADING_EVALUATION_INTERVAL_SECONDS:-60}
@@ -139,7 +157,9 @@ services:
       OpenAi__Enabled: ${OPENAI_ENABLED:-true}
       OpenAi__ApiKeyEnvironmentVariable: OPENAI_API_KEY
       OpenAi__BaseUrl: ${OPENAI_BASE_URL:-https://api.openai.com}
-      OpenAi__Model: ${OPENAI_MODEL:-gpt-4.1-mini}
+      OpenAi__Model: ${OPENAI_MODEL:-gpt-5.6-terra}
+      OpenAi__ReasoningEffort: ${OPENAI_REASONING_EFFORT:-low}
+      OpenAi__TextVerbosity: ${OPENAI_TEXT_VERBOSITY:-low}
       OpenAi__TimeoutSeconds: ${OPENAI_TIMEOUT_SECONDS:-20}
       OpenAi__MaxNewsItems: ${OPENAI_MAX_NEWS_ITEMS:-12}
       OpenAi__MinimumNewsItemsToAnalyze: ${OPENAI_MIN_NEWS_ITEMS_TO_ANALYZE:-3}
@@ -186,7 +206,9 @@ services:
     volumes:
       - ./logs/worker:/app/logs
     depends_on:
-      - sqlserver
+      sqlserver:
+        condition: service_healthy
 
 volumes:
   sqlserver-data:
+  web-data-protection:

@@ -55,10 +55,10 @@ public sealed class LogsModel(OperationalLogReader logReader, OperationalLogInte
         Snapshot = logReader.Read(LogFile, Lines);
         LogFile = Snapshot.File?.RelativePath ?? LogFile;
         Ambito = OperationalLogInterpreter.NormalizeScope(Ambito);
-        Entries = logInterpreter.Interpret(Snapshot);
+        Entries = logInterpreter.ApplyScope(logInterpreter.Interpret(Snapshot), Ambito);
         AvailableLevels = Entries.Select(entry => entry.Level).Where(level => level != "-").Distinct(StringComparer.OrdinalIgnoreCase).OrderBy(level => level).ToArray();
         AvailableEvents = Entries.Select(entry => entry.EventType).Distinct(StringComparer.OrdinalIgnoreCase).OrderBy(type => type).ToArray();
-        FilteredEntries = logInterpreter.ApplyFilters(Entries, Nivel, Evento, Buscar, Ambito);
+        FilteredEntries = logInterpreter.ApplyFilters(Entries, Nivel, Evento, Buscar, "todo");
         Buckets = logInterpreter.BuildBuckets(FilteredEntries);
         MaxBucketCount = Buckets.Select(bucket => bucket.Count).DefaultIfEmpty(0).Max();
         ErrorCount = Entries.Count(entry => entry.Level is "ERR" or "FTL");

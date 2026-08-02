@@ -8,7 +8,11 @@ public sealed class OpenAiOptions
 
     public string BaseUrl { get; set; } = "https://api.openai.com";
 
-    public string Model { get; set; } = "gpt-4.1-mini";
+    public string Model { get; set; } = "gpt-5.6-terra";
+
+    public string ReasoningEffort { get; set; } = "low";
+
+    public string TextVerbosity { get; set; } = "low";
 
     public int TimeoutSeconds { get; set; } = 20;
 

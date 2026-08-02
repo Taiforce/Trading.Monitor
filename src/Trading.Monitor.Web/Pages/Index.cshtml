@@ -12,11 +12,12 @@
             <p class="eyebrow">Vista general</p>
             <h1>Resumen del monitor de trading</h1>
         </div>
-        <form method="get" class="capital-form">
+        <form method="get" class="capital-form" data-auto-submit data-auto-submit-delay="450">
             <label asp-for="Capital">Monto por oportunidad</label>
             <div class="capital-control">
                 <input asp-for="Capital" type="number" min="0.01" step="0.01"/>
-                <button type="submit">Recalcular</button>
+                <span class="filter-auto-state" data-auto-submit-state>Recalcula automáticamente</span>
+                <noscript><button type="submit">Recalcular</button></noscript>
             </div>
         </form>
     </div>

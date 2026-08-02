@@ -151,8 +151,8 @@ try
         var lineLimit = Math.Clamp(lines ?? 250, 50, 1000);
         var files = logReader.ListFiles();
         var snapshot = logReader.Read(logFile, lineLimit);
-        var entries = logInterpreter.Interpret(snapshot);
-        var filtered = logInterpreter.ApplyFilters(entries, nivel, evento, buscar, ambito);
+        var entries = logInterpreter.ApplyScope(logInterpreter.Interpret(snapshot), ambito);
+        var filtered = logInterpreter.ApplyFilters(entries, nivel, evento, buscar, "todo");
         var buckets = logInterpreter.BuildBuckets(filtered);
         var maxBucket = buckets.Select(bucket => bucket.Count).DefaultIfEmpty(0).Max();
 

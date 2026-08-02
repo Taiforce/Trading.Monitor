@@ -1,0 +1,34 @@
+{
+  "version": 1,
+  "isRoot": true,
+  "tools": {
+    "dotnet-ef": {
+      "version": "10.0.10",
+      "commands": [
+        "dotnet-ef"
+      ],
+      "rollForward": false
+    },
+    "dotnet-outdated-tool": {
+      "version": "4.8.1",
+      "commands": [
+        "dotnet-outdated"
+      ],
+      "rollForward": false
+    },
+    "dotnet-reportgenerator-globaltool": {
+      "version": "5.5.11",
+      "commands": [
+        "reportgenerator"
+      ],
+      "rollForward": false
+    },
+    "microsoft.web.librarymanager.cli": {
+      "version": "3.0.114",
+      "commands": [
+        "libman"
+      ],
+      "rollForward": false
+    }
+  }
+}

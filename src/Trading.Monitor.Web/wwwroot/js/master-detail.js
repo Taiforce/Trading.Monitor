@@ -23,6 +23,10 @@
     function toggle(container, key) {
         const active = directItems(container).find(item => item.classList.contains("active"));
         if (active?.dataset.detailKey === key) {
+            if (container.dataset.keepSelection === "true") {
+                return;
+            }
+
             deactivate(container);
             return;
         }

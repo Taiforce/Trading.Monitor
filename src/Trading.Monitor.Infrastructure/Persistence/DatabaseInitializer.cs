@@ -16,42 +16,80 @@ public static class DatabaseInitializer
         var connectionString = dbContext.Database.GetConnectionString();
         logger.LogInformation("Ensuring local trading database exists at {ConnectionString}", RedactConnectionString(connectionString));
 
+        if (string.IsNullOrWhiteSpace(connectionString))
+            throw new InvalidOperationException("A SQL Server connection string is required to initialize Trading Monitor.");
+
+        var masterConnectionString = new SqlConnectionStringBuilder(connectionString)
+        {
+            InitialCatalog = "master"
+        }.ConnectionString;
+
+        await using var initializationConnection = new SqlConnection(masterConnectionString);
+        await initializationConnection.OpenAsync(cancellationToken);
+        await AcquireInitializationLockAsync(initializationConnection, cancellationToken);
+
         try
         {
             await dbContext.Database.EnsureCreatedAsync(cancellationToken);
-        }
-        catch (SqlException exception) when (exception.Number == 1801)
-        {
-            logger.LogInformation("Database already exists. Continuing schema verification.");
-            await Task.Delay(TimeSpan.FromSeconds(2), cancellationToken);
-            await dbContext.Database.EnsureCreatedAsync(cancellationToken);
-        }
 
-        await dbContext.Database.OpenConnectionAsync(cancellationToken);
-        try
-        {
-            await dbContext.Database.ExecuteSqlRawAsync("EXEC sp_getapplock @Resource = N'TradingMonitorTraderResearchSeed', @LockMode = N'Exclusive', @LockOwner = N'Session', @LockTimeout = 15000;", cancellationToken);
-            await EnsureOpportunityManagedSchemaAsync(dbContext, cancellationToken);
-            await EnsureTraderResearchSchemaAsync(dbContext, cancellationToken);
-            await EnsureTradeExecutionSchemaAsync(dbContext, cancellationToken);
-            await EnsureWalletSchemaAsync(dbContext, cancellationToken);
-            await EnsureHistoricalMarketCandleSchemaAsync(dbContext, cancellationToken);
-
+            await dbContext.Database.OpenConnectionAsync(cancellationToken);
             try
             {
-                await TraderResearchSeeder.SeedAsync(dbContext, cancellationToken);
+                await EnsureOpportunityManagedSchemaAsync(dbContext, cancellationToken);
+                await EnsureTraderResearchSchemaAsync(dbContext, cancellationToken);
+                await EnsureTradeExecutionSchemaAsync(dbContext, cancellationToken);
+                await EnsureWalletSchemaAsync(dbContext, cancellationToken);
+                await EnsureHistoricalMarketCandleSchemaAsync(dbContext, cancellationToken);
+
+                try
+                {
+                    await TraderResearchSeeder.SeedAsync(dbContext, cancellationToken);
+                }
+                catch (DbUpdateException exception) when (exception.InnerException is SqlException { Number: 2601 or 2627 })
+                {
+                    dbContext.ChangeTracker.Clear();
+                    logger.LogInformation("Trader research seed already exists. Continuing.");
+                }
             }
-            catch (DbUpdateException exception) when (exception.InnerException is SqlException { Number: 2601 or 2627 })
+            finally
             {
-                dbContext.ChangeTracker.Clear();
-                logger.LogInformation("Trader research seed already exists. Continuing.");
+                await dbContext.Database.CloseConnectionAsync();
             }
         }
         finally
         {
-            await dbContext.Database.ExecuteSqlRawAsync("EXEC sp_releaseapplock @Resource = N'TradingMonitorTraderResearchSeed', @LockOwner = N'Session';", cancellationToken);
-            await dbContext.Database.CloseConnectionAsync();
+            await ReleaseInitializationLockAsync(initializationConnection);
         }
+    }
+
+    private static async Task AcquireInitializationLockAsync(SqlConnection connection, CancellationToken cancellationToken)
+    {
+        await using var command = connection.CreateCommand();
+        command.CommandText =
+            """
+            DECLARE @result int;
+            EXEC @result = sys.sp_getapplock
+                @Resource = N'TradingMonitorDatabaseInitialization',
+                @LockMode = N'Exclusive',
+                @LockOwner = N'Session',
+                @LockTimeout = 60000;
+            SELECT @result;
+            """;
+
+        var result = Convert.ToInt32(await command.ExecuteScalarAsync(cancellationToken));
+        if (result < 0)
+            throw new TimeoutException($"Could not acquire the Trading Monitor database initialization lock. SQL result: {result}.");
+    }
+
+    private static async Task ReleaseInitializationLockAsync(SqlConnection connection)
+    {
+        if (connection.State != System.Data.ConnectionState.Open)
+            return;
+
+        await using var command = connection.CreateCommand();
+        command.CommandText =
+            "EXEC sys.sp_releaseapplock @Resource = N'TradingMonitorDatabaseInitialization', @LockOwner = N'Session';";
+        await command.ExecuteNonQueryAsync(CancellationToken.None);
     }
 
     private static async Task EnsureHistoricalMarketCandleSchemaAsync(TradingMonitorDbContext dbContext, CancellationToken cancellationToken)

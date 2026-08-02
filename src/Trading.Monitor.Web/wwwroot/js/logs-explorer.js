@@ -14,7 +14,7 @@
     const eventSelect = explorer.querySelector("[data-log-event]");
     const linesInput = explorer.querySelector("[data-log-lines-input]");
     const scopeInput = explorer.querySelector("[data-log-scope-input]");
-    const applyButton = explorer.querySelector("[data-log-apply]");
+    const loadingLabel = explorer.querySelector("[data-log-loading]");
     const activeFileLabel = document.getElementById("logActiveFile");
     const fileCountLabel = document.getElementById("logFileCount");
     const eventCountLabel = document.getElementById("logEventCount");
@@ -33,11 +33,11 @@
         search: searchInput?.value || "",
         selectedIndex: 0
     };
-    let latestEntries = [];
+    let latestEntries = readInitialEntries();
     let requestId = 0;
 
     wire();
-    loadLogs();
+    selectEntry(Math.min(state.selectedIndex, Math.max(0, latestEntries.length - 1)));
 
     function wire() {
         fileList?.querySelectorAll("[data-log-file]").forEach(button => {
@@ -108,7 +108,7 @@
             renderMetrics(data);
             selectEntry(Math.min(state.selectedIndex, Math.max(0, latestEntries.length - 1)));
         } catch {
-            eventList.innerHTML = `<div class="empty-state"><strong>No pude leer los logs.</strong><span>El servicio sigue vivo; intenta otro archivo o filtro.</span></div>`;
+            eventList.innerHTML = `<div class="empty-state"><strong>No pude leer los logs de ${escapeHtml(scopeLabel())}.</strong><span>El servicio sigue vivo; intenta otro archivo o filtro.</span></div>`;
             detailPanel.innerHTML = `<div class="empty-state"><strong>Sin detalle.</strong><span>No llegó información nueva para mostrar.</span></div>`;
         } finally {
             setBusy(false);
@@ -181,13 +181,13 @@
         }
 
         if (entries.length === 0) {
-            eventList.innerHTML = `<div class="empty-state"><strong>No hay eventos para ese filtro.</strong><span>Prueba con otro nivel, evento o búsqueda.</span></div>`;
+            eventList.innerHTML = `<div class="empty-state"><strong>No hay eventos de ${escapeHtml(scopeLabel())} para ese filtro.</strong><span>Prueba con otro nivel, evento o búsqueda.</span></div>`;
             return;
         }
 
         eventList.innerHTML = entries.map((entry, index) => `
             <button type="button" class="master-item ${index === state.selectedIndex ? "active" : ""}" data-log-entry-index="${index}">
-                <span class="master-kicker">${escapeHtml(entry.time)} | ${escapeHtml(entry.service)}</span>
+                <span class="master-kicker">${escapeHtml(entry.time)} | ${escapeHtml(entry.service)} | ${escapeHtml(scopeLabel())}</span>
                 <strong>${escapeHtml(entry.eventType)}</strong>
                 <span class="status ${levelClass(entry.level)}">${escapeHtml(entry.levelLabel)}</span>
                 <small>${escapeHtml(entry.message)}</small>
@@ -220,6 +220,7 @@
                 <article><span>Servicio</span><strong>${escapeHtml(entry.service)}</strong><small>${escapeHtml(state.logFile || "-")}</small></article>
                 <article><span>Hora</span><strong>${escapeHtml(entry.time)}</strong><small>bucket ${escapeHtml(entry.hour)}:00</small></article>
                 <article><span>Tipo</span><strong>${escapeHtml(entry.eventType)}</strong><small>interpretado</small></article>
+                <article><span>Ámbito</span><strong>${escapeHtml(scopeLabel())}</strong><small>clasificación estricta</small></article>
             </div>
             <p class="detail-copy">${escapeHtml(entry.message)}</p>
             <details class="compact-details">
@@ -296,10 +297,28 @@
     }
 
     function setBusy(isBusy) {
-        if (applyButton) {
-            applyButton.disabled = isBusy;
-            applyButton.textContent = isBusy ? "Leyendo..." : "Filtrar";
+        explorer.classList.toggle("is-loading", isBusy);
+        explorer.setAttribute("aria-busy", String(isBusy));
+        if (loadingLabel) {
+            loadingLabel.textContent = isBusy ? "Actualizando…" : "Actualización automática";
         }
+    }
+
+    function readInitialEntries() {
+        const element = document.getElementById("logInitialEntries");
+        if (!element?.textContent) {
+            return [];
+        }
+
+        try {
+            return JSON.parse(element.textContent);
+        } catch {
+            return [];
+        }
+    }
+
+    function scopeLabel() {
+        return state.scope === "crypto" ? "Crypto" : state.scope === "forex" ? "Forex" : state.scope === "traders" ? "Traders" : "Todo";
     }
 
     function levelClass(level) {

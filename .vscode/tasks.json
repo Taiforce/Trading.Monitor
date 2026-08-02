@@ -1,0 +1,48 @@
+{
+  "version": "2.0.0",
+  "tasks": [
+    {
+      "label": "restore",
+      "type": "process",
+      "command": "dotnet",
+      "args": ["restore", "Trading.Monitor.sln", "--locked-mode"],
+      "problemMatcher": "$msCompile"
+    },
+    {
+      "label": "build",
+      "type": "process",
+      "command": "dotnet",
+      "args": ["build", "Trading.Monitor.sln", "--configuration", "Debug"],
+      "problemMatcher": "$msCompile",
+      "group": {
+        "kind": "build",
+        "isDefault": true
+      }
+    },
+    {
+      "label": "test",
+      "type": "process",
+      "command": "dotnet",
+      "args": ["test", "Trading.Monitor.sln", "--configuration", "Release"],
+      "problemMatcher": "$msCompile",
+      "group": {
+        "kind": "test",
+        "isDefault": true
+      }
+    },
+    {
+      "label": "docker: up",
+      "type": "process",
+      "command": "docker",
+      "args": ["compose", "up", "--build", "--detach"],
+      "problemMatcher": []
+    },
+    {
+      "label": "docker: down",
+      "type": "process",
+      "command": "docker",
+      "args": ["compose", "down"],
+      "problemMatcher": []
+    }
+  ]
+}

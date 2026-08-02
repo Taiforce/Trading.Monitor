@@ -1,16 +1,74 @@
+using System.Text;
 using System.Text.RegularExpressions;
 
 namespace Trading.Monitor.Web.Services;
 
-public sealed class OperationalLogInterpreter
+public sealed partial class OperationalLogInterpreter
 {
+    private static readonly string[] CryptoMarkers =
+    [
+        "Binance", "Coinbase", "Kraken", "CoinGecko", "CoinGlass", "LunarCrush", "Glassnode", "Santiment",
+        "CryptoPanic", "CoinDesk", "Cointelegraph", "CryptoSlate", "Fear & Greed", "DefiLlama"
+    ];
+
+    private static readonly string[] ForexMarkers =
+    [
+        "Forex", "Yahoo Finance FX", "Yahoo Finance Forex", "Alpha Vantage FX", "OANDA", "Myfxbook RSS",
+        "EUR/USD", "GBP/USD", "USD/JPY", "USD/CHF", "AUD/USD", "USD/CAD", "NZD/USD", "USD/MXN",
+        "EUR/MXN", "GBP/JPY", "EUR/JPY", "EUR/GBP"
+    ];
+
+    private static readonly string[] TraderMarkers =
+    [
+        "copy trading", "copy trader", "copytrader", "eToro", "ZuluTrade", "Axi Copy", "TradingView Ideas",
+        "Myfxbook Systems", "Popular Investor", "trader profile", "trader research", "trader history"
+    ];
+
     public IReadOnlyList<LogEntryView> Interpret(LogSnapshot snapshot)
     {
-        return snapshot.Lines.Select(line => ParseLine(snapshot, line)).ToArray();
+        var parsed = new List<LogEntryView>();
+        ParsedHeader? current = null;
+        var raw = new StringBuilder();
+
+        foreach (var line in snapshot.Lines)
+        {
+            if (TryParseHeader(line, out var header))
+            {
+                AppendCurrent(parsed, snapshot, current, raw);
+                current = header;
+                raw.Clear();
+                raw.Append(line);
+                continue;
+            }
+
+            if (current is not null)
+            {
+                raw.AppendLine();
+                raw.Append(line);
+                continue;
+            }
+
+            parsed.Add(BuildEntry(snapshot, "--:--:--", "-", line, line));
+        }
+
+        AppendCurrent(parsed, snapshot, current, raw);
+        InheritSignalScope(parsed);
+        return parsed;
+    }
+
+    public IReadOnlyList<LogEntryView> ApplyScope(IEnumerable<LogEntryView> entries, string? scope)
+    {
+        var normalized = NormalizeScope(scope);
+        if (normalized == "todo")
+            return entries.ToArray();
+
+        return entries.Where(entry => entry.Scopes.Contains(normalized, StringComparer.OrdinalIgnoreCase)).ToArray();
     }
 
     public IReadOnlyList<LogEntryView> ApplyFilters(IEnumerable<LogEntryView> entries, string? level, string? eventType, string? search, string? scope)
     {
+        entries = ApplyScope(entries, scope);
+
         if (!string.IsNullOrWhiteSpace(level))
             entries = entries.Where(entry => string.Equals(entry.Level, level, StringComparison.OrdinalIgnoreCase));
 
@@ -24,14 +82,6 @@ public sealed class OperationalLogInterpreter
                 entry.Service.Contains(search, StringComparison.OrdinalIgnoreCase) ||
                 entry.RawLine.Contains(search, StringComparison.OrdinalIgnoreCase));
         }
-
-        entries = NormalizeScope(scope) switch
-        {
-            "crypto" => entries.Where(entry => ContainsAny(entry.RawLine, "BTC", "ETH", "SOL", "XRP", "ADA", "USDT", "Binance", "Coinbase", "Kraken", "crypto")),
-            "forex" => entries.Where(entry => ContainsAny(entry.RawLine, "EURUSD", "GBPUSD", "USDJPY", "USDCHF", "AUDUSD", "USDCAD", "NZDUSD", "USDMXN", "forex", "Yahoo Finance FX", "Alpha Vantage FX", "OANDA")),
-            "traders" => entries.Where(entry => ContainsAny(entry.RawLine, "trader", "copy", "research", "source", "perfil", "historial")),
-            _ => entries
-        };
 
         return entries.Reverse().ToArray();
     }
@@ -66,16 +116,82 @@ public sealed class OperationalLogInterpreter
         };
     }
 
-    private static LogEntryView ParseLine(LogSnapshot snapshot, string line)
+    private static void AppendCurrent(List<LogEntryView> entries, LogSnapshot snapshot, ParsedHeader? current, StringBuilder raw)
     {
-        var match = Regex.Match(line, @"^\[(?<time>\d{2}:\d{2}:\d{2})\s+(?<level>[A-Z]{3})\]\s*(?<message>.*)$");
-        var time = match.Success ? match.Groups["time"].Value : "--:--:--";
-        var level = match.Success ? match.Groups["level"].Value : "-";
-        var message = match.Success ? match.Groups["message"].Value : line;
+        if (current is null)
+            return;
+
+        entries.Add(BuildEntry(snapshot, current.Time, current.Level, current.Message, raw.ToString()));
+    }
+
+    private static LogEntryView BuildEntry(LogSnapshot snapshot, string time, string level, string message, string rawLine)
+    {
         var service = snapshot.File?.RelativePath.Contains("worker", StringComparison.OrdinalIgnoreCase) == true ? "Worker" :
             snapshot.File?.RelativePath.Contains("web", StringComparison.OrdinalIgnoreCase) == true ? "Web" : "Sistema";
+        var scopes = ResolveScopes($"{message}\n{rawLine}");
 
-        return new LogEntryView(time, time.Length >= 2 ? time[..2] : "--", level, ResolveLevelLabel(level), ResolveEventType(level, message), service, message, line);
+        return new LogEntryView(
+            time,
+            time.Length >= 2 ? time[..2] : "--",
+            level,
+            ResolveLevelLabel(level),
+            ResolveEventType(level, message),
+            service,
+            message,
+            scopes,
+            rawLine);
+    }
+
+    private static bool TryParseHeader(string line, out ParsedHeader? header)
+    {
+        var match = LogHeaderRegex().Match(line);
+        if (!match.Success)
+        {
+            header = null;
+            return false;
+        }
+
+        var time = match.Groups["fileTime"].Success ? match.Groups["fileTime"].Value : match.Groups["consoleTime"].Value;
+        var level = match.Groups["fileLevel"].Success ? match.Groups["fileLevel"].Value : match.Groups["consoleLevel"].Value;
+        header = new ParsedHeader(time, level, match.Groups["message"].Value);
+        return true;
+    }
+
+    private static IReadOnlyList<string> ResolveScopes(string value)
+    {
+        var scopes = new List<string>(3);
+
+        if (CryptoSymbolRegex().IsMatch(value) || CryptoWordRegex().IsMatch(value) || ContainsAny(value, CryptoMarkers))
+            scopes.Add("crypto");
+
+        if (ForexSymbolRegex().IsMatch(value) || ContainsAny(value, ForexMarkers))
+            scopes.Add("forex");
+
+        if (TraderWordRegex().IsMatch(value) || ContainsAny(value, TraderMarkers))
+            scopes.Add("traders");
+
+        return scopes;
+    }
+
+    private static void InheritSignalScope(List<LogEntryView> entries)
+    {
+        IReadOnlyList<string> previousScopes = [];
+        string? previousEvent = null;
+
+        for (var index = 0; index < entries.Count; index++)
+        {
+            var entry = entries[index];
+            if (entry.Scopes.Count == 0 && entry.EventType == "Señal" && previousEvent == "Señal" && previousScopes.Count > 0)
+            {
+                entry = entry with { Scopes = previousScopes };
+                entries[index] = entry;
+            }
+
+            if (entry.Scopes.Count > 0)
+                previousScopes = entry.Scopes;
+
+            previousEvent = entry.EventType;
+        }
     }
 
     private static string ResolveLevelLabel(string level)
@@ -85,9 +201,9 @@ public sealed class OperationalLogInterpreter
             "INF" => "Info",
             "WRN" => "Alerta",
             "ERR" => "Error",
-            "FTL" => "Critico",
+            "FTL" => "Crítico",
             "DBG" => "Debug",
-            _ => "Linea"
+            _ => "Línea"
         };
     }
 
@@ -118,8 +234,34 @@ public sealed class OperationalLogInterpreter
     {
         return patterns.Any(pattern => value.Contains(pattern, StringComparison.OrdinalIgnoreCase));
     }
+
+    [GeneratedRegex(@"^(?:(?:\d{4}-\d{2}-\d{2}\s+)?(?<fileTime>\d{2}:\d{2}:\d{2})(?:\.\d+)?(?:\s+[+-]\d{2}:\d{2})?\s+\[(?<fileLevel>[A-Z]{3})\]|\[(?<consoleTime>\d{2}:\d{2}:\d{2})\s+(?<consoleLevel>[A-Z]{3})\])\s*(?<message>.*)$", RegexOptions.CultureInvariant)]
+    private static partial Regex LogHeaderRegex();
+
+    [GeneratedRegex(@"\b(?:BTC|ETH|SOL|XRP|ADA)(?:USDT|USD)?\b", RegexOptions.IgnoreCase | RegexOptions.CultureInvariant)]
+    private static partial Regex CryptoSymbolRegex();
+
+    [GeneratedRegex(@"\b(?:crypto|cryptocurrency|cripto)\b", RegexOptions.IgnoreCase | RegexOptions.CultureInvariant)]
+    private static partial Regex CryptoWordRegex();
+
+    [GeneratedRegex(@"\b(?:EURUSD|GBPUSD|USDJPY|USDCHF|AUDUSD|USDCAD|NZDUSD|USDMXN|EURMXN|GBPJPY|EURJPY|EURGBP)\b", RegexOptions.IgnoreCase | RegexOptions.CultureInvariant)]
+    private static partial Regex ForexSymbolRegex();
+
+    [GeneratedRegex(@"\btraders?\b", RegexOptions.IgnoreCase | RegexOptions.CultureInvariant)]
+    private static partial Regex TraderWordRegex();
+
+    private sealed record ParsedHeader(string Time, string Level, string Message);
 }
 
-public sealed record LogEntryView(string Time, string Hour, string Level, string LevelLabel, string EventType, string Service, string Message, string RawLine);
+public sealed record LogEntryView(
+    string Time,
+    string Hour,
+    string Level,
+    string LevelLabel,
+    string EventType,
+    string Service,
+    string Message,
+    IReadOnlyList<string> Scopes,
+    string RawLine);
 
 public sealed record LogBucketView(string Hour, int Count);

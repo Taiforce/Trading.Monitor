@@ -1,7 +1,7 @@
 ﻿
 Microsoft Visual Studio Solution File, Format Version 12.00
-# Visual Studio Version 17
-VisualStudioVersion = 17.0.31903.59
+# Visual Studio Version 18
+VisualStudioVersion = 18.9.12023.133 insiders
 MinimumVisualStudioVersion = 10.0.40219.1
 Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "src", "src", "{827E0CD3-B72D-47B6-A68D-7590B98EB39B}"
 EndProject
@@ -16,6 +16,8 @@ EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Trading.Monitor.Tests", "tests\Trading.Monitor.Tests\Trading.Monitor.Tests.csproj", "{4899F062-CAD0-457B-84F3-0CE66F8CC5C9}"
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Trading.Monitor.Web", "src\Trading.Monitor.Web\Trading.Monitor.Web.csproj", "{66A9F8C9-D990-4BD0-978E-7C223BC07EB7}"
+EndProject
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "tests", "tests", "{AA2EC8ED-E526-4D98-B857-AE4D9A3CF0DC}"
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
@@ -108,7 +110,10 @@ Global
 		{C8FC4F72-65E7-4ED6-9B42-8CAF260550A0} = {827E0CD3-B72D-47B6-A68D-7590B98EB39B}
 		{49D2438F-FEB8-49D3-81FB-8E1FF9F1734C} = {827E0CD3-B72D-47B6-A68D-7590B98EB39B}
 		{D59E10BD-5D55-4990-958D-82B407D296A1} = {827E0CD3-B72D-47B6-A68D-7590B98EB39B}
-		{4899F062-CAD0-457B-84F3-0CE66F8CC5C9} = {827E0CD3-B72D-47B6-A68D-7590B98EB39B}
+		{4899F062-CAD0-457B-84F3-0CE66F8CC5C9} = {AA2EC8ED-E526-4D98-B857-AE4D9A3CF0DC}
 		{66A9F8C9-D990-4BD0-978E-7C223BC07EB7} = {827E0CD3-B72D-47B6-A68D-7590B98EB39B}
+	EndGlobalSection
+	GlobalSection(ExtensibilityGlobals) = postSolution
+		SolutionGuid = {4EAFF509-28BE-4A49-A46F-3CAB1196E140}
 	EndGlobalSection
 EndGlobal

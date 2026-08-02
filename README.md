@@ -1,6 +1,6 @@
 # Trading Monitor
 
-Servicio .NET 9 para monitorear mercado cripto, hacer analisis tecnico multi-temporal, revisar noticias/reportes configurables, pedir un resumen opcional a OpenAI, emitir propuestas de entrada/salida y auditar ejecuciones automaticas seguras.
+Servicio .NET 10 LTS para monitorear mercado cripto, hacer analisis tecnico multi-temporal, revisar noticias/reportes configurables, pedir un resumen opcional a OpenAI, emitir propuestas de entrada/salida y auditar ejecuciones automaticas seguras.
 
 Por defecto ejecuta en modo `Paper`: simula entradas y salidas y las registra en SQL Server sin mover dinero real. El modo `Live` existe, pero queda bloqueado hasta configurar llaves de exchange sin retiro, limites y confirmaciones explicitas.
 
@@ -58,6 +58,10 @@ Primero puedes crear tu archivo de variables:
 ```powershell
 Copy-Item .env.example .env
 ```
+
+Reemplaza `SQLSERVER_SA_PASSWORD` en `.env` por una contrasena local fuerte antes de iniciar Compose. La solucion no incorpora una contrasena predeterminada.
+
+Si tu antivirus o proxy inspecciona HTTPS y Docker muestra errores de certificado, copia `docker-compose.override.example.yml` a `docker-compose.override.yml` y define `LOCAL_CA_CERT_PATH` con la ruta a su certificado raiz PEM. El override y el certificado local deben permanecer fuera de Git.
 
 Tu llave real de OpenAI debe vivir en `.env.local` como `OPENAI_API_KEY=...`. Ese archivo esta ignorado por Git y Docker Compose lo pasa al contenedor del worker sin copiarlo dentro de la imagen.
 

@@ -9,12 +9,13 @@
         <div>
             <p class="eyebrow">@Model.ScopeLabel() | mercado, noticias, IA y traders</p>
             <h1>Conexiones</h1>
+            <p class="page-intro">Selecciona un segmento para aislar sus fuentes. El estado se filtra al instante y puedes reintentar una conexión o todo el segmento.</p>
         </div>
     </div>
 
     <section class="metrics-grid metrics-grid-four" aria-label="Resumen de conexiones">
         <article class="metric">
-            <span>Fuentes visibles</span>
+            <span>Fuentes del ámbito</span>
             <strong>@(Model.FilteredSources.Count + Model.FilteredCatalog.Count)</strong>
             <small>@Model.FilteredSources.Count activas, @Model.FilteredCatalog.Count mapeadas</small>
         </article>
@@ -73,7 +74,7 @@
         }
         else
         {
-            <div class="master-detail connections-workbench" data-master-detail>
+            <div class="master-detail connections-workbench" data-master-detail data-keep-selection="true">
                 <div class="master-list connection-concept-list" aria-label="Conceptos de conexión">
                     @for (var groupIndex = 0; groupIndex < Model.ConnectionGroups.Count; groupIndex++)
                     {
@@ -101,40 +102,28 @@
                     {
                         var group = Model.ConnectionGroups[groupIndex];
                         var key = $"concept-{groupIndex}";
-                        <article class="detail-panel @(groupIndex == 0 ? "active" : "")" data-detail-panel="@key">
+                        <article class="detail-panel @(groupIndex == 0 ? "active" : "")" data-detail-panel="@key" data-connection-group>
                             <div class="section-title">
                                 <h2>@group.Name</h2>
                                 <span>@group.Visible de @group.Total fuentes</span>
                             </div>
                             <p class="detail-copy">@Model.ConceptSearchSummary(group.Name)</p>
 
-                            <form method="get" class="connection-filter-card connection-source-filter">
-                                <input asp-for="Ambito" type="hidden"/>
-                                <label>
-                                    <span>Buscar</span>
-                                    <input asp-for="Buscar" type="search" placeholder="fuente, url, mensaje o error"/>
-                                </label>
-                                <label>
+                            <div class="connection-segment-toolbar" aria-label="Estado de las fuentes de @group.Name">
+                                <div class="connection-status-filter" role="group" aria-label="Filtrar por estado">
                                     <span>Estado</span>
-                                    <select asp-for="Estado">
-                                        <option value="todas">Todas</option>
-                                        <option value="sanas">Sanas</option>
-                                        <option value="degradadas">Degradadas</option>
-                                        <option value="fallidas">Fallidas</option>
-                                    </select>
-                                </label>
-                                <label>
-                                    <span>Tipo técnico</span>
-                                    <select asp-for="Tipo">
-                                        <option value="">Todos</option>
-                                        @foreach (var kind in Model.AvailableKinds)
-                                        {
-                                            <option value="@kind">@kind</option>
-                                        }
-                                    </select>
-                                </label>
-                                <button type="submit">Filtrar fuentes</button>
-                            </form>
+                                    <button type="button" class="active" data-connection-filter="all" aria-pressed="true">Todas</button>
+                                    <button type="button" data-connection-filter="working" aria-pressed="false"><i class="state-dot state-dot-ok"></i>Funcionando</button>
+                                    <button type="button" data-connection-filter="issues" aria-pressed="false"><i class="state-dot state-dot-issue"></i>Con problemas</button>
+                                </div>
+                                <div class="connection-bulk-actions">
+                                    <span><strong data-connection-visible-count>@group.Visible</strong> visibles</span>
+                                    <button type="button" class="primary-action retry-group-action" data-retry-group>
+                                        <span class="retry-icon" aria-hidden="true">↻</span> Reintentar todas
+                                    </button>
+                                </div>
+                                <p class="connection-bulk-result" data-retry-group-result aria-live="polite">Los cambios se aplican sin recargar la página.</p>
+                            </div>
 
                             @if (group.Visible == 0)
                             {
@@ -145,7 +134,7 @@
                             }
                             else
                             {
-                                <div class="master-detail nested-workbench connection-source-workbench" data-master-detail data-skip-internal-filter="true">
+                                <div class="master-detail nested-workbench connection-source-workbench" data-master-detail data-skip-internal-filter="true" data-keep-selection="true" data-connection-source-workbench>
                                     <div class="master-list" aria-label="Fuentes de @group.Name">
                                         @{
                                             var localIndex = 0;
@@ -158,10 +147,12 @@
                                                     data-detail-key="@sourceKey"
                                                     data-filter-text="@($"{source.SourceName} {source.Kind} {source.Status} {source.LastMessage} {source.Url}")"
                                                     data-filter-status="@source.Status"
-                                                    data-filter-type="@source.Kind">
+                                                    data-filter-type="@source.Kind"
+                                                    data-connection-item
+                                                    data-connection-state="@(source.Status == Trading.Monitor.Domain.DataSourceStatus.Healthy ? "working" : "issues")">
                                                 <span class="master-kicker">@source.Kind</span>
                                                 <strong>@source.SourceName</strong>
-                                                <span class="status @Model.SourceStatusClass(source.Status)">@source.Status</span>
+                                                <span class="status @Model.SourceStatusClass(source.Status)" data-source-list-status>@source.Status</span>
                                                 <small>@source.LastMessage</small>
                                             </button>
                                         }
@@ -173,10 +164,12 @@
                                                     data-detail-key="@sourceKey"
                                                     data-filter-text="@($"{item.Group} {item.Name} {item.Status} {item.Use} {item.Requirement}")"
                                                     data-filter-status="@item.Status"
-                                                    data-filter-type="@item.Group">
+                                                    data-filter-type="@item.Group"
+                                                    data-connection-item
+                                                    data-connection-state="@(item.Status == "En uso" ? "working" : "issues")">
                                                 <span class="master-kicker">@item.Group</span>
                                                 <strong>@item.Name</strong>
-                                                <span class="status @Model.CatalogStatusClass(item.Status)">@item.Status</span>
+                                                <span class="status @Model.CatalogStatusClass(item.Status)" data-source-list-status>@item.Status</span>
                                                 <small>@item.Use</small>
                                             </button>
                                         }
@@ -199,7 +192,7 @@
                                                     <article><span>Estado</span><strong class="@Model.SourceStatusClass(source.Status)" data-source-status-output>@source.Status</strong><small>telemetría real</small></article>
                                                     <article><span>Último OK</span><strong>@(source.LastSuccessAt?.ToLocalTime().ToString("dd MMM HH:mm") ?? "-")</strong><small>última respuesta útil</small></article>
                                                     <article><span>Última falla</span><strong>@(source.LastFailureAt?.ToLocalTime().ToString("dd MMM HH:mm") ?? "-")</strong><small>@source.FailureCount fallos</small></article>
-                                                    <article><span>URL</span><strong>@(source.Url ?? "sin URL")</strong><small>origen monitoreado</small></article>
+                                                    <article class="source-url-card"><span>URL</span><strong>@(source.Url ?? "sin URL")</strong><small>origen monitoreado</small></article>
                                                 </div>
                                                 <div class="source-retry-row">
                                                     <button type="button"
@@ -263,6 +256,10 @@
                                                 </div>
                                             </article>
                                         }
+                                    </div>
+                                    <div class="empty-state connection-filter-empty" data-connection-empty hidden>
+                                        <strong>No hay fuentes en ese estado.</strong>
+                                        <span>Cambia el filtro o reintenta todas las conexiones del segmento.</span>
                                     </div>
                                 </div>
                             }

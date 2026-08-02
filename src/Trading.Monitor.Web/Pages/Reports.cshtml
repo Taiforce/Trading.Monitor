@@ -266,7 +266,7 @@
             <h2>Operaciones claras</h2>
             <span>@Model.FilteredRows.Count cierres filtrados</span>
         </div>
-        <form method="get" class="filter-bar reports-filter internal-report-filter">
+        <form method="get" class="filter-bar reports-filter internal-report-filter" data-auto-submit data-auto-submit-delay="420">
             <input asp-for="Mercado" type="hidden"/>
             <input asp-for="VistaReporte" type="hidden"/>
             <label>
@@ -319,7 +319,8 @@
                 <span>Score min</span>
                 <input asp-for="ScoreMinimo" type="number" min="0" max="100" step="5"/>
             </label>
-            <button type="submit">Filtrar</button>
+            <span class="filter-auto-state" data-auto-submit-state>Filtro automático</span>
+            <noscript><button type="submit">Filtrar</button></noscript>
         </form>
 
         @if (Model.FilteredRows.Count == 0)

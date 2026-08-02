@@ -1,0 +1,13 @@
+services:
+  web:
+    build:
+      secrets:
+        - local_ca
+  worker:
+    build:
+      secrets:
+        - local_ca
+
+secrets:
+  local_ca:
+    file: ${LOCAL_CA_CERT_PATH:?Set LOCAL_CA_CERT_PATH to a trusted PEM certificate}

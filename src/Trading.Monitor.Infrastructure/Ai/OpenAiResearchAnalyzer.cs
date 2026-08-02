@@ -2,6 +2,7 @@ using System.Net.Http.Headers;
 using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
+using System.Text.Json.Serialization;
 using Trading.Monitor.Application.Abstractions;
 using Trading.Monitor.Application.Configuration;
 using Trading.Monitor.Domain;
@@ -13,7 +14,10 @@ public sealed class OpenAiResearchAnalyzer(
     OpenAiOptions options,
     ISourceTelemetryRecorder telemetryRecorder) : IResearchAnalyzer
 {
-    private static readonly JsonSerializerOptions JsonOptions = new(JsonSerializerDefaults.Web);
+    private static readonly JsonSerializerOptions JsonOptions = new(JsonSerializerDefaults.Web)
+    {
+        DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingNull
+    };
     private readonly object _cacheLock = new();
     private string _lastInputHash = "";
     private DateTimeOffset _lastAnalysisAt = DateTimeOffset.MinValue;
@@ -80,13 +84,18 @@ public sealed class OpenAiResearchAnalyzer(
             return [];
         }
 
+        MarkAttempt();
+
         try
         {
             var prompt = BuildPrompt(symbols, selectedResearch);
+            var isGpt5Family = options.Model.StartsWith("gpt-5", StringComparison.OrdinalIgnoreCase);
             var payload = new
             {
                 model = options.Model,
-                input = prompt
+                input = prompt,
+                reasoning = isGpt5Family ? new { effort = options.ReasoningEffort } : null,
+                text = isGpt5Family ? new { verbosity = options.TextVerbosity } : null
             };
 
             using var request = new HttpRequestMessage(HttpMethod.Post, "/v1/responses");
@@ -242,6 +251,14 @@ public sealed class OpenAiResearchAnalyzer(
             _lastInputHash = inputHash;
             _lastAnalysisAt = DateTimeOffset.UtcNow;
             _lastResult = result;
+        }
+    }
+
+    private void MarkAttempt()
+    {
+        lock (_cacheLock)
+        {
+            _lastAnalysisAt = DateTimeOffset.UtcNow;
         }
     }
 

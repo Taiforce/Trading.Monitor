@@ -5,8 +5,12 @@ obj/
 data/
 logs/
 work/
+TestResults/
+coverage/
 *.user
 *.suo
 appsettings.Local.json
 .env
 .env.local
+.local/
+docker-compose.override.yml

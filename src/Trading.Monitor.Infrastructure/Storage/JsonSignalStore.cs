@@ -66,11 +66,8 @@ public sealed class JsonSignalStore(string path) : ISignalStore
         using var stream = File.OpenRead(_path);
         using var reader = new StreamReader(stream);
 
-        while (!reader.EndOfStream)
+        while (await reader.ReadLineAsync(cancellationToken) is { } line)
         {
-            cancellationToken.ThrowIfCancellationRequested();
-            var line = await reader.ReadLineAsync(cancellationToken);
-
             if (string.IsNullOrWhiteSpace(line))
                 continue;
 

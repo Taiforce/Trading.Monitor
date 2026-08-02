@@ -45,7 +45,7 @@
             <h2>Seguimiento en vivo</h2>
             <span id="liveUpdated">actualizando...</span>
         </div>
-        <form method="get" class="filter-bar live-inline-filter">
+        <form method="get" class="filter-bar live-inline-filter" data-auto-submit>
             <input asp-for="Mercado" type="hidden"/>
             <label>
                 <span>Monto</span>
@@ -63,7 +63,8 @@
                     <option value="@Model.SellHighBuyLowValue">Vende alto - compra bajo</option>
                 </select>
             </label>
-            <button type="submit">Aplicar</button>
+            <span class="filter-auto-state" data-auto-submit-state>Filtro automático</span>
+            <noscript><button type="submit">Aplicar</button></noscript>
         </form>
         <div class="chart-toolbar" aria-label="Controles del gráfico">
             <div>
