@@ -107,14 +107,29 @@ try
                         options.ExpireTimeSpan = TimeSpan.FromHours(Math.Clamp(adminAccess.SessionHours, 1, 24));
                         options.SlidingExpiration = true;
                     });
+    const string ApiAuthorizationPolicy = "authenticated-unless-anonymous-allowed";
+    var requireAuthentication = !adminAccess.AllowAnonymousAccess;
+
     builder.Services.AddAuthorization(options =>
     {
-        if (!adminAccess.AllowAnonymousAccess)
+        if (requireAuthentication)
         {
             options.FallbackPolicy = new AuthorizationPolicyBuilder()
                 .RequireAuthenticatedUser()
                 .Build();
         }
+
+        // Named policy so individual minimal-API endpoints can require authorization
+        // explicitly (defense in depth, e.g. if a route is later marked [AllowAnonymous] by
+        // mistake) while still honoring the same AllowAnonymousAccess escape hatch used by
+        // the fallback policy above, instead of always forcing a login wall.
+        options.AddPolicy(ApiAuthorizationPolicy, policy =>
+        {
+            if (requireAuthentication)
+                policy.RequireAuthenticatedUser();
+            else
+                policy.RequireAssertion(_ => true);
+        });
     });
     builder.Services.AddRateLimiter(options =>
     {
@@ -221,12 +236,12 @@ try
     app.MapGet("/api/operaciones-vivas", async (decimal? capital, string? estado, string? symbol, string? tipoSenal, string? mode, string? senal, string? mercado, LiveOperationsSnapshotService snapshotService, CancellationToken cancellationToken) =>
     {
         return Results.Json(await snapshotService.GetAsync(capital, estado, symbol, tipoSenal, mode, senal, mercado, cancellationToken));
-    }).RequireAuthorization().RequireRateLimiting("api");
+    }).RequireAuthorization(ApiAuthorizationPolicy).RequireRateLimiting("api");
     app.MapGet("/api/grafico-vivo", async (string? symbol, string? interval, decimal? capital, string? estado, string? tipoSenal, string? mode, string? senal, string? mercado, DateTimeOffset? from, DateTimeOffset? to,
         LiveChartSnapshotService chartService, CancellationToken cancellationToken) =>
     {
         return Results.Json(await chartService.GetAsync(symbol, interval, capital, estado, tipoSenal, mode, senal, mercado, from, to, cancellationToken));
-    }).RequireAuthorization().RequireRateLimiting("api");
+    }).RequireAuthorization(ApiAuthorizationPolicy).RequireRateLimiting("api");
     app.MapPost("/api/posiciones/{id:guid}/cerrar", async (Guid id, ManagedCloseRequest request, IOpportunityRepository opportunityRepository,
         Microsoft.Extensions.Options.IOptionsMonitor<ReportingOptions> reportingOptions, CancellationToken cancellationToken) =>
     {
@@ -261,7 +276,7 @@ try
             breakdown.NetPercent,
             breakdown.TotalObtained
         });
-    }).RequireAuthorization().RequireRateLimiting("api-mutation");
+    }).RequireAuthorization(ApiAuthorizationPolicy).RequireRateLimiting("api-mutation");
     app.MapPost("/api/posiciones/{id:guid}/objetivo", async (Guid id, ManagedTargetRequest request, IOpportunityRepository opportunityRepository,
         Microsoft.Extensions.Options.IOptionsMonitor<ReportingOptions> reportingOptions, CancellationToken cancellationToken) =>
     {
@@ -288,15 +303,15 @@ try
             targetNetPnL = breakdown.NetBenefit,
             targetTotalObtained = breakdown.TotalObtained
         });
-    }).RequireAuthorization().RequireRateLimiting("api-mutation");
+    }).RequireAuthorization(ApiAuthorizationPolicy).RequireRateLimiting("api-mutation");
     app.MapGet("/api/exchange/status", async (ExchangeConnectionStatusService statusService, CancellationToken cancellationToken) =>
     {
         return Results.Json(await statusService.GetAsync(cancellationToken));
-    }).RequireAuthorization().RequireRateLimiting("api");
+    }).RequireAuthorization(ApiAuthorizationPolicy).RequireRateLimiting("api");
     app.MapPost("/api/conexiones/reintentar", async (ConnectionRetryRequest request, ConnectionRetryService retryService, CancellationToken cancellationToken) =>
     {
         return Results.Json(await retryService.RetryAsync(request, cancellationToken));
-    }).RequireAuthorization().RequireRateLimiting("api-mutation");
+    }).RequireAuthorization(ApiAuthorizationPolicy).RequireRateLimiting("api-mutation");
     app.MapGet("/api/logs", (string? logFile, int? lines, string? nivel, string? evento, string? buscar, string? ambito,
         OperationalLogReader logReader, OperationalLogInterpreter logInterpreter) =>
     {
@@ -331,7 +346,7 @@ try
             filteredCount = filtered.Count,
             scope = OperationalLogInterpreter.NormalizeScope(ambito)
         });
-    }).RequireAuthorization().RequireRateLimiting("api");
+    }).RequireAuthorization(ApiAuthorizationPolicy).RequireRateLimiting("api");
     app.MapRazorPages().WithStaticAssets();
     app.Run();
 }
