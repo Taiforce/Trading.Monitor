@@ -1,0 +1,126 @@
+@page "/aprendizaje-ia"
+@model AprendizajeIaModel
+@{
+    ViewData["Title"] = "Aprendizaje IA";
+}
+
+<section class="dashboard">
+    <div class="page-head">
+        <div>
+            <p class="eyebrow">@Model.MarketLabel() | Propias vs Ajenas vs Traders</p>
+            <h1>Aprendizaje IA</h1>
+        </div>
+    </div>
+
+    <div class="insight-strip">
+        <span>Comparativa</span>
+        <strong>@Model.AiSources.Summary</strong>
+    </div>
+
+    <section class="report-section">
+        <div class="section-title">
+            <h2>Que es cada fuente</h2>
+            <span>3 sistemas independientes que alimentan las señales</span>
+        </div>
+        <div class="guide-grid">
+            <article>
+                <strong>Propias</strong>
+                <span>Motor propio con analisis tecnico multi-temporal. Tiene auto-aprendizaje: revisa sus propios cierres por simbolo/lado/horizonte y sube o baja el puntaje de señales parecidas segun el resultado real.</span>
+            </article>
+            <article>
+                <strong>Ajenas</strong>
+                <span>Ensemble independiente de 3 estrategias publicas conocidas (Ichimoku, canal de volatilidad estilo Supertrend, reversion Bollinger). Solo publica señal cuando al menos 2 de 3 coinciden.</span>
+            </article>
+            <article>
+                <strong>Traders</strong>
+                <span>Sigue posiciones reales, actualmente abiertas, de los traders mejor rankeados por ROI en el leaderboard publico de Binance Futures (sin necesitar llave de API).</span>
+            </article>
+        </div>
+    </section>
+
+    <section class="report-section">
+        <div class="section-title">
+            <h2>Estadisticas por fuente</h2>
+            <span>@Model.MarketLabel()</span>
+        </div>
+        <div class="ai-consensus-grid">
+            @foreach (var source in Model.AiSources.All)
+            {
+                <article class="ai-consensus-card @Model.SourceCardClass(source)">
+                    <header>
+                        <div>
+                            <span>@source.Label</span>
+                            <strong>@source.WinRatePercent.ToString("N1")%</strong>
+                        </div>
+                        <em>@source.ClosedSignals cierres</em>
+                    </header>
+                    <h3>@source.Description</h3>
+                    <dl>
+                        <div><dt>Señales totales</dt><dd>@source.TotalSignals</dd></div>
+                        <div><dt>Abiertas</dt><dd>@source.OpenSignals</dd></div>
+                        <div><dt>Ganadas</dt><dd>@source.Winners</dd></div>
+                        <div><dt>Perdidas</dt><dd>@source.Losers</dd></div>
+                        <div><dt>Score prom.</dt><dd>@source.AverageScore.ToString("N1")</dd></div>
+                        <div><dt>R:R prom.</dt><dd>@source.AverageRiskReward.ToString("N2")</dd></div>
+                    </dl>
+                    <p class="@Model.SignedClass(source.NetPnL)">Neto realizado: @Model.Money(source.NetPnL)</p>
+                    <div class="learning-card">
+                        <strong>Lo que se aprendio</strong>
+                        <ul>
+                            @foreach (var note in source.LearningNotes)
+                            {
+                                <li>@note</li>
+                            }
+                        </ul>
+                    </div>
+                </article>
+            }
+        </div>
+    </section>
+
+    @foreach (var source in Model.AiSources.All)
+    {
+        <section class="report-section">
+            <div class="section-title">
+                <h2>@source.Label: señales recientes</h2>
+                <a href="/reportes?Mercado=@Model.MarketRouteValue()&VistaReporte=@AprendizajeIaModel.ViewFor(source.Origin)">Ver reporte completo</a>
+            </div>
+            @if (source.RecentSignals.Count == 0)
+            {
+                <div class="empty-state">
+                    <strong>Sin señales todavia de esta fuente.</strong>
+                    <span>El worker sigue escaneando; vuelve a revisar en unos minutos.</span>
+                </div>
+            }
+            else
+            {
+                <div class="trade-card-grid compact-signal-grid">
+                    @foreach (var row in source.RecentSignals.Take(6))
+                    {
+                        <article class="trade-card @Model.StatusClass(row.Status)">
+                            <div class="trade-card-head">
+                                <div>
+                                    <strong>@Model.SymbolButtonLabel(row.Symbol)</strong>
+                                    <span>@Model.SignalTypeLabel(row.Side) | @Model.StatusLabel(row.Status)</span>
+                                    <small>Score @row.Score/100 | @row.ObservedAt.ToLocalTime().ToString("g")</small>
+                                </div>
+                                <span class="score-pill">R:R @row.RiskReward.ToString("N1")</span>
+                            </div>
+                            <div class="trade-footer">
+                                <span>Entrada @Model.Price(row.EntryPrice)</span>
+                                @if (row.RealizedNetPnL.HasValue)
+                                {
+                                    <span class="@Model.SignedClass(row.RealizedNetPnL)">Neto @Model.Money(row.RealizedNetPnL)</span>
+                                }
+                                else
+                                {
+                                    <span>Abierta</span>
+                                }
+                            </div>
+                        </article>
+                    }
+                </div>
+            }
+        </section>
+    }
+</section>

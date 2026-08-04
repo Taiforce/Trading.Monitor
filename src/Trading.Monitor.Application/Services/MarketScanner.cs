@@ -9,7 +9,9 @@ public sealed class MarketScanner(
     INewsProvider newsProvider,
     IResearchAnalyzer researchAnalyzer,
     ISourceTelemetryRecorder telemetryRecorder,
-    TradingSignalEngine signalEngine)
+    TradingSignalEngine signalEngine,
+    ExternalAiSignalEngine externalAiSignalEngine,
+    ITraderSignalProvider traderSignalProvider)
 {
     public async Task<MarketScanResult> ScanAsync(TradingMonitorOptions monitorOptions, RiskOptions riskOptions, NewsOptions newsOptions, CancellationToken cancellationToken)
     {
@@ -93,6 +95,34 @@ public sealed class MarketScanner(
             {
                 errors.Add($"{symbol}: evaluation failed: {exception.Message}");
             }
+
+            if (monitorOptions.ExternalAiSignalsEnabled)
+            {
+                try
+                {
+                    foreach (var horizon in horizons)
+                    {
+                        var externalOpportunity = externalAiSignalEngine.Evaluate(symbol, candlesByInterval, riskOptions, horizon);
+
+                        if (externalOpportunity is not null)
+                            opportunities.Add(externalOpportunity);
+                    }
+                }
+                catch (Exception exception)
+                {
+                    errors.Add($"{symbol}: external AI ensemble failed: {exception.Message}");
+                }
+            }
+        }
+
+        try
+        {
+            var traderOpportunities = await traderSignalProvider.GetSignalsAsync(symbols, cancellationToken);
+            opportunities.AddRange(traderOpportunities);
+        }
+        catch (Exception exception)
+        {
+            errors.Add($"{traderSignalProvider.Name}: {exception.Message}");
         }
 
         return new MarketScanResult(opportunities, errors);

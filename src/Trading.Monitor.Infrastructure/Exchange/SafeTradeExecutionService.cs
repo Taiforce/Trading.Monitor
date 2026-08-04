@@ -228,6 +228,10 @@ public sealed class SafeTradeExecutionService(
         if (!options.EnableEntryOrders)
             return new ExecutionDecision(false, TradeExecutionStatus.Skipped, "entries-disabled", "Entradas automaticas desactivadas.");
 
+        if (mode != TradeExecutionMode.Paper && MarketSymbolClassifier.GetMarketKind(opportunity.Symbol) == MarketKind.Forex)
+            return new ExecutionDecision(false, TradeExecutionStatus.Blocked, "forex-broker-not-configured",
+                "Este conector solo ejecuta ordenes reales en Binance Spot (cripto). Forex real requiere integrar un bróker (OANDA, Interactive Brokers, etc.) con sus propias llaves; por ahora Forex se mantiene en modo Paper.");
+
         if (!IsSymbolAllowed(opportunity.Symbol, options))
             return new ExecutionDecision(false, TradeExecutionStatus.Blocked, "symbol-not-allowed", $"{opportunity.Symbol} no esta en la lista de simbolos permitidos.");
 

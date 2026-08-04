@@ -26,6 +26,34 @@ Por defecto ejecuta en modo `Paper`: simula entradas y salidas y las registra en
 
 Si una fuente falla, el servicio no se apaga: registra el fallo en `data_sources` y sigue con los demas proveedores disponibles.
 
+## Tres fuentes de señales: Propias, Ajenas y Traders
+
+El sistema genera y clasifica cada señal con un `OriginKind` (`Propias`, `Ajenas`, `Traders`), visible en `/aprendizaje-ia`:
+
+- **Propias**: el motor principal (`TradingSignalEngine`) con analisis tecnico multi-temporal, mas un ciclo de auto-aprendizaje (`MarketMonitorWorker.EvaluateLearningAsync`) que revisa el historial cerrado por simbolo/lado/horizonte y sube o baja la confianza de señales parecidas segun el resultado real. Evoluciona con cada cierre: entre mas datos reales acumula, mas ajusta el puntaje.
+- **Ajenas**: un ensemble independiente (`ExternalAiSignalEngine`) de tres estrategias publicas y conocidas -Ichimoku Kinko Hyo, un canal de volatilidad estilo Supertrend, y reversion a la media con Bandas de Bollinger- que corre en paralelo al motor propio y solo publica señal cuando al menos 2 de los 3 modelos coinciden. Esto reproduce el tipo de señal que muchos productos comerciales de "IA de trading" generan, sin necesitar copiar o hacer ingenieria inversa de ningun modelo propietario especifico (no es factible ni verificable hacerlo de forma automatica, y probablemente violaria los terminos de servicio de esos productos).
+- **Traders**: sigue posiciones reales, actualmente abiertas, de los traders mejor rankeados por ROI en el leaderboard publico de Binance Futures (`BinanceLeaderboardTraderSignalProvider`), usando los mismos endpoints publicos y sin autenticacion que usa el sitio web de Binance. Es un endpoint no documentado/no oficial que puede cambiar sin aviso; si falla, el sistema simplemente sigue sin señales de traders en ese ciclo.
+
+Activa o desactiva cada fuente en configuracion:
+
+- `TradingMonitor:ExternalAiSignalsEnabled` (Ajenas).
+- `TraderSignals:Enabled` / `TraderSignals:BinanceLeaderboardEnabled` (Traders).
+- El aprendizaje Propio siempre esta activo; es parte del ciclo principal del Worker.
+
+## Wallet autonomo (crypto y forex)
+
+`/wallet` guarda capital y posiciones por mercado (`crypto`/`forex`). Cuando `AutoTradingEnabled` esta activo (global y por simbolo), el Worker ejecuta automaticamente las señales que pasan todos los filtros de riesgo:
+
+- En modo `Paper` (por defecto), cada entrada y salida debita/acredita el wallet de forma atomica (`IWalletRepository.ApplyFillAsync`), asi que el capital disponible refleja posiciones reales simuladas, no un numero estatico editado a mano.
+- En modo `Live`/`Test` para cripto, `SafeTradeExecutionService` valida saldo real en Binance antes de comprar, respeta `KillSwitchEnabled`, `MaxOpenPositions` y `MaxDailyNotional`, y exige la variable de entorno `TRADING_MONITOR_LIVE_CONFIRM=I_ACCEPT_LIVE_RISK` ademas de `AllowLiveOrders=true` y `UseTestOrderEndpoint=false`.
+- Forex real todavia no tiene un broker conectado (se necesitaria integrar OANDA, Interactive Brokers u otro con sus propias llaves); mientras tanto Forex se mantiene siempre en modo Paper aunque `ExchangeExecution:Mode` este en Live/Test, para no intentar mandar ordenes que ningun bróker real va a recibir.
+
+## Reportes y notificaciones por fuente
+
+- `/aprendizaje-ia`: comparativa lado a lado de Propias/Ajenas/Traders con win rate, señales totales, neto realizado, mejor/peor simbolo y "lo que aprendio" cada fuente.
+- `/reportes?VistaReporte=propio|ia|traders` y `/cartera?VistaSimulador=propio|ia|traders`: detalle y simulacion de portafolio por fuente (ya existian; ahora "ia" y "traders" tienen datos reales de `ExternalAiSignalEngine` y `BinanceLeaderboardTraderSignalProvider`).
+- Email y Telegram (`Notifications:Email`, `Notifications:Telegram`) avisan cada entrada y salida con simbolo, score, precios, ganancia/perdida y motivo; configura los secretos via `PasswordEnvironmentVariable`/`BotTokenEnvironmentVariable` (variables de entorno), igual que Binance/OpenAI.
+
 ## Ejecutar
 
 ```powershell

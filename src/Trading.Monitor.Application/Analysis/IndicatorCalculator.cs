@@ -219,6 +219,46 @@ public static class IndicatorCalculator
         return denominator == 0m ? typicalPrices[^1] : numerator / denominator;
     }
 
+    /// <summary>Midpoint of the highest high and lowest low over the last <paramref name="period"/> bars (Ichimoku Tenkan/Kijun/Senkou B line formula).</summary>
+    public static decimal MidpointHighLow(IReadOnlyList<decimal> highs, IReadOnlyList<decimal> lows, int period)
+    {
+        if (highs.Count == 0 || highs.Count != lows.Count)
+            return 0m;
+
+        var sampleHighs = highs.TakeLast(Math.Min(period, highs.Count));
+        var sampleLows = lows.TakeLast(Math.Min(period, lows.Count));
+
+        return (sampleHighs.Max() + sampleLows.Min()) / 2m;
+    }
+
+    /// <summary>
+    /// Simplified volatility-channel breakout in the same family as "Supertrend"-style bots:
+    /// a moving-average basis widened by <paramref name="multiplier"/> x ATR. Returns
+    /// 1 (bullish breakout), -1 (bearish breakout) or 0 (inside the channel).
+    /// </summary>
+    public static int VolatilityChannelBreakout(IReadOnlyList<decimal> highs, IReadOnlyList<decimal> lows, IReadOnlyList<decimal> closes, int period = 10, decimal multiplier = 3m)
+    {
+        if (closes.Count < period * 2)
+            return 0;
+
+        var atr = Atr(highs, lows, closes, period);
+        if (atr <= 0m)
+            return 0;
+
+        var basis = closes.TakeLast(period).Average();
+        var upperBand = basis + multiplier * atr;
+        var lowerBand = basis - multiplier * atr;
+        var lastClose = closes[^1];
+
+        if (lastClose > upperBand)
+            return 1;
+
+        if (lastClose < lowerBand)
+            return -1;
+
+        return 0;
+    }
+
     public static decimal RelativeVolume(IReadOnlyList<decimal> volumes, int period = 20)
     {
         if (volumes.Count < 2)

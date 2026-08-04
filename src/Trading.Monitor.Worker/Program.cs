@@ -14,6 +14,7 @@ using Trading.Monitor.Infrastructure.MarketData;
 using Trading.Monitor.Infrastructure.News;
 using Trading.Monitor.Infrastructure.Notifications;
 using Trading.Monitor.Infrastructure.Persistence;
+using Trading.Monitor.Infrastructure.Traders;
 using Trading.Monitor.Worker;
 
 var bootstrapLogger = new LoggerConfiguration().MinimumLevel.Information()
@@ -51,13 +52,27 @@ try
     builder.Services.Configure<NotificationOptions>(builder.Configuration.GetSection("Notifications"));
     builder.Services.Configure<ReportingOptions>(builder.Configuration.GetSection("Reporting"));
     builder.Services.Configure<ExchangeExecutionOptions>(builder.Configuration.GetSection("ExchangeExecution"));
+    builder.Services.Configure<TraderSignalOptions>(builder.Configuration.GetSection("TraderSignals"));
 
     builder.Services.AddSingleton<TechnicalAnalysisService>();
     builder.Services.AddSingleton<TradingSignalEngine>();
+    builder.Services.AddSingleton<ExternalAiSignalEngine>();
     builder.Services.AddSingleton<OpportunityProjectionService>();
     builder.Services.AddSingleton<OpportunityExitService>();
     builder.Services.AddSingleton(serviceProvider => new TradeInstructionService(serviceProvider.GetRequiredService<IOptionsMonitor<RiskOptions>>().CurrentValue));
     builder.Services.AddSingleton<MarketScanner>();
+
+    builder.Services.AddSingleton<ITraderSignalProvider>(serviceProvider =>
+    {
+        var options = serviceProvider.GetRequiredService<IOptions<TraderSignalOptions>>().Value;
+
+        if (!options.Enabled || !options.BinanceLeaderboardEnabled)
+            return new NoopTraderSignalProvider();
+
+        var client = CreateResearchClient(options.BinanceLeaderboardBaseUrl, options.TimeoutSeconds);
+        return new BinanceLeaderboardTraderSignalProvider(client, options, serviceProvider.GetRequiredService<ISourceTelemetryRecorder>(),
+            serviceProvider.GetRequiredService<ILogger<BinanceLeaderboardTraderSignalProvider>>());
+    });
 
     builder.Services.AddSingleton<IMarketDataProvider>(serviceProvider =>
     {

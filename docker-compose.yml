@@ -166,6 +166,9 @@ services:
       TradingMonitor__Intervals__6: ${TRADING_INTERVAL_6:-1d}
       TradingMonitor__Intervals__7: ${TRADING_INTERVAL_7:-1w}
       TradingMonitor__Intervals__8: ${TRADING_INTERVAL_8:-1M}
+      TradingMonitor__ExternalAiSignalsEnabled: ${EXTERNAL_AI_ENABLED:-true}
+      TraderSignals__Enabled: ${TRADER_SIGNALS_ENABLED:-true}
+      TraderSignals__BinanceLeaderboardEnabled: ${TRADER_SIGNALS_BINANCE_LEADERBOARD_ENABLED:-true}
       Risk__Target1R: ${RISK_TARGET_1R:-2.2}
       Risk__Target2R: ${RISK_TARGET_2R:-3.4}
       Risk__MinimumRiskReward: ${RISK_MINIMUM_RISK_REWARD:-2.2}

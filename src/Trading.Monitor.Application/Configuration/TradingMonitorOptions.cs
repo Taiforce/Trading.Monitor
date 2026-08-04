@@ -70,6 +70,9 @@ public sealed class TradingMonitorOptions
     ];
 
     public bool RunOnce { get; set; }
+
+    /// <summary>Enables the "Señales Ajenas" ensemble of independent public-strategy models (ExternalAiSignalEngine).</summary>
+    public bool ExternalAiSignalsEnabled { get; set; } = true;
 }
 
 public sealed class TradingHorizonOptions

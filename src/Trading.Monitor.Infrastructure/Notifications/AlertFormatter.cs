@@ -11,11 +11,22 @@ public static class AlertFormatter
 {
     private static readonly CultureInfo CurrencyCulture = CultureInfo.GetCultureInfo("en-US");
 
+    public static string OriginLabel(SignalOriginKind origin)
+    {
+        return origin switch
+        {
+            SignalOriginKind.ExternalAi => "Ajenas (ensemble de estrategias publicas)",
+            SignalOriginKind.Trader => "Traders (leaderboard real)",
+            _ => "Propias (auto-aprendizaje)"
+        };
+    }
+
     public static string ToPlainText(TradingOpportunity opportunity, OpportunityProjection projection, TradeInstruction instruction)
     {
         var signalType = SignalTypeDescriptor.Label(opportunity.Side);
         var builder = new StringBuilder();
         builder.AppendLine($"{instruction.ActionLabel} | {opportunity.Symbol} {signalType} | {opportunity.Score}/100");
+        builder.AppendLine($"Fuente: {OriginLabel(opportunity.OriginKind)}");
         builder.AppendLine(instruction.EntryTiming);
         builder.AppendLine(instruction.ExitTiming);
         builder.AppendLine(instruction.ProfitReport);
@@ -36,7 +47,7 @@ public static class AlertFormatter
         var signalType = SignalTypeDescriptor.Label(opportunity.Side);
         return $$"""
                  <h2>{{WebUtility.HtmlEncode(instruction.ActionLabel)}} | {{WebUtility.HtmlEncode(opportunity.Symbol)}} {{WebUtility.HtmlEncode(signalType)}}</h2>
-                 <p><strong>{{WebUtility.HtmlEncode(instruction.ConvictionLabel)}}</strong> | {{opportunity.Score}}/100</p>
+                 <p><strong>{{WebUtility.HtmlEncode(instruction.ConvictionLabel)}}</strong> | {{opportunity.Score}}/100 | Fuente: {{WebUtility.HtmlEncode(OriginLabel(opportunity.OriginKind))}}</p>
                  <table>
                      <tr><td><strong>Entrar</strong></td><td>{{WebUtility.HtmlEncode(instruction.EntryTiming)}}</td></tr>
                      <tr><td><strong>Salir</strong></td><td>{{WebUtility.HtmlEncode(instruction.ExitTiming)}}</td></tr>
@@ -53,6 +64,7 @@ public static class AlertFormatter
         var signalType = SignalTypeDescriptor.Label(opportunity.Side);
         var builder = new StringBuilder();
         builder.AppendLine($"{instruction.ActionLabel} - {opportunity.Symbol} {signalType}");
+        builder.AppendLine($"Fuente: {OriginLabel(opportunity.OriginKind)}");
         builder.AppendLine($"Salida: {exit.ExitPrice}");
         builder.AppendLine($"Resultado: {Money(realizedNetPnL)}");
         builder.AppendLine(instruction.ExitTiming);
@@ -64,7 +76,7 @@ public static class AlertFormatter
         var signalType = SignalTypeDescriptor.Label(opportunity.Side);
         return $$"""
                  <h2>{{WebUtility.HtmlEncode(instruction.ActionLabel)}} - {{WebUtility.HtmlEncode(opportunity.Symbol)}} {{WebUtility.HtmlEncode(signalType)}}</h2>
-                 <p><strong>{{WebUtility.HtmlEncode(instruction.ConvictionLabel)}}</strong></p>
+                 <p><strong>{{WebUtility.HtmlEncode(instruction.ConvictionLabel)}}</strong> | Fuente: {{WebUtility.HtmlEncode(OriginLabel(opportunity.OriginKind))}}</p>
                  <table>
                      <tr><td><strong>Salida</strong></td><td>{{exit.ExitPrice}}</td></tr>
                      <tr><td><strong>Resultado neto estimado</strong></td><td>{{Money(realizedNetPnL)}}</td></tr>
