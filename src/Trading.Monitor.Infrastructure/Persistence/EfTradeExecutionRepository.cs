@@ -64,6 +64,40 @@ public sealed class EfTradeExecutionRepository(TradingMonitorDbContext dbContext
         return entities.Select(ToAudit).ToArray();
     }
 
+    private static readonly TradeExecutionStatus[] SuccessfulStatuses =
+        [TradeExecutionStatus.Simulated, TradeExecutionStatus.Submitted, TradeExecutionStatus.Filled];
+
+    private static readonly TradeExecutionAction[] OpenActions = [TradeExecutionAction.BuyToOpen, TradeExecutionAction.SellToOpen];
+
+    private static readonly TradeExecutionAction[] CloseActions = [TradeExecutionAction.SellToClose, TradeExecutionAction.BuyToClose];
+
+    public async Task<int> GetOpenPositionCountAsync(CancellationToken cancellationToken)
+    {
+        var openedIds = await dbContext.TradeExecutions.AsNoTracking()
+            .Where(row => OpenActions.Contains(row.Action) && SuccessfulStatuses.Contains(row.Status))
+            .Select(row => row.OpportunityId)
+            .Distinct()
+            .ToListAsync(cancellationToken);
+
+        if (openedIds.Count == 0)
+            return 0;
+
+        var closedIds = await dbContext.TradeExecutions.AsNoTracking()
+            .Where(row => CloseActions.Contains(row.Action) && SuccessfulStatuses.Contains(row.Status) && openedIds.Contains(row.OpportunityId))
+            .Select(row => row.OpportunityId)
+            .Distinct()
+            .ToListAsync(cancellationToken);
+
+        return openedIds.Except(closedIds).Count();
+    }
+
+    public async Task<decimal> GetEntryNotionalSinceAsync(DateTimeOffset since, CancellationToken cancellationToken)
+    {
+        return await dbContext.TradeExecutions.AsNoTracking()
+            .Where(row => OpenActions.Contains(row.Action) && SuccessfulStatuses.Contains(row.Status) && row.CreatedAt >= since)
+            .SumAsync(row => row.RequestedCapital, cancellationToken);
+    }
+
     private static TradeExecutionAudit ToAudit(TradeExecutionEntity entity)
     {
         return new TradeExecutionAudit(

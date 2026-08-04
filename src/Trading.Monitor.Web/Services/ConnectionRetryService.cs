@@ -1,3 +1,5 @@
+using System.Net;
+using System.Net.Sockets;
 using Trading.Monitor.Application.Abstractions;
 using Trading.Monitor.Domain;
 
@@ -5,6 +7,17 @@ namespace Trading.Monitor.Web.Services;
 
 public sealed class ConnectionRetryService(HttpClient httpClient, ISourceTelemetryRecorder telemetryRecorder, ILogger<ConnectionRetryService> logger)
 {
+    /// <summary>
+    /// Hostname suffixes for market/news/AI providers this dashboard is allowed to reach directly.
+    /// Anything else (including raw IP literals, cloud metadata, or intranet hosts) is rejected
+    /// server-side to prevent SSRF via an operator-supplied "retry connection" URL.
+    /// </summary>
+    private static readonly string[] AllowedHostSuffixes =
+    [
+        "binance.com", "binance.us", "coinbase.com", "kraken.com", "yahoo.com", "alphavantage.co",
+        "cryptopanic.com", "alternative.me", "openai.com", "telegram.org"
+    ];
+
     public async Task<ConnectionRetryResult> RetryAsync(ConnectionRetryRequest request, CancellationToken cancellationToken)
     {
         var startedAt = DateTimeOffset.UtcNow;
@@ -16,10 +29,16 @@ public sealed class ConnectionRetryService(HttpClient httpClient, ISourceTelemet
 
         try
         {
-            if (string.IsNullOrWhiteSpace(url) || !Uri.TryCreate(url, UriKind.Absolute, out var uri) || uri.Scheme is not ("http" or "https"))
+            if (string.IsNullOrWhiteSpace(url) || !Uri.TryCreate(url, UriKind.Absolute, out var uri) || uri.Scheme != "https")
             {
                 status = DataSourceStatus.Degraded;
-                message = "La fuente no tiene una URL HTTP directa para probar; se mantiene mapeada, pero requiere integración específica.";
+                message = "La fuente no tiene una URL HTTPS directa para probar; se mantiene mapeada, pero requiere integración específica.";
+            }
+            else if (!await IsAllowedPublicHostAsync(uri, cancellationToken))
+            {
+                status = DataSourceStatus.Degraded;
+                message = "La URL no corresponde a un proveedor externo permitido; no se realizó ninguna solicitud.";
+                logger.LogWarning("Rejected connection retry to disallowed host {Host} for source {SourceName}.", uri.Host, sourceName);
             }
             else
             {
@@ -34,7 +53,7 @@ public sealed class ConnectionRetryService(HttpClient httpClient, ISourceTelemet
         catch (Exception exception)
         {
             status = DataSourceStatus.Failed;
-            message = $"Error al reintentar: {exception.Message}";
+            message = "No se pudo completar el reintento de conexión.";
             logger.LogWarning(exception, "Connection retry failed for {SourceName}.", sourceName);
         }
 
@@ -42,6 +61,54 @@ public sealed class ConnectionRetryService(HttpClient httpClient, ISourceTelemet
         await telemetryRecorder.RecordAsync(new DataSourceHealthEvent(sourceName, kind, status, url, message, startedAt, completedAt, status == DataSourceStatus.Healthy ? 1 : 0), cancellationToken);
 
         return new ConnectionRetryResult(sourceName, kind.ToString(), status.ToString(), StatusCss(status), message, completedAt);
+    }
+
+    private static async Task<bool> IsAllowedPublicHostAsync(Uri uri, CancellationToken cancellationToken)
+    {
+        if (!string.IsNullOrEmpty(uri.UserInfo))
+            return false;
+
+        var host = uri.Host;
+
+        if (!AllowedHostSuffixes.Any(suffix => host.Equals(suffix, StringComparison.OrdinalIgnoreCase) || host.EndsWith("." + suffix, StringComparison.OrdinalIgnoreCase)))
+            return false;
+
+        if (IPAddress.TryParse(host, out _))
+            return false;
+
+        try
+        {
+            var addresses = await Dns.GetHostAddressesAsync(host, cancellationToken);
+            return addresses.Length > 0 && addresses.All(IsPublicAddress);
+        }
+        catch (SocketException)
+        {
+            return false;
+        }
+    }
+
+    private static bool IsPublicAddress(IPAddress address)
+    {
+        if (IPAddress.IsLoopback(address) || address.IsIPv6LinkLocal || address.IsIPv6SiteLocal || address.IsIPv6Multicast)
+            return false;
+
+        if (address.AddressFamily != AddressFamily.InterNetwork)
+            return !address.IsIPv6LinkLocal;
+
+        var bytes = address.GetAddressBytes();
+
+        // RFC1918 private ranges, loopback, link-local (incl. 169.254.169.254 cloud metadata), CGNAT.
+        return bytes[0] switch
+        {
+            10 => false,
+            127 => false,
+            169 when bytes[1] == 254 => false,
+            172 when bytes[1] is >= 16 and <= 31 => false,
+            192 when bytes[1] == 168 => false,
+            100 when bytes[1] is >= 64 and <= 127 => false,
+            0 => false,
+            _ => true
+        };
     }
 
     private static DataSourceKind ResolveKind(string? kind, string sourceName)

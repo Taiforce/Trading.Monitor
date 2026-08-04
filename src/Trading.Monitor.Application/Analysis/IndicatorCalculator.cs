@@ -7,13 +7,28 @@ public static class IndicatorCalculator
         if (values.Count == 0)
             return [];
 
+        ArgumentOutOfRangeException.ThrowIfLessThan(period, 1);
+
         var result = new decimal[values.Count];
         var multiplier = 2m / (period + 1m);
-        var ema = values[0];
 
-        for (var i = 0; i < values.Count; i++)
+        // Seed with a simple moving average (standard EMA warm-up) instead of the
+        // first raw value, which otherwise biases every downstream EMA/MACD reading.
+        var seedLength = Math.Min(period, values.Count);
+        var runningSum = 0m;
+
+        for (var i = 0; i < seedLength; i++)
         {
-            ema = i == 0 ? values[i] : (values[i] - ema) * multiplier + ema;
+            runningSum += values[i];
+            result[i] = runningSum / (i + 1);
+        }
+
+        var ema = runningSum / seedLength;
+        result[seedLength - 1] = ema;
+
+        for (var i = seedLength; i < values.Count; i++)
+        {
+            ema = (values[i] - ema) * multiplier + ema;
             result[i] = ema;
         }
 
@@ -31,6 +46,8 @@ public static class IndicatorCalculator
 
     public static decimal Rsi(IReadOnlyList<decimal> closes, int period = 14)
     {
+        ArgumentOutOfRangeException.ThrowIfLessThan(period, 1);
+
         if (closes.Count <= period)
             return 50m;
 
@@ -101,6 +118,8 @@ public static class IndicatorCalculator
 
     public static decimal Atr(IReadOnlyList<decimal> highs, IReadOnlyList<decimal> lows, IReadOnlyList<decimal> closes, int period = 14)
     {
+        ArgumentOutOfRangeException.ThrowIfLessThan(period, 1);
+
         if (highs.Count < 2 || highs.Count != lows.Count || highs.Count != closes.Count)
             return 0m;
 
@@ -127,6 +146,8 @@ public static class IndicatorCalculator
 
     public static decimal Adx(IReadOnlyList<decimal> highs, IReadOnlyList<decimal> lows, IReadOnlyList<decimal> closes, int period = 14)
     {
+        ArgumentOutOfRangeException.ThrowIfLessThan(period, 1);
+
         if (highs.Count < period * 2 || highs.Count != lows.Count || highs.Count != closes.Count)
             return 0m;
 
@@ -166,7 +187,18 @@ public static class IndicatorCalculator
                 dxValues.Add(100m * Math.Abs(plusDi - minusDi) / denominator);
         }
 
-        return dxValues.Count == 0 ? 0m : dxValues.TakeLast(Math.Min(period, dxValues.Count)).Average();
+        if (dxValues.Count == 0)
+            return 0m;
+
+        // True ADX is Wilder's smoothed average of DX, not a plain moving average
+        // of the last N values: seed with SMA(period) then smooth forward.
+        var seedLength = Math.Min(period, dxValues.Count);
+        var adx = dxValues.Take(seedLength).Average();
+
+        for (var i = seedLength; i < dxValues.Count; i++)
+            adx = (adx * (period - 1) + dxValues[i]) / period;
+
+        return adx;
     }
 
     public static decimal Vwap(IReadOnlyList<decimal> typicalPrices, IReadOnlyList<decimal> volumes, int period = 48)
@@ -185,6 +217,46 @@ public static class IndicatorCalculator
         }
 
         return denominator == 0m ? typicalPrices[^1] : numerator / denominator;
+    }
+
+    /// <summary>Midpoint of the highest high and lowest low over the last <paramref name="period"/> bars (Ichimoku Tenkan/Kijun/Senkou B line formula).</summary>
+    public static decimal MidpointHighLow(IReadOnlyList<decimal> highs, IReadOnlyList<decimal> lows, int period)
+    {
+        if (highs.Count == 0 || highs.Count != lows.Count)
+            return 0m;
+
+        var sampleHighs = highs.TakeLast(Math.Min(period, highs.Count));
+        var sampleLows = lows.TakeLast(Math.Min(period, lows.Count));
+
+        return (sampleHighs.Max() + sampleLows.Min()) / 2m;
+    }
+
+    /// <summary>
+    /// Simplified volatility-channel breakout in the same family as "Supertrend"-style bots:
+    /// a moving-average basis widened by <paramref name="multiplier"/> x ATR. Returns
+    /// 1 (bullish breakout), -1 (bearish breakout) or 0 (inside the channel).
+    /// </summary>
+    public static int VolatilityChannelBreakout(IReadOnlyList<decimal> highs, IReadOnlyList<decimal> lows, IReadOnlyList<decimal> closes, int period = 10, decimal multiplier = 3m)
+    {
+        if (closes.Count < period * 2)
+            return 0;
+
+        var atr = Atr(highs, lows, closes, period);
+        if (atr <= 0m)
+            return 0;
+
+        var basis = closes.TakeLast(period).Average();
+        var upperBand = basis + multiplier * atr;
+        var lowerBand = basis - multiplier * atr;
+        var lastClose = closes[^1];
+
+        if (lastClose > upperBand)
+            return 1;
+
+        if (lastClose < lowerBand)
+            return -1;
+
+        return 0;
     }
 
     public static decimal RelativeVolume(IReadOnlyList<decimal> volumes, int period = 20)

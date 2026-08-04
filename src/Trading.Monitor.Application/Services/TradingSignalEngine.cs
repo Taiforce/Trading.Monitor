@@ -117,19 +117,19 @@ public sealed class TradingSignalEngine(TechnicalAnalysisService technicalAnalys
             AddScore(ref shortScore, weight, shortReasons, $"{snapshot.Interval}: tendencia bajista alineada con EMAs y MACD.");
 
         if (snapshot.LastPrice > snapshot.Ema200)
-            AddScore(ref longScore, weight / 3, longReasons, $"{snapshot.Interval}: precio sobre EMA 200.");
+            AddScore(ref longScore, Div(weight, 3), longReasons, $"{snapshot.Interval}: precio sobre EMA 200.");
         else if (snapshot.LastPrice < snapshot.Ema200)
-            AddScore(ref shortScore, weight / 3, shortReasons, $"{snapshot.Interval}: precio bajo EMA 200.");
+            AddScore(ref shortScore, Div(weight, 3), shortReasons, $"{snapshot.Interval}: precio bajo EMA 200.");
 
         if (snapshot.MacdHistogram > 0m)
-            AddScore(ref longScore, weight / 3, longReasons, $"{snapshot.Interval}: momentum MACD positivo.");
+            AddScore(ref longScore, Div(weight, 3), longReasons, $"{snapshot.Interval}: momentum MACD positivo.");
         else if (snapshot.MacdHistogram < 0m)
-            AddScore(ref shortScore, weight / 3, shortReasons, $"{snapshot.Interval}: momentum MACD negativo.");
+            AddScore(ref shortScore, Div(weight, 3), shortReasons, $"{snapshot.Interval}: momentum MACD negativo.");
 
         if (snapshot.Rsi14 is >= 48m and <= 72m)
-            AddScore(ref longScore, weight / 4, longReasons, $"{snapshot.Interval}: RSI saludable para continuidad alcista ({snapshot.Rsi14:F1}).");
+            AddScore(ref longScore, Div(weight, 4), longReasons, $"{snapshot.Interval}: RSI saludable para continuidad alcista ({snapshot.Rsi14:F1}).");
         else if (snapshot.Rsi14 is >= 28m and <= 52m)
-            AddScore(ref shortScore, weight / 4, shortReasons, $"{snapshot.Interval}: RSI favorable para presión bajista ({snapshot.Rsi14:F1}).");
+            AddScore(ref shortScore, Div(weight, 4), shortReasons, $"{snapshot.Interval}: RSI favorable para presión bajista ({snapshot.Rsi14:F1}).");
 
         if (snapshot.Rsi14 > 78m)
             longRisks.Add($"{snapshot.Interval}: RSI sobreextendido ({snapshot.Rsi14:F1}).");
@@ -137,24 +137,24 @@ public sealed class TradingSignalEngine(TechnicalAnalysisService technicalAnalys
             shortRisks.Add($"{snapshot.Interval}: RSI sobrevendido ({snapshot.Rsi14:F1}).");
 
         if (snapshot.LastPrice > snapshot.Vwap)
-            AddScore(ref longScore, weight / 4, longReasons, $"{snapshot.Interval}: precio sobre VWAP.");
+            AddScore(ref longScore, Div(weight, 4), longReasons, $"{snapshot.Interval}: precio sobre VWAP.");
         else if (snapshot.LastPrice < snapshot.Vwap)
-            AddScore(ref shortScore, weight / 4, shortReasons, $"{snapshot.Interval}: precio bajo VWAP.");
+            AddScore(ref shortScore, Div(weight, 4), shortReasons, $"{snapshot.Interval}: precio bajo VWAP.");
 
         if (snapshot.RelativeVolume >= 1.25m)
         {
             if (snapshot.LastPrice >= snapshot.Ema9)
-                AddScore(ref longScore, weight / 3, longReasons, $"{snapshot.Interval}: volumen relativo elevado ({snapshot.RelativeVolume:F2}x).");
+                AddScore(ref longScore, Div(weight, 3), longReasons, $"{snapshot.Interval}: volumen relativo elevado ({snapshot.RelativeVolume:F2}x).");
             else
-                AddScore(ref shortScore, weight / 3, shortReasons, $"{snapshot.Interval}: volumen relativo elevado ({snapshot.RelativeVolume:F2}x).");
+                AddScore(ref shortScore, Div(weight, 3), shortReasons, $"{snapshot.Interval}: volumen relativo elevado ({snapshot.RelativeVolume:F2}x).");
         }
 
         if (snapshot.Adx14 >= 20m)
         {
             if (snapshot.Bias == MarketBias.Bullish)
-                AddScore(ref longScore, weight / 3, longReasons, $"{snapshot.Interval}: ADX confirma fuerza de tendencia ({snapshot.Adx14:F1}).");
+                AddScore(ref longScore, Div(weight, 3), longReasons, $"{snapshot.Interval}: ADX confirma fuerza de tendencia ({snapshot.Adx14:F1}).");
             else if (snapshot.Bias == MarketBias.Bearish)
-                AddScore(ref shortScore, weight / 3, shortReasons, $"{snapshot.Interval}: ADX confirma fuerza de tendencia ({snapshot.Adx14:F1}).");
+                AddScore(ref shortScore, Div(weight, 3), shortReasons, $"{snapshot.Interval}: ADX confirma fuerza de tendencia ({snapshot.Adx14:F1}).");
         }
 
         if (snapshot.LastPrice > snapshot.RecentResistance)
@@ -259,8 +259,6 @@ public sealed class TradingSignalEngine(TechnicalAnalysisService technicalAnalys
             return SignalOperationKind.Fixed;
 
         var hasManagedEdge = score >= 94 && expiryMinutes <= 240;
-        if (MarketSymbolClassifier.GetMarketKind(symbol) == MarketKind.Forex)
-            hasManagedEdge = score >= 94 && expiryMinutes <= 240;
 
         return hasManagedEdge ? SignalOperationKind.Managed : SignalOperationKind.Fixed;
     }
@@ -305,6 +303,12 @@ public sealed class TradingSignalEngine(TechnicalAnalysisService technicalAnalys
         score += points;
         reasons.Add(reason);
     }
+
+    /// <summary>
+    /// Integer division that guarantees at least 1 point when the factor actually applies,
+    /// so short-horizon intervals (e.g. "1s" weight 3) never see a factor silently zeroed out.
+    /// </summary>
+    private static int Div(int weight, int divisor) => Math.Max(1, weight / divisor);
 
     private static int IntervalWeight(string interval)
     {

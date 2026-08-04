@@ -34,7 +34,7 @@ public sealed class EmailNotificationChannel(EmailOptions options, OpportunityPr
         using var client = new SmtpClient(options.Host, options.Port) { EnableSsl = options.UseSsl };
 
         if (!string.IsNullOrWhiteSpace(options.UserName))
-            client.Credentials = new NetworkCredential(options.UserName, options.Password);
+            client.Credentials = new NetworkCredential(options.UserName, options.ResolvePassword());
 
         await client.SendMailAsync(message, cancellationToken);
     }
@@ -58,7 +58,7 @@ public sealed class EmailNotificationChannel(EmailOptions options, OpportunityPr
         using var client = new SmtpClient(options.Host, options.Port) { EnableSsl = options.UseSsl };
 
         if (!string.IsNullOrWhiteSpace(options.UserName))
-            client.Credentials = new NetworkCredential(options.UserName, options.Password);
+            client.Credentials = new NetworkCredential(options.UserName, options.ResolvePassword());
 
         await client.SendMailAsync(message, cancellationToken);
     }

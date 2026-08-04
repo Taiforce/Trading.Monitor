@@ -105,4 +105,70 @@ public sealed class EfWalletRepository(TradingMonitorDbContext dbContext) : IWal
 
         await dbContext.SaveChangesAsync(cancellationToken);
     }
+
+    public async Task ApplyFillAsync(string market, string symbol, decimal cashDelta, decimal assetQuantityDelta, CancellationToken cancellationToken)
+    {
+        var normalizedMarket = MarketSymbolClassifier.NormalizeMarket(market);
+        var normalizedSymbol = WalletSnapshot.NormalizeSymbol(symbol);
+        var now = DateTimeOffset.UtcNow;
+
+        await using var transaction = await dbContext.Database.BeginTransactionAsync(cancellationToken);
+
+        var settingsExists = await dbContext.WalletSettings.AnyAsync(setting => setting.Market == normalizedMarket, cancellationToken);
+        if (!settingsExists)
+        {
+            dbContext.WalletSettings.Add(new WalletSettingsEntity
+            {
+                Id = SettingsIds.GetValueOrDefault(normalizedMarket, Guid.NewGuid()),
+                Market = normalizedMarket,
+                CashCapital = 0m,
+                ManagedTargetNetPercent = 5m,
+                CreatedAt = now,
+                UpdatedAt = now
+            });
+            await dbContext.SaveChangesAsync(cancellationToken);
+        }
+
+        if (cashDelta != 0m)
+        {
+            // Single atomic UPDATE ... SET CashCapital = CashCapital + @delta: two concurrent
+            // fills (e.g. two signals executing back-to-back) can never overwrite each other's
+            // change, unlike a read-then-write pattern.
+            await dbContext.WalletSettings
+                .Where(setting => setting.Market == normalizedMarket)
+                .ExecuteUpdateAsync(setter => setter
+                    .SetProperty(setting => setting.CashCapital, setting => setting.CashCapital + cashDelta < 0m ? 0m : setting.CashCapital + cashDelta)
+                    .SetProperty(setting => setting.UpdatedAt, now), cancellationToken);
+        }
+
+        if (assetQuantityDelta != 0m && !string.IsNullOrWhiteSpace(normalizedSymbol))
+        {
+            var assetExists = await dbContext.WalletAssets.AnyAsync(asset => asset.Market == normalizedMarket && asset.Symbol == normalizedSymbol, cancellationToken);
+
+            if (!assetExists)
+            {
+                dbContext.WalletAssets.Add(new WalletAssetEntity
+                {
+                    Id = Guid.NewGuid(),
+                    Market = normalizedMarket,
+                    Symbol = normalizedSymbol,
+                    Asset = WalletSnapshot.ResolveAsset(normalizedSymbol),
+                    CoinQuantity = 0m,
+                    AllowSellHighBuyLow = false,
+                    AutoTradingEnabled = true,
+                    CreatedAt = now,
+                    UpdatedAt = now
+                });
+                await dbContext.SaveChangesAsync(cancellationToken);
+            }
+
+            await dbContext.WalletAssets
+                .Where(asset => asset.Market == normalizedMarket && asset.Symbol == normalizedSymbol)
+                .ExecuteUpdateAsync(setter => setter
+                    .SetProperty(asset => asset.CoinQuantity, asset => asset.CoinQuantity + assetQuantityDelta < 0m ? 0m : asset.CoinQuantity + assetQuantityDelta)
+                    .SetProperty(asset => asset.UpdatedAt, now), cancellationToken);
+        }
+
+        await transaction.CommitAsync(cancellationToken);
+    }
 }
