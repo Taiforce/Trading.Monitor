@@ -20,10 +20,16 @@ public sealed class SafeTradeExecutionService(
 {
     private static readonly JsonSerializerOptions JsonOptions = new(JsonSerializerDefaults.Web);
 
+    private static readonly HashSet<TradeExecutionStatus> AlreadyOpenedStatuses =
+        [TradeExecutionStatus.Simulated, TradeExecutionStatus.Submitted, TradeExecutionStatus.Filled];
+
     public async Task TryEnterAsync(OpportunityReportRow opportunity, CancellationToken cancellationToken)
     {
         var existingEntry = await executionRepository.GetLatestEntryAsync(opportunity.Id, cancellationToken);
-        if (existingEntry is not null)
+        // Only a previously *successful* open should block a retry. A transient failure
+        // (missing credentials, momentary score dip, symbol not yet allow-listed, etc.) must
+        // not permanently lock this opportunity out of automatic execution.
+        if (existingEntry is not null && AlreadyOpenedStatuses.Contains(existingEntry.Status))
             return;
 
         var options = optionsMonitor.CurrentValue;
@@ -59,6 +65,7 @@ public sealed class SafeTradeExecutionService(
         {
             await SaveAsync(opportunity, action, mode, TradeExecutionStatus.Simulated, requestedCapital, requestedQuantity, requestedQuantity, requestedCapital, opportunity.EntryPrice, clientOrderId, "",
                 "paper-entry", "Entrada simulada. No se envio orden real al exchange.", requestJson, "{}", cancellationToken);
+            await ApplyWalletFillAsync(opportunity, action, requestedQuantity, requestedCapital, cancellationToken);
             return;
         }
 
@@ -86,12 +93,15 @@ public sealed class SafeTradeExecutionService(
 
             await SaveAsync(opportunity, action, mode, result.Status, requestedCapital, requestedQuantity, executedQuantity, executedQuote, price, clientOrderId, result.ExchangeOrderId,
                 result.Status == TradeExecutionStatus.Failed ? "exchange-failed" : "exchange-entry", result.Message, requestJson, result.RawResponse, cancellationToken);
+
+            if (AlreadyOpenedStatuses.Contains(result.Status))
+                await ApplyWalletFillAsync(opportunity, action, executedQuantity, executedQuote, cancellationToken);
         }
         catch (Exception exception) when (!cancellationToken.IsCancellationRequested)
         {
             logger.LogWarning(exception, "Automatic entry execution failed for {Symbol}.", opportunity.Symbol);
             await SaveAsync(opportunity, action, mode, TradeExecutionStatus.Failed, requestedCapital, requestedQuantity, null, null, opportunity.EntryPrice, clientOrderId, "",
-                "exchange-exception", exception.Message, requestJson, "{}", cancellationToken);
+                "exchange-exception", "La orden no pudo confirmarse por una excepcion; revisa los logs del worker.", requestJson, "{}", cancellationToken);
         }
     }
 
@@ -128,8 +138,10 @@ public sealed class SafeTradeExecutionService(
 
         if (mode == TradeExecutionMode.Paper)
         {
-            await SaveAsync(opportunity, action, mode, TradeExecutionStatus.Simulated, requestedCapital, requestedQuantity, requestedQuantity, requestedQuantity * exit.ExitPrice, exit.ExitPrice, clientOrderId, "",
+            var paperExitQuote = requestedQuantity * exit.ExitPrice;
+            await SaveAsync(opportunity, action, mode, TradeExecutionStatus.Simulated, requestedCapital, requestedQuantity, requestedQuantity, paperExitQuote, exit.ExitPrice, clientOrderId, "",
                 "paper-exit", $"Salida simulada. Resultado estimado despues de comisiones: {realizedNetPnL.ToString("C2", CultureInfo.CurrentCulture)}.", requestJson, "{}", cancellationToken);
+            await ApplyWalletFillAsync(opportunity, action, requestedQuantity, paperExitQuote, cancellationToken);
             return;
         }
 
@@ -173,6 +185,9 @@ public sealed class SafeTradeExecutionService(
 
             await SaveAsync(opportunity, action, mode, result.Status, requestedCapital, quantity, executedQuantity, executedQuote, price, clientOrderId, result.ExchangeOrderId,
                 result.Status == TradeExecutionStatus.Failed ? "exchange-failed" : "exchange-exit", result.Message, requestJson, result.RawResponse, cancellationToken);
+
+            if (AlreadyOpenedStatuses.Contains(result.Status))
+                await ApplyWalletFillAsync(opportunity, action, executedQuantity, executedQuote, cancellationToken);
         }
         catch (Exception exception) when (!cancellationToken.IsCancellationRequested)
         {
@@ -186,6 +201,9 @@ public sealed class SafeTradeExecutionService(
     {
         if (!options.Enabled)
             return new ExecutionDecision(false, TradeExecutionStatus.Skipped, "execution-disabled", "Ejecución automática desactivada. La señal solo queda como propuesta.");
+
+        if (options.KillSwitchEnabled)
+            return new ExecutionDecision(false, TradeExecutionStatus.Blocked, "kill-switch", "Interruptor de emergencia activo (ExchangeExecution:KillSwitchEnabled). No se abren nuevas posiciones.");
 
         var market = MarketSymbolClassifier.GetMarketKind(opportunity.Symbol) == MarketKind.Forex
             ? MarketSymbolClassifier.ForexMarket
@@ -235,6 +253,10 @@ public sealed class SafeTradeExecutionService(
         if (mode == TradeExecutionMode.Live && (!options.AllowLiveOrders || options.UseTestOrderEndpoint))
             return new ExecutionDecision(false, TradeExecutionStatus.Blocked, "live-guard", "Modo Live bloqueado: requiere AllowLiveOrders=true y UseTestOrderEndpoint=false.");
 
+        if (mode == TradeExecutionMode.Live && !HasLiveConfirmation(options))
+            return new ExecutionDecision(false, TradeExecutionStatus.Blocked, "live-not-confirmed",
+                $"Modo Live requiere la variable de entorno {options.LiveConfirmationEnvironmentVariable}=I_ACCEPT_LIVE_RISK como confirmacion explicita adicional.");
+
         if (mode is TradeExecutionMode.Live or TradeExecutionMode.Test && !HasCredentials(options))
             return new ExecutionDecision(false, TradeExecutionStatus.Blocked, "missing-credentials", $"Faltan {options.ApiKeyEnvironmentVariable}/{options.ApiSecretEnvironmentVariable}.");
 
@@ -244,6 +266,31 @@ public sealed class SafeTradeExecutionService(
         var lastDayNet = await opportunityRepository.GetRealizedNetSinceAsync(DateTimeOffset.UtcNow.AddDays(-1), cancellationToken);
         if (options.DailyLossLimit > 0m && lastDayNet <= -Math.Abs(options.DailyLossLimit))
             return new ExecutionDecision(false, TradeExecutionStatus.Blocked, "daily-loss-limit", $"Limite de perdida diaria alcanzado. Neto ultimas 24h: {lastDayNet:N2}.");
+
+        if (options.MaxOpenPositions > 0)
+        {
+            var openPositions = await executionRepository.GetOpenPositionCountAsync(cancellationToken);
+            if (openPositions >= options.MaxOpenPositions)
+                return new ExecutionDecision(false, TradeExecutionStatus.Blocked, "max-open-positions", $"Ya hay {openPositions} posiciones automaticas abiertas; el limite es {options.MaxOpenPositions}.");
+        }
+
+        if (options.MaxDailyNotional > 0m)
+        {
+            var committedToday = await executionRepository.GetEntryNotionalSinceAsync(DateTimeOffset.UtcNow.AddDays(-1), cancellationToken);
+            if (committedToday + requestedCapital > options.MaxDailyNotional)
+                return new ExecutionDecision(false, TradeExecutionStatus.Blocked, "max-daily-notional",
+                    $"Notional comprometido en 24h {committedToday:N2} + {requestedCapital:N2} superaria el maximo {options.MaxDailyNotional:N2}.");
+        }
+
+        if (mode == TradeExecutionMode.Live && opportunity.Side == MarketSide.Long)
+        {
+            var quoteAsset = ResolveQuoteAsset(opportunity.Symbol);
+            var quoteBalance = await exchangeClient.GetBalanceAsync(quoteAsset, cancellationToken);
+
+            if (quoteBalance is null || quoteBalance.Free < requestedCapital)
+                return new ExecutionDecision(false, TradeExecutionStatus.Blocked, "exchange-balance-too-low",
+                    $"Saldo real de {quoteAsset} en el exchange ({quoteBalance?.Free ?? 0m:N2}) es menor al capital solicitado ({requestedCapital:N2}).");
+        }
 
         return new ExecutionDecision(true, TradeExecutionStatus.Submitted, "allowed", "Senal aprobada por filtros automaticos.");
     }
@@ -302,6 +349,40 @@ public sealed class SafeTradeExecutionService(
         return executionRepository.SaveAsync(audit, cancellationToken);
     }
 
+    /// <summary>
+    /// Debits/credits the wallet ledger for a fill so the dashboard's "capital disponible" and
+    /// "vender alto" checks reflect real positions instead of a static, manually-edited balance.
+    /// Only called for successful fills (Paper Simulated, or a real exchange Submitted/Filled).
+    /// </summary>
+    private async Task ApplyWalletFillAsync(OpportunityReportRow opportunity, TradeExecutionAction action, decimal quantity, decimal quote, CancellationToken cancellationToken)
+    {
+        var market = MarketSymbolClassifier.GetMarketKind(opportunity.Symbol) == MarketKind.Forex
+            ? MarketSymbolClassifier.ForexMarket
+            : MarketSymbolClassifier.CryptoMarket;
+
+        var (cashDelta, assetDelta) = action switch
+        {
+            TradeExecutionAction.BuyToOpen => (-quote, quantity),
+            TradeExecutionAction.SellToClose => (quote, -quantity),
+            _ => (0m, 0m) // Short-side actions (SellToOpen/BuyToClose) never reach a fill: spot shorting is blocked earlier.
+        };
+
+        if (cashDelta == 0m && assetDelta == 0m)
+            return;
+
+        try
+        {
+            await walletRepository.ApplyFillAsync(market, opportunity.Symbol, cashDelta, assetDelta, cancellationToken);
+        }
+        catch (Exception exception) when (!cancellationToken.IsCancellationRequested)
+        {
+            // The exchange/paper fill already happened and was audited; a wallet-ledger write
+            // failure must not be reported as an execution failure, but it must be loud in logs
+            // since the dashboard balance will now be stale until reconciled.
+            logger.LogError(exception, "Failed to apply wallet ledger fill for {Symbol} ({Action}).", opportunity.Symbol, action);
+        }
+    }
+
     private static bool HasCredentials(ExchangeExecutionOptions options)
     {
         return !string.IsNullOrWhiteSpace(Environment.GetEnvironmentVariable(options.ApiKeyEnvironmentVariable))
@@ -310,9 +391,21 @@ public sealed class SafeTradeExecutionService(
 
     private static bool IsSymbolAllowed(string symbol, ExchangeExecutionOptions options)
     {
+        // Fail closed: an empty allow-list now blocks every symbol instead of allowing every
+        // symbol. Operators who genuinely want to trade anything scanned must opt in explicitly
+        // via AllowAllSymbols so a misconfiguration can never silently widen the universe.
+        if (options.AllowAllSymbols)
+            return true;
+
         var allowedSymbols = options.AllowedSymbols ?? [];
 
-        return allowedSymbols.Length == 0 || allowedSymbols.Any(allowed => string.Equals(allowed, symbol, StringComparison.OrdinalIgnoreCase));
+        return allowedSymbols.Length > 0 && allowedSymbols.Any(allowed => string.Equals(allowed, symbol, StringComparison.OrdinalIgnoreCase));
+    }
+
+    private static bool HasLiveConfirmation(ExchangeExecutionOptions options)
+    {
+        var value = Environment.GetEnvironmentVariable(options.LiveConfirmationEnvironmentVariable);
+        return string.Equals(value, "I_ACCEPT_LIVE_RISK", StringComparison.Ordinal);
     }
 
     private static bool IsPriceInsideEntryBand(OpportunityReportRow opportunity, decimal maxSlippagePercent)
@@ -373,6 +466,19 @@ public sealed class SafeTradeExecutionService(
             return normalized[..^3];
 
         return normalized;
+    }
+
+    private static string ResolveQuoteAsset(string symbol)
+    {
+        var normalized = symbol.Trim().ToUpperInvariant();
+
+        if (normalized.EndsWith("USDT", StringComparison.Ordinal))
+            return "USDT";
+
+        if (normalized.EndsWith("USD", StringComparison.Ordinal))
+            return "USD";
+
+        return "USDT";
     }
 
     private static string BuildClientOrderId(string prefix, Guid opportunityId)

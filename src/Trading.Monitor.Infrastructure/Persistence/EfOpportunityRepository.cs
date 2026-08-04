@@ -126,6 +126,14 @@ public sealed class EfOpportunityRepository : IOpportunityRepository
         return entity is null ? null : ToReportRow(entity, capital);
     }
 
+    public async Task<OpportunityReportRow?> GetByIdAsync(Guid id, decimal capital, CancellationToken cancellationToken)
+    {
+        capital = capital <= 0m ? _reportingOptions.CurrentValue.DefaultCapital : capital;
+        var entity = await _dbContext.Opportunities.AsNoTracking().FirstOrDefaultAsync(item => item.Id == id, cancellationToken);
+
+        return entity is null ? null : ToReportRow(entity, capital);
+    }
+
     public async Task<decimal> GetRealizedNetSinceAsync(DateTimeOffset since, CancellationToken cancellationToken)
     {
         return await _dbContext.Opportunities.AsNoTracking()

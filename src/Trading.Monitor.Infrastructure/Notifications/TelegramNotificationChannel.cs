@@ -18,23 +18,14 @@ public sealed class TelegramNotificationChannel(HttpClient httpClient, TelegramO
         if (!options.Enabled)
             return;
 
-        if (string.IsNullOrWhiteSpace(options.BotToken) || string.IsNullOrWhiteSpace(options.ChatId))
-            throw new InvalidOperationException("Telegram notification is enabled but BotToken or ChatId is missing.");
+        var botToken = options.ResolveBotToken();
+        if (string.IsNullOrWhiteSpace(botToken) || string.IsNullOrWhiteSpace(options.ChatId))
+            throw new InvalidOperationException("Telegram notification is enabled but BotToken/BotTokenEnvironmentVariable or ChatId is missing.");
 
         var projection = projectionService.Project(opportunity, reportingOptions.CurrentValue);
         var instruction = instructionService.Create(opportunity, projection);
-        var endpoint = $"https://api.telegram.org/bot{options.BotToken}/sendMessage";
 
-        using var content = new FormUrlEncodedContent(new Dictionary<string, string>
-        {
-            ["chat_id"] = options.ChatId, ["text"] = AlertFormatter.ToPlainText(opportunity, projection, instruction), ["disable_web_page_preview"] = "true"
-        });
-
-        using var response = await httpClient.PostAsync(endpoint, content, cancellationToken);
-        var body = await response.Content.ReadAsStringAsync(cancellationToken);
-
-        if (!response.IsSuccessStatusCode)
-            throw new InvalidOperationException($"Telegram returned {(int)response.StatusCode}: {body}");
+        await PostAsync(botToken, AlertFormatter.ToPlainText(opportunity, projection, instruction), cancellationToken);
     }
 
     public async Task SendExitAsync(OpportunityReportRow opportunity, OpportunityExit exit, decimal realizedNetPnL, CancellationToken cancellationToken)
@@ -42,21 +33,29 @@ public sealed class TelegramNotificationChannel(HttpClient httpClient, TelegramO
         if (!options.Enabled)
             return;
 
-        if (string.IsNullOrWhiteSpace(options.BotToken) || string.IsNullOrWhiteSpace(options.ChatId))
-            throw new InvalidOperationException("Telegram notification is enabled but BotToken or ChatId is missing.");
+        var botToken = options.ResolveBotToken();
+        if (string.IsNullOrWhiteSpace(botToken) || string.IsNullOrWhiteSpace(options.ChatId))
+            throw new InvalidOperationException("Telegram notification is enabled but BotToken/BotTokenEnvironmentVariable or ChatId is missing.");
 
         var instruction = instructionService.CreateExit(opportunity, exit, realizedNetPnL);
-        var endpoint = $"https://api.telegram.org/bot{options.BotToken}/sendMessage";
+
+        await PostAsync(botToken, AlertFormatter.ToExitPlainText(opportunity, exit, realizedNetPnL, instruction), cancellationToken);
+    }
+
+    private async Task PostAsync(string botToken, string text, CancellationToken cancellationToken)
+    {
+        // The bot token only ever travels inside this request URI, never in a log message or
+        // exception text, to avoid leaking it through proxy/telemetry logs.
+        var endpoint = $"https://api.telegram.org/bot{botToken}/sendMessage";
 
         using var content = new FormUrlEncodedContent(new Dictionary<string, string>
         {
-            ["chat_id"] = options.ChatId, ["text"] = AlertFormatter.ToExitPlainText(opportunity, exit, realizedNetPnL, instruction), ["disable_web_page_preview"] = "true"
+            ["chat_id"] = options.ChatId, ["text"] = text, ["disable_web_page_preview"] = "true"
         });
 
         using var response = await httpClient.PostAsync(endpoint, content, cancellationToken);
-        var body = await response.Content.ReadAsStringAsync(cancellationToken);
 
         if (!response.IsSuccessStatusCode)
-            throw new InvalidOperationException($"Telegram returned {(int)response.StatusCode}: {body}");
+            throw new InvalidOperationException($"Telegram returned HTTP {(int)response.StatusCode}.");
     }
 }

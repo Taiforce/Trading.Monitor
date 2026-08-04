@@ -20,6 +20,34 @@ services:
       retries: 12
       start_period: 30s
 
+  # One-shot job: creates a least-privilege SQL login for the app containers so
+  # web/worker never authenticate as the `sa` (sysadmin) account. Runs once per
+  # `docker compose up` and exits; web/worker wait for it to finish successfully.
+  sql-init:
+    image: mcr.microsoft.com/mssql-tools18:latest
+    container_name: trading-monitor-sql-init
+    restart: "no"
+    depends_on:
+      sqlserver:
+        condition: service_healthy
+    volumes:
+      - ./docker/init-app-user.sql:/init-app-user.sql:ro
+    entrypoint: ["/opt/mssql-tools18/bin/sqlcmd"]
+    command:
+      - "-S"
+      - "sqlserver,1433"
+      - "-U"
+      - "sa"
+      - "-P"
+      - "${SQLSERVER_SA_PASSWORD:?Set SQLSERVER_SA_PASSWORD in .env}"
+      - "-C"
+      - "-v"
+      - "AppUser=${SQLSERVER_APP_USER:-trading_app}"
+      - "-v"
+      - "AppPassword=${SQLSERVER_APP_PASSWORD:?Set SQLSERVER_APP_PASSWORD in .env}"
+      - "-i"
+      - "/init-app-user.sql"
+
   web:
     build:
       context: .
@@ -45,10 +73,11 @@ services:
       Database__Provider: SqlServer
       Database__InitializeOnStartup: "true"
       Database__CreateIfMissing: "true"
-      Database__ConnectionString: Server=sqlserver,1433;Database=TradingMarket;User Id=sa;Password=${SQLSERVER_SA_PASSWORD:?Set SQLSERVER_SA_PASSWORD in .env};TrustServerCertificate=True;Encrypt=True;MultipleActiveResultSets=True
-      AdminAccess__Enabled: ${ADMIN_ACCESS_ENABLED:-false}
+      Database__ConnectionString: Server=sqlserver,1433;Database=TradingMarket;User Id=${SQLSERVER_APP_USER:-trading_app};Password=${SQLSERVER_APP_PASSWORD:?Set SQLSERVER_APP_PASSWORD in .env};TrustServerCertificate=True;Encrypt=True;MultipleActiveResultSets=True
+      AdminAccess__Enabled: ${ADMIN_ACCESS_ENABLED:-true}
       AdminAccess__Username: ${ADMIN_ACCESS_USERNAME:-admin}
-      AdminAccess__Password: ${ADMIN_ACCESS_PASSWORD:-local-development-only}
+      AdminAccess__Password: ${ADMIN_ACCESS_PASSWORD:?Set ADMIN_ACCESS_PASSWORD in .env to a unique strong password (min 12 chars, not a well-known default)}
+      AdminAccess__AllowAnonymousAccess: ${ADMIN_ACCESS_ALLOW_ANONYMOUS:-false}
       TRADING_MONITOR_LOG_DIRECTORY: /app/logs
       Logs__DirectoryPath: /shared-logs
       Reporting__DefaultCapital: ${REPORTING_DEFAULT_CAPITAL:-1000}
@@ -82,6 +111,10 @@ services:
       ExchangeExecution__MaxSlippagePercent: ${EXCHANGE_MAX_SLIPPAGE_PERCENT:-0.25}
       ExchangeExecution__AllowedSymbols__0: ${EXCHANGE_ALLOWED_SYMBOL_0:-BTCUSDT}
       ExchangeExecution__AllowedSymbols__1: ${EXCHANGE_ALLOWED_SYMBOL_1:-ETHUSDT}
+      ExchangeExecution__AllowAllSymbols: ${EXCHANGE_ALLOW_ALL_SYMBOLS:-false}
+      ExchangeExecution__KillSwitchEnabled: ${EXCHANGE_KILL_SWITCH_ENABLED:-false}
+      ExchangeExecution__MaxOpenPositions: ${EXCHANGE_MAX_OPEN_POSITIONS:-3}
+      ExchangeExecution__MaxDailyNotional: ${EXCHANGE_MAX_DAILY_NOTIONAL:-500}
       BINANCE_API_KEY: ${BINANCE_API_KEY:-}
       BINANCE_API_SECRET: ${BINANCE_API_SECRET:-}
     volumes:
@@ -91,6 +124,8 @@ services:
     depends_on:
       sqlserver:
         condition: service_healthy
+      sql-init:
+        condition: service_completed_successfully
 
   worker:
     build:
@@ -117,7 +152,7 @@ services:
       Database__Provider: SqlServer
       Database__InitializeOnStartup: "true"
       Database__CreateIfMissing: "true"
-      Database__ConnectionString: Server=sqlserver,1433;Database=TradingMarket;User Id=sa;Password=${SQLSERVER_SA_PASSWORD:?Set SQLSERVER_SA_PASSWORD in .env};TrustServerCertificate=True;Encrypt=True;MultipleActiveResultSets=True
+      Database__ConnectionString: Server=sqlserver,1433;Database=TradingMarket;User Id=${SQLSERVER_APP_USER:-trading_app};Password=${SQLSERVER_APP_PASSWORD:?Set SQLSERVER_APP_PASSWORD in .env};TrustServerCertificate=True;Encrypt=True;MultipleActiveResultSets=True
       TRADING_MONITOR_LOG_DIRECTORY: /app/logs
       TradingMonitor__Enabled: ${TRADING_MONITOR_ENABLED:-true}
       TradingMonitor__MinimumScore: ${TRADING_MINIMUM_SCORE:-88}
@@ -198,6 +233,11 @@ services:
       ExchangeExecution__MaxSlippagePercent: ${EXCHANGE_MAX_SLIPPAGE_PERCENT:-0.25}
       ExchangeExecution__AllowedSymbols__0: ${EXCHANGE_ALLOWED_SYMBOL_0:-BTCUSDT}
       ExchangeExecution__AllowedSymbols__1: ${EXCHANGE_ALLOWED_SYMBOL_1:-ETHUSDT}
+      ExchangeExecution__AllowAllSymbols: ${EXCHANGE_ALLOW_ALL_SYMBOLS:-false}
+      ExchangeExecution__KillSwitchEnabled: ${EXCHANGE_KILL_SWITCH_ENABLED:-false}
+      ExchangeExecution__MaxOpenPositions: ${EXCHANGE_MAX_OPEN_POSITIONS:-3}
+      ExchangeExecution__MaxDailyNotional: ${EXCHANGE_MAX_DAILY_NOTIONAL:-500}
+      TRADING_MONITOR_LIVE_CONFIRM: ${TRADING_MONITOR_LIVE_CONFIRM:-}
       BINANCE_API_KEY: ${BINANCE_API_KEY:-}
       BINANCE_API_SECRET: ${BINANCE_API_SECRET:-}
       ALPHA_VANTAGE_API_KEY: ${ALPHA_VANTAGE_API_KEY:-}
@@ -207,17 +247,21 @@ services:
       Notifications__Email__Port: ${EMAIL_PORT:-587}
       Notifications__Email__UseSsl: ${EMAIL_USE_SSL:-true}
       Notifications__Email__UserName: ${EMAIL_USERNAME:-}
-      Notifications__Email__Password: ${EMAIL_PASSWORD:-}
+      Notifications__Email__PasswordEnvironmentVariable: EMAIL_PASSWORD
+      EMAIL_PASSWORD: ${EMAIL_PASSWORD:-}
       Notifications__Email__From: ${EMAIL_FROM:-}
       Notifications__Email__To: ${EMAIL_TO:-}
       Notifications__Telegram__Enabled: ${TELEGRAM_ENABLED:-false}
-      Notifications__Telegram__BotToken: ${TELEGRAM_BOT_TOKEN:-}
+      Notifications__Telegram__BotTokenEnvironmentVariable: TELEGRAM_BOT_TOKEN
+      TELEGRAM_BOT_TOKEN: ${TELEGRAM_BOT_TOKEN:-}
       Notifications__Telegram__ChatId: ${TELEGRAM_CHAT_ID:-}
     volumes:
       - ./logs/worker:/app/logs
     depends_on:
       sqlserver:
         condition: service_healthy
+      sql-init:
+        condition: service_completed_successfully
 
 volumes:
   sqlserver-data:

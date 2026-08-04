@@ -2,13 +2,17 @@ param(
     [string]$SourceServer = "tcp:127.0.0.1,14333",
     [string]$SourceDatabase = "TradingMarket",
     [string]$SourceUser = "sa",
-    [string]$SourcePassword = "TradingMarket_2026!Local",
+    [string]$SourcePassword = $env:SQLSERVER_SA_PASSWORD,
     [string]$TargetServer = "localhost",
     [string]$TargetDatabase = "TradingMarket",
     [string]$WorkDirectory = (Join-Path $env:TEMP "TradingMarketSqlSync")
 )
 
 $ErrorActionPreference = "Stop"
+
+if ([string]::IsNullOrWhiteSpace($SourcePassword)) {
+    throw "No password was provided. Pass -SourcePassword explicitly or set the SQLSERVER_SA_PASSWORD environment variable (the same value you put in .env). This script never ships with a default credential."
+}
 
 function Invoke-TargetSql {
     param([string]$Query, [string]$Database = "master")

@@ -57,14 +57,42 @@ try
                     .Bind(builder.Configuration.GetSection(AdminAccessOptions.SectionName));
 
     var adminAccess = builder.Configuration.GetSection(AdminAccessOptions.SectionName).Get<AdminAccessOptions>() ?? new AdminAccessOptions();
-    if (adminAccess.Enabled && (string.IsNullOrWhiteSpace(adminAccess.Username) || string.IsNullOrWhiteSpace(adminAccess.Password)))
-        throw new InvalidOperationException("AdminAccess is enabled, but AdminAccess:Username or AdminAccess:Password is missing.");
 
+    if (adminAccess.Enabled)
+    {
+        if (string.IsNullOrWhiteSpace(adminAccess.Username) || string.IsNullOrWhiteSpace(adminAccess.Password))
+            throw new InvalidOperationException("AdminAccess is enabled, but AdminAccess:Username or AdminAccess:Password is missing.");
+
+        if (adminAccess.Password.Length < Math.Max(8, adminAccess.MinimumPasswordLength))
+            throw new InvalidOperationException($"AdminAccess:Password must be at least {adminAccess.MinimumPasswordLength} characters long.");
+
+        if (AdminAccessOptions.DisallowedPasswords.Any(weak => string.Equals(weak, adminAccess.Password, StringComparison.OrdinalIgnoreCase)))
+            throw new InvalidOperationException("AdminAccess:Password matches a well-known example/default password. Set a unique, strong password.");
+    }
+    else if (!adminAccess.AllowAnonymousAccess)
+    {
+        // Fail closed: disabling the login screen without an explicit, auditable
+        // acknowledgement would otherwise leave every page and API endpoint anonymous.
+        throw new InvalidOperationException(
+            "AdminAccess:Enabled is false but AdminAccess:AllowAnonymousAccess is not set. " +
+            "Either enable AdminAccess with a username/password, or explicitly set " +
+            "AdminAccess:AllowAnonymousAccess=true (not recommended outside local development).");
+    }
+
+    // Only trust X-Forwarded-* when explicitly running behind a known, trusted ingress
+    // (e.g. Azure Container Apps, which is the sole network entry point). Otherwise keep
+    // ASP.NET Core's default proxy allow-list so a client cannot spoof its own IP/scheme
+    // and bypass IP-based rate limiting or poison audit logs.
+    var trustForwardedHeaders = string.Equals(Environment.GetEnvironmentVariable("TRADING_MONITOR_TRUSTED_PROXY"), "true", StringComparison.OrdinalIgnoreCase);
     builder.Services.Configure<ForwardedHeadersOptions>(options =>
     {
         options.ForwardedHeaders = ForwardedHeaders.XForwardedFor | ForwardedHeaders.XForwardedProto;
-        options.KnownIPNetworks.Clear();
-        options.KnownProxies.Clear();
+
+        if (trustForwardedHeaders)
+        {
+            options.KnownIPNetworks.Clear();
+            options.KnownProxies.Clear();
+        }
     });
     builder.Services.AddAuthentication(CookieAuthenticationDefaults.AuthenticationScheme)
                     .AddCookie(options =>
@@ -73,7 +101,7 @@ try
                         options.Cookie.HttpOnly = true;
                         options.Cookie.IsEssential = true;
                         options.Cookie.SameSite = SameSiteMode.Strict;
-                        options.Cookie.SecurePolicy = CookieSecurePolicy.SameAsRequest;
+                        options.Cookie.SecurePolicy = CookieSecurePolicy.Always;
                         options.LoginPath = "/account/login";
                         options.AccessDeniedPath = "/account/login";
                         options.ExpireTimeSpan = TimeSpan.FromHours(Math.Clamp(adminAccess.SessionHours, 1, 24));
@@ -81,7 +109,7 @@ try
                     });
     builder.Services.AddAuthorization(options =>
     {
-        if (adminAccess.Enabled)
+        if (!adminAccess.AllowAnonymousAccess)
         {
             options.FallbackPolicy = new AuthorizationPolicyBuilder()
                 .RequireAuthenticatedUser()
@@ -96,6 +124,24 @@ try
             _ => new FixedWindowRateLimiterOptions
             {
                 PermitLimit = 5,
+                Window = TimeSpan.FromMinutes(1),
+                QueueLimit = 0,
+                AutoReplenishment = true
+            }));
+        options.AddPolicy("api", context => RateLimitPartition.GetFixedWindowLimiter(
+            context.Connection.RemoteIpAddress?.ToString() ?? "unknown",
+            _ => new FixedWindowRateLimiterOptions
+            {
+                PermitLimit = 120,
+                Window = TimeSpan.FromMinutes(1),
+                QueueLimit = 20,
+                AutoReplenishment = true
+            }));
+        options.AddPolicy("api-mutation", context => RateLimitPartition.GetFixedWindowLimiter(
+            context.Connection.RemoteIpAddress?.ToString() ?? "unknown",
+            _ => new FixedWindowRateLimiterOptions
+            {
+                PermitLimit = 20,
                 Window = TimeSpan.FromMinutes(1),
                 QueueLimit = 0,
                 AutoReplenishment = true
@@ -152,7 +198,10 @@ try
         context.Response.Headers["X-Content-Type-Options"] = "nosniff";
         context.Response.Headers["Referrer-Policy"] = "same-origin";
         context.Response.Headers.Append("Permissions-Policy", "camera=(), microphone=(), geolocation=()");
-        context.Response.Headers.Append("Content-Security-Policy", "base-uri 'self'; frame-ancestors 'none'; object-src 'none'");
+        context.Response.Headers.Append("Content-Security-Policy",
+            "default-src 'self'; base-uri 'self'; frame-ancestors 'none'; object-src 'none'; " +
+            "script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; " +
+            "img-src 'self' data:; font-src 'self' data:; connect-src 'self'; form-action 'self'");
         await next();
     });
 
@@ -172,18 +221,20 @@ try
     app.MapGet("/api/operaciones-vivas", async (decimal? capital, string? estado, string? symbol, string? tipoSenal, string? mode, string? senal, string? mercado, LiveOperationsSnapshotService snapshotService, CancellationToken cancellationToken) =>
     {
         return Results.Json(await snapshotService.GetAsync(capital, estado, symbol, tipoSenal, mode, senal, mercado, cancellationToken));
-    });
+    }).RequireAuthorization().RequireRateLimiting("api");
     app.MapGet("/api/grafico-vivo", async (string? symbol, string? interval, decimal? capital, string? estado, string? tipoSenal, string? mode, string? senal, string? mercado, DateTimeOffset? from, DateTimeOffset? to,
         LiveChartSnapshotService chartService, CancellationToken cancellationToken) =>
     {
         return Results.Json(await chartService.GetAsync(symbol, interval, capital, estado, tipoSenal, mode, senal, mercado, from, to, cancellationToken));
-    });
+    }).RequireAuthorization().RequireRateLimiting("api");
     app.MapPost("/api/posiciones/{id:guid}/cerrar", async (Guid id, ManagedCloseRequest request, IOpportunityRepository opportunityRepository,
         Microsoft.Extensions.Options.IOptionsMonitor<ReportingOptions> reportingOptions, CancellationToken cancellationToken) =>
     {
+        if (request.Capital is < 0m or > 100_000_000m || request.TargetNetPercent is < -99m or > 1000m || request.ExitPrice is < 0m or > 100_000_000m)
+            return Results.BadRequest(new { message = "Parámetros fuera de rango permitido." });
+
         var capital = request.Capital <= 0m ? reportingOptions.CurrentValue.DefaultCapital : request.Capital;
-        var rows = await opportunityRepository.GetSignalsAsync(capital, cancellationToken);
-        var row = rows.FirstOrDefault(item => item.Id == id);
+        var row = await opportunityRepository.GetByIdAsync(id, capital, cancellationToken);
 
         if (row is null)
             return Results.NotFound(new { message = "Señal no encontrada." });
@@ -210,13 +261,15 @@ try
             breakdown.NetPercent,
             breakdown.TotalObtained
         });
-    });
+    }).RequireAuthorization().RequireRateLimiting("api-mutation");
     app.MapPost("/api/posiciones/{id:guid}/objetivo", async (Guid id, ManagedTargetRequest request, IOpportunityRepository opportunityRepository,
         Microsoft.Extensions.Options.IOptionsMonitor<ReportingOptions> reportingOptions, CancellationToken cancellationToken) =>
     {
+        if (request.Capital is < 0m or > 100_000_000m || request.TargetNetPercent is < -99m or > 1000m)
+            return Results.BadRequest(new { message = "Parámetros fuera de rango permitido." });
+
         var capital = request.Capital <= 0m ? reportingOptions.CurrentValue.DefaultCapital : request.Capital;
-        var rows = await opportunityRepository.GetSignalsAsync(capital, cancellationToken);
-        var row = rows.FirstOrDefault(item => item.Id == id);
+        var row = await opportunityRepository.GetByIdAsync(id, capital, cancellationToken);
 
         if (row is null)
             return Results.NotFound(new { message = "Señal no encontrada." });
@@ -235,15 +288,15 @@ try
             targetNetPnL = breakdown.NetBenefit,
             targetTotalObtained = breakdown.TotalObtained
         });
-    });
+    }).RequireAuthorization().RequireRateLimiting("api-mutation");
     app.MapGet("/api/exchange/status", async (ExchangeConnectionStatusService statusService, CancellationToken cancellationToken) =>
     {
         return Results.Json(await statusService.GetAsync(cancellationToken));
-    });
+    }).RequireAuthorization().RequireRateLimiting("api");
     app.MapPost("/api/conexiones/reintentar", async (ConnectionRetryRequest request, ConnectionRetryService retryService, CancellationToken cancellationToken) =>
     {
         return Results.Json(await retryService.RetryAsync(request, cancellationToken));
-    });
+    }).RequireAuthorization().RequireRateLimiting("api-mutation");
     app.MapGet("/api/logs", (string? logFile, int? lines, string? nivel, string? evento, string? buscar, string? ambito,
         OperationalLogReader logReader, OperationalLogInterpreter logInterpreter) =>
     {
@@ -278,7 +331,7 @@ try
             filteredCount = filtered.Count,
             scope = OperationalLogInterpreter.NormalizeScope(ambito)
         });
-    });
+    }).RequireAuthorization().RequireRateLimiting("api");
     app.MapRazorPages().WithStaticAssets();
     app.Run();
 }

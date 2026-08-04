@@ -13,6 +13,8 @@ public interface IOpportunityRepository : ISignalStore
 
     Task<OpportunityReportRow?> GetByAlertKeyAsync(string alertKey, decimal capital, CancellationToken cancellationToken);
 
+    Task<OpportunityReportRow?> GetByIdAsync(Guid id, decimal capital, CancellationToken cancellationToken);
+
     Task<decimal> GetRealizedNetSinceAsync(DateTimeOffset since, CancellationToken cancellationToken);
 
     Task UpdateManagedTargetAsync(Guid id, decimal targetNetPercent, CancellationToken cancellationToken);
