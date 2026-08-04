@@ -59,6 +59,7 @@ try
     builder.Services.AddSingleton<ExternalAiSignalEngine>();
     builder.Services.AddSingleton<OpportunityProjectionService>();
     builder.Services.AddSingleton<OpportunityExitService>();
+    builder.Services.AddSingleton<SelfLearningSignalPolicy>();
     builder.Services.AddSingleton(serviceProvider => new TradeInstructionService(serviceProvider.GetRequiredService<IOptionsMonitor<RiskOptions>>().CurrentValue));
     builder.Services.AddSingleton<MarketScanner>();
 
